@@ -1,5 +1,4 @@
-import type { VenueType } from '@localbite/shared';
-import { colors, venueTypeMeta } from '../../../theme';
+import { colors } from '../../../theme';
 import { VENUE_ICON_SVG } from './icons';
 
 export interface LeafletConfig {
@@ -10,10 +9,6 @@ export interface LeafletConfig {
   interactive: boolean;
 }
 
-const typeColors = Object.fromEntries(
-  (Object.keys(venueTypeMeta) as VenueType[]).map((type) => [type, venueTypeMeta[type].color]),
-) as Record<VenueType, string>;
-
 /**
  * WebView içinde çalışan Leaflet sayfası. RN ile köprü:
  *  RN → sayfa: window.bridge.receive({ type: 'venues' | 'select' | 'user' | 'padding' | 'focus', ... })
@@ -23,13 +18,13 @@ export function buildLeafletHtml(config: LeafletConfig): string {
   const page = {
     ...config,
     icons: VENUE_ICON_SVG,
-    typeColors,
     colors: {
       open: colors.open,
       mobile: colors.mobile,
       mobileAccent: colors.mobileAccent,
       primary: colors.primary,
       surface: colors.surface,
+      shop: colors.shop,
       bg: '#EDE8DF',
     },
   };
@@ -103,6 +98,8 @@ export function buildLeafletHtml(config: LeafletConfig): string {
   el.addEventListener('touchend', function () { touching = false; }, { passive: true });
   map.on('movestart', function () { if (touching) gesture = true; });
   map.on('dragstart', function () { gesture = true; });
+  // Boş alana dokunma (pin tıklaması haritaya yayılmaz)
+  map.on('click', function () { post({ type: 'mapPress' }); });
   map.on('moveend', function () {
     var c = visibleCenter();
     post({ type: 'moveend', latitude: c.lat, longitude: c.lng, zoom: map.getZoom(), isGesture: gesture });
@@ -118,8 +115,9 @@ export function buildLeafletHtml(config: LeafletConfig): string {
   function venueHtml(v, selected) {
     var size = selected ? 44 : 34, icon = selected ? 22 : 17;
     var bg = v.isMobile ? cfg.colors.mobile : cfg.colors.surface;
-    var border = v.isMobile ? cfg.colors.mobileAccent : cfg.typeColors[v.type];
-    var fg = v.isMobile ? '#fff' : cfg.typeColors[v.type];
+    // 🟠 seyyar / 🔵 esnaf; ikon türü gösterir
+    var border = v.isMobile ? cfg.colors.mobileAccent : cfg.colors.shop;
+    var fg = v.isMobile ? '#fff' : cfg.colors.shop;
     var ring = size + 8;
     return '<div class="pin-box">' +
       (v.isActiveNow ? '<div class="pulse" style="width:' + ring + 'px;height:' + ring + 'px"></div>' : '') +

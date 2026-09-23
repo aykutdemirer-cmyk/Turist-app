@@ -6,22 +6,22 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { useNearbyVenues } from '../../api/venues';
-import { FilterChips } from '../../components/filters/FilterChips';
+import { NearestCartsCard, SocialReportCallout } from '../../components/explore/ExploreCards';
 import { VenueMap, type VenueMapHandle } from '../../components/map/VenueMap';
-import { VenueCarousel } from '../../components/venue/VenueCarousel';
 import { DEFAULT_CENTER, useUserLocation } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
-import { useExploreStore } from '../../store/explore';
+import { useExploreStore, type MapLayers } from '../../store/explore';
 import { useAvatarFace } from '../../store/profile';
-import { colors, font, radius, shadow, spacing } from '../../theme';
+import { colors, radius, shadow, spacing } from '../../theme';
 
-const CAROUSEL_HEIGHT = 168;
 const TOP_BAR_HEIGHT = 56;
-const ACTIONS_HEIGHT = 56;
+/** Alt kartın yaklaşık yüksekliği; harita odaklaması bu alanın üstüne yapılır */
+const BOTTOM_CARD_HEIGHT = 230;
 /** Harita bu kadar kaydırılınca "Bu bölgede ara" görünür */
 const SEARCH_HERE_THRESHOLD_M = 800;
+const NEAREST_CARTS = 3;
 
-export default function MapScreen() {
+export default function ExploreScreen() {
   const t = useT();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -29,9 +29,10 @@ export default function MapScreen() {
   const avatarFace = useAvatarFace();
 
   const location = useUserLocation();
-  const { filters, selectedId, select, searchCenter, setSearchCenter } = useExploreStore(
+  const { layers, toggleLayer, selectedId, select, searchCenter, setSearchCenter } = useExploreStore(
     useShallow((s) => ({
-      filters: s.filters,
+      layers: s.layers,
+      toggleLayer: s.toggleLayer,
       selectedId: s.selectedId,
       select: s.select,
       searchCenter: s.searchCenter,
@@ -42,10 +43,18 @@ export default function MapScreen() {
   // İzin yoksa ya da konum alınamadıysa varsayılan merkez; yalnızca izin cevabı beklenirken null
   const userCenter = location.coords ?? (location.status !== 'pending' ? DEFAULT_CENTER : null);
   const queryCenter = searchCenter ?? userCenter;
-  const nearby = useNearbyVenues(queryCenter, filters);
-  const venues = useMemo(() => nearby.data?.items ?? [], [nearby.data]);
+  const nearby = useNearbyVenues(queryCenter);
+  const all = useMemo(() => nearby.data?.items ?? [], [nearby.data]);
 
-  // İlk konum geldiğinde haritayı kullanıcıya odakla (izin yoksa varsayılan merkezde kalır)
+  const visible = useMemo(
+    () => all.filter((v) => (v.isMobile ? layers.carts : layers.shops)),
+    [all, layers],
+  );
+  // API mesafeye göre sıralı döner
+  const nearestCarts = useMemo(() => all.filter((v) => v.isMobile).slice(0, NEAREST_CARTS), [all]);
+  const selected = visible.find((v) => v.id === selectedId) ?? null;
+
+  // İlk konum geldiğinde haritayı kullanıcıya odakla
   const centeredOnUser = useRef(false);
   useEffect(() => {
     if (location.coords && !centeredOnUser.current) {
@@ -54,33 +63,24 @@ export default function MapScreen() {
     }
   }, [location.coords]);
 
-  // Filtre değişince seçili mekan listeden düştüyse en yakını seç
-  useEffect(() => {
-    if (!nearby.data) return;
-    if (!venues.some((v) => v.id === selectedId)) select(venues[0]?.id ?? null);
-  }, [nearby.data, venues, selectedId, select]);
-
   const [mapCenter, setMapCenter] = useState<LatLng | null>(null);
   const showSearchHere =
     mapCenter !== null && queryCenter !== null && haversineMeters(mapCenter, queryCenter) > SEARCH_HERE_THRESHOLD_M;
 
   const focusVenue = useCallback(
     (id: string) => {
-      const venue = venues.find((v) => v.id === id);
+      const venue = all.find((v) => v.id === id);
       if (!venue) return;
+      // Katmanı kapalı bir mekan seçildiyse (ör. listeden seyyar) katmanı aç
+      if (venue.isMobile && !layers.carts) toggleLayer('carts');
+      if (!venue.isMobile && !layers.shops) toggleLayer('shops');
       select(id);
       mapRef.current?.focus(venue);
     },
-    [venues, select],
+    [all, layers, toggleLayer, select],
   );
 
-  const openVenue = useCallback(
-    (id: string) => {
-      select(id);
-      router.push({ pathname: '/venue/[id]', params: { id } });
-    },
-    [router, select],
-  );
+  const openVenue = (id: string) => router.push({ pathname: '/venue/[id]', params: { id } });
 
   const locateMe = async () => {
     const coords = await location.refresh();
@@ -95,29 +95,29 @@ export default function MapScreen() {
     setMapCenter(null);
   };
 
-  const topInset = insets.top + TOP_BAR_HEIGHT;
-  // Sekme çubuğu alttaki güvenli alanı zaten kaplıyor
-  const bottomInset = CAROUSEL_HEIGHT + ACTIONS_HEIGHT;
-
   return (
     <View style={styles.screen}>
       <VenueMap
         ref={mapRef}
         initialCenter={location.coords ?? DEFAULT_CENTER}
-        venues={venues}
-        selectedId={selectedId}
+        venues={visible}
+        selectedId={selected?.id ?? null}
         onSelectVenue={focusVenue}
+        onMapPress={() => select(null)}
         user={location.coords ? { ...location.coords, face: avatarFace } : null}
-        topInset={topInset}
-        bottomInset={bottomInset}
+        topInset={insets.top + TOP_BAR_HEIGHT}
+        bottomInset={BOTTOM_CARD_HEIGHT}
         onRegionChangeComplete={(center, isGesture) => {
           if (isGesture) setMapCenter(center);
         }}
       />
 
-      {/* Üst: filtreler + durum */}
+      {/* Üst: katman çipleri + durum */}
       <View style={[styles.top, { paddingTop: insets.top + spacing.sm }]} pointerEvents="box-none">
-        <FilterChips />
+        <View style={styles.chips} pointerEvents="box-none">
+          <LayerChip layer="carts" label={t.explore.carts} color={colors.mobile} layers={layers} onToggle={toggleLayer} />
+          <LayerChip layer="shops" label={t.explore.shops} color={colors.shop} layers={layers} onToggle={toggleLayer} />
+        </View>
         <View style={styles.topStatus} pointerEvents="box-none">
           {location.status === 'denied' && !searchCenter && (
             <View style={styles.notice}>
@@ -138,8 +138,8 @@ export default function MapScreen() {
         </View>
       </View>
 
-      {/* Alt: konum butonu + kartlar */}
-      <View style={[styles.bottom, { paddingBottom: spacing.sm }]} pointerEvents="box-none">
+      {/* Alt: konum butonu + özet kartı / seçili mekan balonu */}
+      <View style={styles.bottom} pointerEvents="box-none">
         <Pressable
           onPress={locateMe}
           accessibilityLabel={t.map.locateMe}
@@ -149,29 +149,48 @@ export default function MapScreen() {
         </Pressable>
 
         {nearby.isError && !nearby.data ? (
-          <MessageCard text={t.map.loadError} action={t.map.retry} onAction={() => nearby.refetch()} />
-        ) : nearby.data && venues.length === 0 ? (
-          <MessageCard text={t.map.empty} />
+          <Pressable onPress={() => nearby.refetch()} style={[styles.error, shadow.card]}>
+            <Text style={styles.errorText}>{t.map.loadError}</Text>
+            <Text style={[styles.errorText, { color: colors.primary, fontWeight: '700' }]}>{t.map.retry}</Text>
+          </Pressable>
+        ) : selected ? (
+          <SocialReportCallout venue={selected} onOpen={openVenue} onClose={() => select(null)} />
         ) : (
-          <View style={{ height: CAROUSEL_HEIGHT }}>
-            <VenueCarousel venues={venues} selectedId={selectedId} onSnapTo={focusVenue} onOpen={openVenue} />
-          </View>
+          <NearestCartsCard carts={nearestCarts} onPick={focusVenue} />
         )}
       </View>
     </View>
   );
 }
 
-function MessageCard({ text, action, onAction }: { text: string; action?: string; onAction?: () => void }) {
+function LayerChip({
+  layer,
+  label,
+  color,
+  layers,
+  onToggle,
+}: {
+  layer: keyof MapLayers;
+  label: string;
+  color: string;
+  layers: MapLayers;
+  onToggle: (layer: keyof MapLayers) => void;
+}) {
+  const active = layers[layer];
   return (
-    <View style={[styles.message, shadow.card]}>
-      <Text style={styles.messageText}>{text}</Text>
-      {action && (
-        <Pressable onPress={onAction} style={({ pressed }) => [styles.messageButton, pressed && styles.pressed]}>
-          <Text style={styles.messageButtonText}>{action}</Text>
-        </Pressable>
-      )}
-    </View>
+    <Pressable
+      onPress={() => onToggle(layer)}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: active }}
+      style={({ pressed }) => [
+        styles.chip,
+        { backgroundColor: active ? color : colors.surface, borderColor: color },
+        pressed && styles.pressed,
+      ]}
+    >
+      <View style={[styles.chipDot, { backgroundColor: active ? colors.textInverse : color }]} />
+      <Text style={[styles.chipText, { color: active ? colors.textInverse : color }]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -180,6 +199,19 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.8 },
 
   top: { position: 'absolute', top: 0, left: 0, right: 0 },
+  chips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 40,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    ...shadow.pin,
+  },
+  chipDot: { width: 10, height: 10, borderRadius: 5 },
+  chipText: { fontSize: 14, fontWeight: '800', letterSpacing: 0.6 },
   topStatus: { alignItems: 'center', marginTop: spacing.sm, gap: spacing.sm },
   notice: {
     backgroundColor: colors.warningSoft,
@@ -199,18 +231,13 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   searchHereText: { color: colors.textInverse, fontWeight: '700', fontSize: 14 },
-  loading: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    padding: 8,
-    ...shadow.pin,
-  },
+  loading: { backgroundColor: colors.surface, borderRadius: radius.pill, padding: 8, ...shadow.pin },
 
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   locate: {
     alignSelf: 'flex-end',
     marginRight: spacing.lg,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -219,21 +246,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadow.card,
   },
-  message: {
+  error: {
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
     padding: spacing.lg,
     borderRadius: radius.lg,
     backgroundColor: colors.surface,
-    gap: spacing.md,
+    gap: spacing.xs,
   },
-  messageText: { ...font.body, color: colors.textMuted },
-  messageButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-  },
-  messageButtonText: { color: colors.textInverse, fontWeight: '700' },
+  errorText: { fontSize: 14, color: colors.textMuted },
 });

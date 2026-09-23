@@ -22,6 +22,8 @@ export const colors = {
 
   mobile: '#F97316', // seyyar pini: turuncu
   mobileAccent: '#FACC15', // seyyar pini: sarı iç halka
+  shop: '#2563EB', // esnaf pini: mavi
+  shopSoft: '#DBEAFE',
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
@@ -53,7 +55,7 @@ export const shadow = {
 };
 
 export const venueTypeMeta: Record<VenueType, { color: string; Icon: LucideIcon; emoji: string }> = {
-  HOME_COOKING: { color: '#B45309', Icon: Soup, emoji: '🍲' },
+  HOME_COOKING: { color: colors.shop, Icon: Soup, emoji: '🍲' },
   STREET_CART: { color: colors.mobile, Icon: Truck, emoji: '🍢' },
   LOCAL_BURGER_WRAP: { color: '#7C3AED', Icon: Sandwich, emoji: '🍔' },
   DESSERT_TEA: { color: '#DB2777', Icon: CakeSlice, emoji: '☕' },

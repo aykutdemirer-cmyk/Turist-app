@@ -13,9 +13,11 @@ interface Props {
   venues: VenueSummaryDTO[];
   selectedId: string | null;
   onSelectVenue: (id: string) => void;
+  /** Haritada boş bir yere dokunuldu (seçimi kapatmak için) */
+  onMapPress?: () => void;
   /** Kullanıcının avatarı (konum yoksa null) */
   user: MapUser | null;
-  /** Üst filtre barı ve alt karusel altında kalan alan; odaklama buna göre yapılır */
+  /** Üst çipler ve alt kart altında kalan alan; odaklama buna göre yapılır */
   topInset: number;
   bottomInset: number;
   onRegionChangeComplete?: (center: LatLng, isGesture: boolean) => void;
@@ -30,6 +32,7 @@ export function VenueMap({
   venues,
   selectedId,
   onSelectVenue,
+  onMapPress,
   user,
   topInset,
   bottomInset,
@@ -65,6 +68,7 @@ export function VenueMap({
       user={user}
       padding={{ top: topInset, bottom: bottomInset }}
       onPinPress={onSelectVenue}
+      onMapPress={onMapPress}
       onMoveEnd={(center, { isGesture }) => onRegionChangeComplete?.(center, isGesture)}
     />
   );

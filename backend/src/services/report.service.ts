@@ -1,9 +1,12 @@
 import { Prisma } from '@prisma/client';
 import {
+  boundingBox,
   getLocalClock,
   haversineMeters,
   LOCATION_REQUIRED_REPORTS,
   type LatLng,
+  type RecentConfirmationDTO,
+  type RecentConfirmationsQuery,
   type ReportInput,
   type ReportResultDTO,
 } from '@localbite/shared';
@@ -16,6 +19,52 @@ export const MAX_REPORT_DISTANCE_M = 500;
 
 export async function findOrCreateUserByDevice(deviceId: string) {
   return prisma.user.upsert({ where: { deviceId }, create: { deviceId }, update: {} });
+}
+
+/** Yakındaki son "Bugün burada gördüm" teyitleri, en yeniden eskiye. Raporlayan bilgisi dönmez. */
+export async function recentConfirmations(
+  query: RecentConfirmationsQuery,
+  now = new Date(),
+): Promise<RecentConfirmationDTO[]> {
+  const origin: LatLng = { latitude: query.lat, longitude: query.lng };
+  // Seyyarların günlük köşesi varsayılan konumdan uzak olabilir; ön filtreyi genişlet
+  const box = boundingBox(origin, query.radius + 1_500);
+
+  const rows = await prisma.spotReport.findMany({
+    where: {
+      type: 'SPOTTED_TODAY',
+      createdAt: { gte: new Date(now.getTime() - query.hours * 3_600_000) },
+      venue: {
+        status: 'APPROVED',
+        latitude: { gte: box.minLat, lte: box.maxLat },
+        longitude: { gte: box.minLng, lte: box.maxLng },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: query.limit * 2,
+    select: {
+      id: true,
+      createdAt: true,
+      venue: { select: { id: true, name: true, type: true, isMobile: true, latitude: true, longitude: true } },
+    },
+  });
+
+  return rows
+    .map((r) => {
+      // Mesafe mekana göre: raporlayan 500 m'ye kadar uzaktan teyit verebilir, onun konumu yanıltır
+      const at: LatLng = { latitude: r.venue.latitude, longitude: r.venue.longitude };
+      return {
+        id: r.id,
+        venueId: r.venue.id,
+        venueName: r.venue.name,
+        venueType: r.venue.type,
+        isMobile: r.venue.isMobile,
+        createdAt: r.createdAt.toISOString(),
+        distanceMeters: Math.round(haversineMeters(origin, at)),
+      };
+    })
+    .filter((c) => c.distanceMeters <= query.radius)
+    .slice(0, query.limit);
 }
 
 export async function submitReport(

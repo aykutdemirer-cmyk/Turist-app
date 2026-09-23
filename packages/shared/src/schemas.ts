@@ -41,6 +41,16 @@ export const nearbyQuerySchema = z.object({
 });
 export type NearbyQuery = z.infer<typeof nearbyQuerySchema>;
 
+export const recentConfirmationsQuerySchema = z.object({
+  lat: latitudeSchema,
+  lng: longitudeSchema,
+  radius: z.coerce.number().int().min(100).max(20_000).default(5_000),
+  /** Geriye dönük saat */
+  hours: z.coerce.number().int().min(1).max(72).default(24),
+  limit: z.coerce.number().int().min(1).max(50).default(30),
+});
+export type RecentConfirmationsQuery = z.infer<typeof recentConfirmationsQuerySchema>;
+
 export const scheduleInputSchema = z
   .object({
     dayOfWeek: z.number().int().min(0).max(6),

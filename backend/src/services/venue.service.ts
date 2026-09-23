@@ -11,6 +11,7 @@ import {
   type NearbyQuery,
   type RatingSummary,
   type ReviewDTO,
+  type ReviewSnippetDTO,
   type VenueDetailDTO,
   type VenueSummaryDTO,
 } from '@localbite/shared';
@@ -70,9 +71,42 @@ export async function ratingSummaries(venueIds: string[]): Promise<Map<string, R
 
 const NO_RATING: RatingSummary = { average: null, count: 0 };
 
+type ReviewWithTranslations = Prisma.ReviewGetPayload<{ include: { translations: true } }>;
+
+/** İstenen dil → özgün dil → ilk satır */
+function reviewText(r: ReviewWithTranslations, locale: Locale) {
+  return (
+    r.translations.find((x) => x.locale === locale) ??
+    r.translations.find((x) => x.locale === r.originalLocale) ??
+    r.translations[0]
+  );
+}
+
+/** Mekan başına en yeni yorum (harita balonu ve kartlar için). */
+export async function latestReviews(venueIds: string[], locale: Locale): Promise<Map<string, ReviewSnippetDTO>> {
+  if (venueIds.length === 0) return new Map();
+  const rows = await prisma.review.findMany({
+    where: { venueId: { in: venueIds } },
+    orderBy: { publishedAt: 'desc' },
+    include: { translations: true },
+  });
+  const byVenue = new Map<string, ReviewSnippetDTO>();
+  for (const r of rows) {
+    if (byVenue.has(r.venueId)) continue;
+    byVenue.set(r.venueId, {
+      authorName: r.authorName,
+      rating: r.rating,
+      source: r.source,
+      text: reviewText(r, locale)?.text ?? '',
+    });
+  }
+  return byVenue;
+}
+
 interface Aggregates {
   spottedToday: Map<string, number>;
   ratings: Map<string, RatingSummary>;
+  latest: Map<string, ReviewSnippetDTO>;
 }
 
 export type LiveStatusInput = Pick<Venue, 'isMobile' | 'latitude' | 'longitude' | 'locationNote' | 'lastSpottedAt'> & {
@@ -101,7 +135,7 @@ function toSummary(
   locale: Locale,
   origin: LatLng,
   now: Date,
-  { spottedToday, ratings }: Aggregates,
+  { spottedToday, ratings, latest }: Aggregates,
 ): VenueSummaryDTO {
   const status = liveStatus(venue, now);
   const t = pickTranslation(venue.translations, locale);
@@ -127,6 +161,8 @@ function toSummary(
     spottedTodayCount: spottedToday.get(venue.id) ?? 0,
     upvoteCount: venue.upvoteCount,
     rating: ratings.get(venue.id) ?? NO_RATING,
+    coverImageUrl: venue.coverImageUrl,
+    topReview: latest.get(venue.id) ?? null,
     mustTry: venue.dishes.map((d) => ({
       id: d.id,
       localName: d.localName,
@@ -150,16 +186,18 @@ export async function findNearbyVenues(query: NearbyQuery, locale: Locale, now =
     include: includeFor(locale, true),
   });
 
-  const [spottedToday, ratings] = await Promise.all([
+  const ids = venues.map((v) => v.id);
+  const [spottedToday, ratings, latest] = await Promise.all([
     spottedTodayCounts(
       venues.filter((v) => v.isMobile).map((v) => v.id),
       now,
     ),
-    ratingSummaries(venues.map((v) => v.id)),
+    ratingSummaries(ids),
+    latestReviews(ids, locale),
   ]);
 
   const items = venues
-    .map((v) => toSummary(v, locale, origin, now, { spottedToday, ratings }))
+    .map((v) => toSummary(v, locale, origin, now, { spottedToday, ratings, latest }))
     .filter((v) => v.distanceMeters <= query.radius)
     .filter((v) => !query.openNowOnly || v.isActiveNow)
     .sort((a, b) => a.distanceMeters - b.distanceMeters)
@@ -213,12 +251,9 @@ export async function getVenueDetail(idOrSlug: string, locale: Locale, now = new
     spottedTodayCount: spottedToday.get(venue.id) ?? 0,
     upvoteCount: venue.upvoteCount,
     rating: ratings.get(venue.id) ?? NO_RATING,
+    coverImageUrl: venue.coverImageUrl,
     reviews: reviews.map((r): ReviewDTO => {
-      // İstenen dil → özgün dil → ilk satır
-      const text =
-        r.translations.find((x) => x.locale === locale) ??
-        r.translations.find((x) => x.locale === r.originalLocale) ??
-        r.translations[0];
+      const text = reviewText(r, locale);
       return {
         id: r.id,
         authorName: r.authorName,
@@ -241,6 +276,7 @@ export async function getVenueDetail(idOrSlug: string, locale: Locale, now = new
         isMustTry: d.isMustTry,
         isVegetarian: d.isVegetarian,
         priceTry: d.priceTry ? Number(d.priceTry) : null,
+        imageUrl: d.imageUrl,
       };
     }),
     schedules: venue.schedules.map((s) => ({

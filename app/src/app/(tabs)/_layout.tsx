@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { CirclePlus, House, Map } from 'lucide-react-native';
+import { Bell, Compass, House, User } from 'lucide-react-native';
 import { useShallow } from 'zustand/react/shallow';
 import { SuggestSpotModal } from '../../components/suggest/SuggestSpotModal';
 import { DEFAULT_CENTER, useLocationTracker, useUserLocation } from '../../hooks/useUserLocation';
@@ -12,8 +12,8 @@ export default function TabsLayout() {
   // Konum bir kez burada alınır ve canlı takip edilir; tüm sekmeler aynı konumu paylaşır
   useLocationTracker();
   const location = useUserLocation();
-  const { suggestOpen, openSuggest, closeSuggest } = useExploreStore(
-    useShallow((s) => ({ suggestOpen: s.suggestOpen, openSuggest: s.openSuggest, closeSuggest: s.closeSuggest })),
+  const { suggestOpen, closeSuggest } = useExploreStore(
+    useShallow((s) => ({ suggestOpen: s.suggestOpen, closeSuggest: s.closeSuggest })),
   );
 
   return (
@@ -33,24 +33,19 @@ export default function TabsLayout() {
         />
         <Tabs.Screen
           name="map"
-          options={{ title: t.tabs.map, tabBarIcon: ({ color, size }) => <Map color={color} size={size} /> }}
+          options={{ title: t.tabs.explore, tabBarIcon: ({ color, size }) => <Compass color={color} size={size} /> }}
         />
         <Tabs.Screen
-          name="spot"
-          options={{
-            title: t.tabs.spot,
-            tabBarIcon: ({ size }) => <CirclePlus color={colors.primary} size={size + 2} strokeWidth={2.4} />,
-          }}
-          // Bildir sekmesi bir ekran değil: bulunduğun sekmede formu modal olarak açar
-          listeners={{
-            tabPress: (e) => {
-              e.preventDefault();
-              openSuggest();
-            },
-          }}
+          name="confirmations"
+          options={{ title: t.tabs.confirmations, tabBarIcon: ({ color, size }) => <Bell color={color} size={size} /> }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{ title: t.tabs.profile, tabBarIcon: ({ color, size }) => <User color={color} size={size} /> }}
         />
       </Tabs>
 
+      {/* "Gizli lezzet bildir": Teyitler ve Profil sekmelerinden açılır */}
       <SuggestSpotModal
         visible={suggestOpen}
         onClose={closeSuggest}

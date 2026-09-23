@@ -33,6 +33,7 @@ interface Props {
   /** Haritanın üstünü/altını örten arayüz yüksekliği; odaklama görünür alana göre yapılır */
   padding?: { top: number; bottom: number };
   onPinPress?: (id: string) => void;
+  onMapPress?: () => void;
   onMoveEnd?: (center: LatLng, info: { isGesture: boolean; zoom: number }) => void;
   style?: StyleProp<ViewStyle>;
 }
@@ -48,6 +49,7 @@ type PageMessage =
   | { type: 'ready' }
   | { type: 'error'; message: string }
   | { type: 'markerPress'; id: string }
+  | { type: 'mapPress' }
   | { type: 'moveend'; latitude: number; longitude: number; zoom: number; isGesture: boolean };
 
 /**
@@ -64,6 +66,7 @@ export function LeafletView({
   user = null,
   padding = { top: 0, bottom: 0 },
   onPinPress,
+  onMapPress,
   onMoveEnd,
   style,
 }: Props) {
@@ -118,6 +121,7 @@ export function LeafletView({
     }
     if (msg.type === 'ready') setReady(true);
     else if (msg.type === 'markerPress') onPinPress?.(msg.id);
+    else if (msg.type === 'mapPress') onMapPress?.();
     else if (msg.type === 'moveend')
       onMoveEnd?.({ latitude: msg.latitude, longitude: msg.longitude }, { isGesture: msg.isGesture, zoom: msg.zoom });
     else if (msg.type === 'error') console.warn('[LeafletView]', msg.message);

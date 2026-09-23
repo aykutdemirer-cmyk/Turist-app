@@ -1,23 +1,17 @@
-import type { LatLng, VenueType } from '@localbite/shared';
+import type { LatLng } from '@localbite/shared';
 import { create } from 'zustand';
 
-export interface Filters {
-  openNow: boolean;
-  budget: boolean;
-  /** Boşsa tüm kategoriler */
-  categories: VenueType[];
+/** Keşfet haritasındaki katman anahtarları: 🟠 SEYYAR, 🔵 ESNAF */
+export interface MapLayers {
+  carts: boolean;
+  shops: boolean;
 }
 
-export const NO_FILTERS: Filters = { openNow: false, budget: false, categories: [] };
-
 interface ExploreState {
-  filters: Filters;
-  toggleFilter: (key: 'openNow' | 'budget') => void;
-  toggleCategory: (type: VenueType) => void;
-  /** Ana sayfadaki hızlı kategori seçiciler: yalnızca bu kategori */
-  showOnlyCategory: (type: VenueType) => void;
+  layers: MapLayers;
+  toggleLayer: (key: keyof MapLayers) => void;
 
-  /** Haritada/karuselde seçili mekan */
+  /** Haritada seçili mekan ("Social Lezzet Report" balonu) */
   selectedId: string | null;
   select: (id: string | null) => void;
 
@@ -25,26 +19,15 @@ interface ExploreState {
   searchCenter: LatLng | null;
   setSearchCenter: (center: LatLng | null) => void;
 
-  /** "Gizli Lezzet Bildir" modalı (Bildir sekmesinden açılır) */
+  /** "Gizli Lezzet Bildir" modalı */
   suggestOpen: boolean;
   openSuggest: () => void;
   closeSuggest: () => void;
 }
 
 export const useExploreStore = create<ExploreState>((set) => ({
-  filters: NO_FILTERS,
-  toggleFilter: (key) => set((s) => ({ filters: { ...s.filters, [key]: !s.filters[key] } })),
-  toggleCategory: (type) =>
-    set((s) => {
-      const has = s.filters.categories.includes(type);
-      return {
-        filters: {
-          ...s.filters,
-          categories: has ? s.filters.categories.filter((c) => c !== type) : [...s.filters.categories, type],
-        },
-      };
-    }),
-  showOnlyCategory: (type) => set((s) => ({ filters: { ...s.filters, categories: [type] } })),
+  layers: { carts: true, shops: true },
+  toggleLayer: (key) => set((s) => ({ layers: { ...s.layers, [key]: !s.layers[key] } })),
 
   selectedId: null,
   select: (selectedId) => set({ selectedId }),

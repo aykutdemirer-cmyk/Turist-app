@@ -1,6 +1,7 @@
 import type {
   LatLng,
   NearbyResponseDTO,
+  RecentConfirmationDTO,
   ReportResultDTO,
   ReportType,
   SuggestVenueInput,
@@ -10,45 +11,54 @@ import type {
 } from '@localbite/shared';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocale } from '../i18n';
-import type { Filters } from '../store/explore';
 import { api } from './client';
 
 export const NEARBY_RADIUS_M = 3_000;
+
+// ~10 m hassasiyet: küçük GPS oynamaları yeni istek tetiklemesin
+const roundCenter = (c: LatLng) => ({ lat: c.latitude.toFixed(4), lng: c.longitude.toFixed(4) });
 
 // Sunucu metinleri dile göre döndürdüğü için dil de sorgu anahtarında: dil değişince yeniden çekilir
 export const venueKeys = {
   all: ['venues'] as const,
   nearby: () => [...venueKeys.all, 'nearby'] as const,
-  nearbyFor: (center: LatLng, filters: Filters, locale: Locale) =>
-    [
-      ...venueKeys.nearby(),
-      // ~10 m hassasiyet: küçük GPS oynamaları yeni istek tetiklemesin
-      { lat: center.latitude.toFixed(4), lng: center.longitude.toFixed(4), ...filters, locale },
-    ] as const,
+  nearbyFor: (center: LatLng, locale: Locale) => [...venueKeys.nearby(), { ...roundCenter(center), locale }] as const,
   detailAll: (id: string) => [...venueKeys.all, 'detail', id] as const,
   detail: (id: string, locale: Locale) => [...venueKeys.detailAll(id), locale] as const,
+  confirmations: (center: LatLng) => [...venueKeys.all, 'confirmations', roundCenter(center)] as const,
 };
 
-export function useNearbyVenues(center: LatLng | null, filters: Filters) {
+/**
+ * Yarıçap içindeki tüm onaylı mekanlar (mesafeye göre sıralı).
+ * Kategori/katman/arama filtreleri istemcide uygulanır: ekranlar aynı önbelleği paylaşır.
+ */
+export function useNearbyVenues(center: LatLng | null) {
   const locale = useLocale();
   return useQuery({
-    queryKey: center ? venueKeys.nearbyFor(center, filters, locale) : venueKeys.nearby(),
+    queryKey: center ? venueKeys.nearbyFor(center, locale) : venueKeys.nearby(),
     enabled: center !== null,
     queryFn: ({ signal }) =>
       api<NearbyResponseDTO>('/venues/nearby', {
         signal,
-        query: {
-          lat: center!.latitude,
-          lng: center!.longitude,
-          radius: NEARBY_RADIUS_M,
-          category: filters.categories,
-          openNowOnly: filters.openNow || undefined,
-          maxPrice: filters.budget ? 'BUDGET' : undefined,
-        },
+        query: { lat: center!.latitude, lng: center!.longitude, radius: NEARBY_RADIUS_M },
       }),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
     // "Şu an açık" durumu zamanla değişir
+    refetchInterval: 60_000,
+  });
+}
+
+export function useRecentConfirmations(center: LatLng | null) {
+  return useQuery({
+    queryKey: center ? venueKeys.confirmations(center) : [...venueKeys.all, 'confirmations'],
+    enabled: center !== null,
+    queryFn: ({ signal }) =>
+      api<{ items: RecentConfirmationDTO[] }>('/confirmations/recent', {
+        signal,
+        query: { lat: center!.latitude, lng: center!.longitude },
+      }),
+    staleTime: 30_000,
     refetchInterval: 60_000,
   });
 }
@@ -105,6 +115,9 @@ export function useReportVenue(venueId: string) {
         old ? { ...old, items: old.items.map(patch) } : old,
       );
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: venueKeys.nearby() }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: venueKeys.nearby() });
+      queryClient.invalidateQueries({ queryKey: [...venueKeys.all, 'confirmations'] });
+    },
   });
 }

@@ -2,13 +2,14 @@ import {
   deviceIdSchema,
   localeSchema,
   nearbyQuerySchema,
+  recentConfirmationsQuerySchema,
   reportInputSchema,
   suggestVenueSchema,
 } from '@localbite/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { resolveLocale } from '../lib/locale';
-import { submitReport } from '../services/report.service';
+import { recentConfirmations, submitReport } from '../services/report.service';
 import { suggestVenue } from '../services/suggest.service';
 import { findNearbyVenues, getVenueDetail } from '../services/venue.service';
 
@@ -16,6 +17,12 @@ import { findNearbyVenues, getVenueDetail } from '../services/venue.service';
 const deviceHeaders = z.looseObject({ 'x-device-id': deviceIdSchema });
 
 export const venueRoutes: FastifyPluginAsyncZod = async (app) => {
+  app.get(
+    '/confirmations/recent',
+    { schema: { querystring: recentConfirmationsQuerySchema } },
+    async (req) => ({ items: await recentConfirmations(req.query) }),
+  );
+
   app.get(
     '/venues/nearby',
     { schema: { querystring: nearbyQuerySchema } },

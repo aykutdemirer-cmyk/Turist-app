@@ -27,7 +27,11 @@ export interface DishDTO {
   isMustTry: boolean;
   isVegetarian: boolean;
   priceTry: number | null;
+  imageUrl: string | null;
 }
+
+/** Haritadaki "Social Lezzet Report" balonu ve kartlar için en yeni yorumun kısa hali */
+export type ReviewSnippetDTO = Pick<ReviewDTO, 'authorName' | 'rating' | 'text' | 'source'>;
 
 export interface ScheduleDTO {
   dayOfWeek: number;
@@ -65,6 +69,8 @@ export interface VenueSummaryDTO {
   spottedTodayCount: number;
   upvoteCount: number;
   rating: RatingSummary;
+  coverImageUrl: string | null;
+  topReview: ReviewSnippetDTO | null;
   mustTry: Pick<DishDTO, 'id' | 'localName' | 'name'>[];
 }
 
@@ -77,7 +83,7 @@ export interface NearbyResponseDTO {
   generatedAt: string;
 }
 
-export interface VenueDetailDTO extends Omit<VenueSummaryDTO, 'distanceMeters' | 'mustTry'> {
+export interface VenueDetailDTO extends Omit<VenueSummaryDTO, 'distanceMeters' | 'mustTry' | 'topReview'> {
   address: string | null;
   phone: string | null;
   description: string | null;
@@ -86,6 +92,17 @@ export interface VenueDetailDTO extends Omit<VenueSummaryDTO, 'distanceMeters' |
   schedules: ScheduleDTO[];
   /** En yeni yorumlar (en fazla 10) */
   reviews: ReviewDTO[];
+}
+
+/** Teyitler akışı: yakındaki son "Bugün burada gördüm" bildirimleri (raporlayan kimliği paylaşılmaz) */
+export interface RecentConfirmationDTO {
+  id: string;
+  venueId: string;
+  venueName: string;
+  venueType: VenueType;
+  isMobile: boolean;
+  createdAt: string;
+  distanceMeters: number;
 }
 
 export interface ReportResultDTO {
