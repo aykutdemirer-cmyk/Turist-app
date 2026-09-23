@@ -65,26 +65,44 @@ enum ReviewSource {
   GOOGLE // Google Places API'den (atıf kurallarına uyularak) alınan yorum
 }
 
+enum UserRole {
+  USER
+  LOCAL_GUIDE // Topluluk tarafından güvenilen yerel rehber (rozet)
+  ADMIN
+}
+
 // ─────────────────────────────────────────────
-// Kullanıcı (MVP: anonim cihaz kimliği)
+// Kullanıcı
+// Konuk: yalnızca deviceId (anonim teyit/öneri). Üye: e-posta+şifre veya Google.
+// Konuk kayıt olduğunda aynı satır üyeye yükseltilir; geçmiş teyitleri korunur.
 // ─────────────────────────────────────────────
 
 model User {
-  id          String  @id @default(cuid())
-  deviceId    String  @unique // app ilk açılışta üretip SecureStore'da saklar
-  displayName String?
-  locale      Locale  @default(en)
+  id        String   @id @default(cuid())
+  /// Konuk kimliği; başka cihazdan giriş yapan üyede null olabilir
+  deviceId  String?  @unique
+  fullName  String?
+  avatarUrl String?
+  role      UserRole @default(USER)
+  locale    Locale   @default(en)
 
-  // İleride hesap bağlama (Apple / Google / e-posta) için; MVP'de hepsi null.
-  email          String? @unique
-  authProvider   String? // "apple" | "google" | "email"
-  authProviderId String?
+  /// Küçük harfe normalize edilir
+  email          String?   @unique
+  /// scrypt; Google ile gelen üyelerde null
+  passwordHash   String?
+  authProvider   String? // "google" | "email"
+  authProviderId String? // Google "sub"
+  lastLoginAt    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   reports         SpotReport[]
   submittedVenues Venue[]      @relation("SubmittedVenues")
+  reviews         Review[]
+  posts           Post[]
+  comments        Comment[]
+  postLikes       PostLike[]
 
   @@unique([authProvider, authProviderId])
 }
@@ -138,6 +156,7 @@ model Venue {
   schedules    VendorSchedule[]
   reports      SpotReport[]
   reviews      Review[]
+  posts        Post[]
 
   @@index([latitude, longitude]) // bbox sorgusu için
   @@index([type, status])
@@ -231,11 +250,18 @@ model Review {
   originalLocale Locale
   publishedAt    DateTime
   createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  /// COMMUNITY yorumlarında yazan üye; SAMPLE/GOOGLE'da null
+  userId         String?
 
   venue        Venue               @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  user         User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   translations ReviewTranslation[]
 
+  /// Bir üye bir mekana tek yorum yazar (tekrar yazınca güncellenir). userId null satırlar serbest.
+  @@unique([venueId, userId])
   @@index([venueId, publishedAt])
+  @@index([userId])
 }
 
 /// Yorum metni dil başına; originalLocale satırı özgün metindir.
@@ -248,6 +274,61 @@ model ReviewTranslation {
   review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
 
   @@unique([reviewId, locale])
+}
+
+// ─────────────────────────────────────────────
+// Topluluk / Lezzet Meclisi
+// ─────────────────────────────────────────────
+
+model Post {
+  id       String  @id @default(cuid())
+  userId   String
+  title    String
+  content  String
+  /// Opsiyonel mekan etiketi
+  venueId  String?
+  imageUrl String?
+
+  // Denormalize sayaçlar (akış sorgusunu hafif tutmak için)
+  likeCount    Int @default(0)
+  commentCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  venue    Venue?     @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  comments Comment[]
+  likes    PostLike[]
+
+  @@index([createdAt])
+  @@index([venueId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+}
+
+/// "Katılıyorum" oyu: üye başına gönderi başına bir tane
+model PostLike {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([userId])
 }
 
 // ─────────────────────────────────────────────
