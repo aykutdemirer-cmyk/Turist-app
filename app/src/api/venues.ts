@@ -4,6 +4,8 @@ import type {
   RecentConfirmationDTO,
   ReportResultDTO,
   ReportType,
+  ReviewDTO,
+  ReviewInput,
   SuggestVenueInput,
   VenueDetailDTO,
   VenueSummaryDTO,
@@ -118,6 +120,19 @@ export function useReportVenue(venueId: string) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: venueKeys.nearby() });
       queryClient.invalidateQueries({ queryKey: [...venueKeys.all, 'confirmations'] });
+    },
+  });
+}
+
+/** Üye yorumu (aynı mekana tekrar gönderilirse güncellenir). Puan ortalaması değiştiği için mekan verisi tazelenir. */
+export function useSubmitReview(venueId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ReviewInput) =>
+      api<ReviewDTO>(`/venues/${encodeURIComponent(venueId)}/review`, { method: 'PUT', body }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: venueKeys.detailAll(venueId) });
+      queryClient.invalidateQueries({ queryKey: venueKeys.nearby() });
     },
   });
 }

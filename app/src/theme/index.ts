@@ -60,3 +60,12 @@ export const venueTypeMeta: Record<VenueType, { color: string; Icon: LucideIcon;
   LOCAL_BURGER_WRAP: { color: '#7C3AED', Icon: Sandwich, emoji: '🍔' },
   DESSERT_TEA: { color: '#DB2777', Icon: CakeSlice, emoji: '☕' },
 };
+
+const AUTHOR_COLORS = ['#C2410C', '#7C3AED', '#0F766E', '#B45309', '#DB2777', '#1D4ED8'];
+
+/** Yazar adından sabit bir renk (aynı kişi hep aynı renkte) */
+export function authorColor(name: string) {
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  return AUTHOR_COLORS[Math.abs(hash) % AUTHOR_COLORS.length];
+}

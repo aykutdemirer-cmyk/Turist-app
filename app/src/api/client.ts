@@ -1,5 +1,6 @@
 import { getLocale } from '../i18n';
 import { getDeviceId } from '../lib/deviceId';
+import { getAuthToken, useAuthStore } from '../store/auth';
 import { API_BASE } from './config';
 
 export class ApiError extends Error {
@@ -17,7 +18,7 @@ export class ApiError extends Error {
 type Query = Record<string, string | number | boolean | string[] | undefined>;
 
 interface RequestOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   query?: Query;
   body?: unknown;
   signal?: AbortSignal;
@@ -34,7 +35,10 @@ function toSearch(query?: Query): string {
   return s ? `?${s}` : '';
 }
 
-/** Her isteğe x-device-id ve Accept-Language ekler; hata gövdesini ApiError'a çevirir. */
+/**
+ * Her isteğe x-device-id, Accept-Language ve (üyeyse) Authorization ekler; hata gövdesini ApiError'a çevirir.
+ * Sunucu oturumu reddederse (süresi dolmuş/silinmiş hesap) yerel oturum kapatılır, kullanıcı misafire düşer.
+ */
 export async function api<T>(path: string, { method = 'GET', query, body, signal }: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -42,6 +46,8 @@ export async function api<T>(path: string, { method = 'GET', query, body, signal
     'x-device-id': await getDeviceId(),
   };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const token = getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   let res: Response;
   try {
@@ -60,6 +66,10 @@ export async function api<T>(path: string, { method = 'GET', query, body, signal
     | (T & { error?: string; message?: string; details?: unknown })
     | null;
   if (!res.ok) {
+    // Yalnızca bu istekte gönderilen oturum reddedildiyse (arada yeniden giriş yapılmış olabilir)
+    if (res.status === 401 && token && data?.error === 'UNAUTHORIZED' && getAuthToken() === token) {
+      useAuthStore.getState().signOut();
+    }
     throw new ApiError(res.status, data?.error ?? 'HTTP_ERROR', data?.message ?? res.statusText, data?.details);
   }
   return data as T;

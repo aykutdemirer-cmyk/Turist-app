@@ -164,7 +164,7 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
           </Section>
         )}
 
-        <ReviewsSection rating={venue.rating} reviews={venue.reviews} />
+        <ReviewsSection venueId={venue.id} rating={venue.rating} reviews={venue.reviews} />
 
         {/* Kültürel ipuçları — rehber kartları */}
         {(venue.localTips.length > 0 || venue.customTip) && (

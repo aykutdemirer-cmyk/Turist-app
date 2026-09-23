@@ -1,5 +1,5 @@
 import { Check } from 'lucide-react-native';
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { colors, font, radius, spacing } from '../../theme';
 
@@ -26,9 +26,10 @@ export function Field({ label, error, children }: { label: string; error?: strin
   );
 }
 
-export function Input({ invalid, style, ...props }: TextInputProps & { invalid?: boolean }) {
+export function Input({ invalid, style, ref, ...props }: TextInputProps & { invalid?: boolean; ref?: Ref<TextInput> }) {
   return (
     <TextInput
+      ref={ref}
       placeholderTextColor={colors.closed}
       style={[styles.input, invalid && styles.inputInvalid, style]}
       {...props}
