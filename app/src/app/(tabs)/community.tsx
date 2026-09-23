@@ -1,0 +1,85 @@
+import { useRouter } from 'expo-router';
+import { PenSquare } from 'lucide-react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCommunityFeed } from '../../api/community';
+import { PostCard } from '../../components/community/PostCard';
+import { useRequireAuth } from '../../hooks/useRequireAuth';
+import { useT } from '../../i18n';
+import { colors, font, radius, shadow, spacing } from '../../theme';
+
+export default function CommunityScreen() {
+  const t = useT();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const requireAuth = useRequireAuth();
+  const feed = useCommunityFeed();
+  const posts = feed.data?.pages.flatMap((p) => p.items) ?? [];
+
+  const compose = () => requireAuth('post', () => router.push('/community/new'));
+
+  return (
+    <View style={styles.screen}>
+      <FlatList
+        data={posts}
+        keyExtractor={(p) => p.id}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+        refreshControl={
+          <RefreshControl refreshing={feed.isRefetching && !feed.isFetchingNextPage} onRefresh={() => feed.refetch()} tintColor={colors.primary} />
+        }
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (feed.hasNextPage && !feed.isFetchingNextPage) feed.fetchNextPage();
+        }}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <Text style={font.title}>{t.community.title}</Text>
+            <Text style={[font.small, styles.subtitle]}>{t.community.subtitle}</Text>
+            <Pressable onPress={compose} style={({ pressed }) => [styles.cta, shadow.card, pressed && styles.pressed]}>
+              <PenSquare size={20} color={colors.textInverse} />
+              <Text style={styles.ctaText}>{t.community.newPost}</Text>
+            </Pressable>
+          </View>
+        }
+        ListEmptyComponent={
+          feed.isPending ? (
+            <ActivityIndicator color={colors.primary} style={styles.loader} />
+          ) : (
+            <Pressable onPress={() => feed.refetch()} style={styles.empty}>
+              <Text style={styles.emptyText}>{feed.isError ? t.community.loadError : t.community.empty}</Text>
+              {feed.isError && <Text style={[font.small, { color: colors.primary }]}>{t.map.retry}</Text>}
+            </Pressable>
+          )
+        }
+        ListFooterComponent={feed.isFetchingNextPage ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : null}
+        ItemSeparatorComponent={Separator}
+        renderItem={({ item }) => (
+          <PostCard post={item} onPress={() => router.push({ pathname: '/community/[id]', params: { id: item.id } })} />
+        )}
+      />
+    </View>
+  );
+}
+
+const Separator = () => <View style={{ height: spacing.md }} />;
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
+  pressed: { opacity: 0.85 },
+  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
+  header: { gap: spacing.xs, marginBottom: spacing.lg },
+  subtitle: { fontWeight: '400', lineHeight: 19 },
+  cta: {
+    marginTop: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+  },
+  ctaText: { flex: 1, color: colors.textInverse, fontWeight: '700', fontSize: 14 },
+  loader: { paddingVertical: spacing.xl },
+  empty: { padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, gap: spacing.xs },
+  emptyText: { ...font.small, fontWeight: '500', lineHeight: 19 },
+});

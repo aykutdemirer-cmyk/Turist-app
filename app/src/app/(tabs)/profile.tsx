@@ -1,14 +1,17 @@
 import * as Haptics from 'expo-haptics';
-import { Info, MapPinPlus } from 'lucide-react-native';
+import { BadgeCheck, Info, LogIn, LogOut, MapPinPlus } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSignOut } from '../../api/auth';
 import { AvatarBadge } from '../../components/ui/Avatar';
 import { LanguageSwitcher } from '../../components/ui/LanguageSwitcher';
+import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useT } from '../../i18n';
+import { useCurrentUser } from '../../store/auth';
 import { useExploreStore } from '../../store/explore';
 import { AVATARS, useProfileStore } from '../../store/profile';
-import { colors, font, radius, spacing } from '../../theme';
+import { authorColor, colors, font, radius, spacing } from '../../theme';
 
 export default function ProfileScreen() {
   const t = useT();
@@ -20,6 +23,8 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}>
       <Text style={font.title}>{t.profile.title}</Text>
+
+      <AccountCard />
 
       <Card title={t.profile.avatar} subtitle={t.avatar.subtitle}>
         <View style={styles.avatars}>
@@ -68,6 +73,60 @@ export default function ProfileScreen() {
   );
 }
 
+/** Misafir → giriş/kayıt çağrısı; üye → ad, e-posta, rol ve çıkış */
+function AccountCard() {
+  const t = useT();
+  const user = useCurrentUser();
+  const requireAuth = useRequireAuth();
+  const signOut = useSignOut();
+
+  if (!user) {
+    return (
+      <Card title={t.account.guest} subtitle={t.account.guestBody}>
+        <Pressable onPress={() => requireAuth('profile')} style={({ pressed }) => [styles.cta, pressed && { opacity: 0.85 }]}>
+          <LogIn size={20} color={colors.textInverse} />
+          <Text style={styles.ctaText}>{t.account.signIn}</Text>
+        </Pressable>
+      </Card>
+    );
+  }
+
+  const name = user.fullName ?? user.email ?? '';
+  return (
+    <Card title={t.account.title}>
+      <View style={styles.accountRow}>
+        <View style={[styles.accountInitial, { backgroundColor: authorColor(name) }]}>
+          <Text style={styles.accountInitialText}>{name.charAt(0).toLocaleUpperCase()}</Text>
+        </View>
+        <View style={styles.flex}>
+          <Text style={styles.accountName} numberOfLines={1}>
+            {name}
+          </Text>
+          {user.email && (
+            <Text style={font.small} numberOfLines={1}>
+              {user.email}
+            </Text>
+          )}
+          <View style={styles.roleBadge}>
+            <BadgeCheck size={12} color={colors.open} />
+            <Text style={styles.roleText}>{t.account.roles[user.role]}</Text>
+          </View>
+        </View>
+      </View>
+      <Pressable
+        onPress={() => {
+          Haptics.selectionAsync();
+          signOut();
+        }}
+        style={({ pressed }) => [styles.signOut, pressed && { opacity: 0.85 }]}
+      >
+        <LogOut size={18} color={colors.danger} />
+        <Text style={styles.signOutText}>{t.account.signOut}</Text>
+      </Pressable>
+    </Card>
+  );
+}
+
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
     <View style={styles.card}>
@@ -112,6 +171,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   ctaText: { color: colors.textInverse, fontWeight: '700', fontSize: 15 },
+  accountRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
+  accountInitial: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  accountInitialText: { color: colors.textInverse, fontWeight: '800', fontSize: 22 },
+  accountName: { fontSize: 16, fontWeight: '700', color: colors.text },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 3,
+    marginTop: 4,
+    backgroundColor: colors.openSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+  },
+  roleText: { fontSize: 11, fontWeight: '700', color: colors.open },
+  signOut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    height: 44,
+    marginTop: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  signOutText: { color: colors.danger, fontWeight: '700', fontSize: 14 },
   about: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md },
   aboutTitle: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
   aboutBody: { fontSize: 12, color: colors.textMuted, lineHeight: 18, marginTop: 2 },

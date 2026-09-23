@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Bell, Compass, House, User } from 'lucide-react-native';
+import { Bell, Compass, House, MessagesSquare, User } from 'lucide-react-native';
 import { useShallow } from 'zustand/react/shallow';
 import { SuggestSpotModal } from '../../components/suggest/SuggestSpotModal';
 import { DEFAULT_CENTER, useLocationTracker, useUserLocation } from '../../hooks/useUserLocation';
@@ -38,6 +38,10 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="confirmations"
           options={{ title: t.tabs.confirmations, tabBarIcon: ({ color, size }) => <Bell color={color} size={size} /> }}
+        />
+        <Tabs.Screen
+          name="community"
+          options={{ title: t.tabs.community, tabBarIcon: ({ color, size }) => <MessagesSquare color={color} size={size} /> }}
         />
         <Tabs.Screen
           name="profile"
