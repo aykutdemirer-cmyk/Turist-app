@@ -1,0 +1,273 @@
+// LocalBite / StreetSpot — veri modeli
+// Mimari notlar için: docs/ARCHITECTURE.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Enum'lar
+// ─────────────────────────────────────────────
+
+enum VenueType {
+  HOME_COOKING // 🍲 Esnaf lokantası / sulu yemek
+  STREET_CART // 🍢 Seyyar araba, büfe, kiosk
+  LOCAL_BURGER_WRAP // 🍔 Mahalle burgercisi, dürümcü
+  DESSERT_TEA // 🍮 Baklava, sütlü tatlı, çay ocağı
+}
+
+/// Pahalı seviye bilinçli olarak YOK — uygulamanın temel kuralı.
+enum PriceLevel {
+  BUDGET // $
+  MODERATE // $$
+}
+
+enum LocalTip {
+  CASH_ONLY
+  PAY_AT_COUNTER
+  NO_RESERVATIONS
+  SELF_SERVICE_TRAY
+  SHARED_TABLES
+  POINT_TO_ORDER // Menü yok, vitrinden gösterip sipariş
+  CLOSES_WHEN_SOLD_OUT
+  LUNCH_ONLY
+  STANDING_ONLY
+}
+
+enum VenueStatus {
+  PENDING // Kullanıcı önerisi, moderasyon bekliyor
+  APPROVED
+  REJECTED
+  CLOSED // Kalıcı olarak kapandı
+}
+
+enum ReportType {
+  SPOTTED_TODAY // "Bugün burada gördüm" — seyyar teyidi
+  UPVOTE // Genel beğeni / öneri
+  NOT_HERE // "Gittim, yoktu"
+  CLOSED // "Kalıcı olarak kapanmış"
+}
+
+enum Locale {
+  en
+  tr
+}
+
+/// Yorumun nereden geldiği; arayüzde kaynak etiketi olarak gösterilir.
+enum ReviewSource {
+  SAMPLE // Geliştirme/demo için yazılmış örnek yorum — gerçek bir kişiye ait değildir
+  COMMUNITY // Uygulama kullanıcısının yorumu
+  GOOGLE // Google Places API'den (atıf kurallarına uyularak) alınan yorum
+}
+
+// ─────────────────────────────────────────────
+// Kullanıcı (MVP: anonim cihaz kimliği)
+// ─────────────────────────────────────────────
+
+model User {
+  id          String  @id @default(cuid())
+  deviceId    String  @unique // app ilk açılışta üretip SecureStore'da saklar
+  displayName String?
+  locale      Locale  @default(en)
+
+  // İleride hesap bağlama (Apple / Google / e-posta) için; MVP'de hepsi null.
+  email          String? @unique
+  authProvider   String? // "apple" | "google" | "email"
+  authProviderId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reports         SpotReport[]
+  submittedVenues Venue[]      @relation("SubmittedVenues")
+
+  @@unique([authProvider, authProviderId])
+}
+
+// ─────────────────────────────────────────────
+// Mekan
+// ─────────────────────────────────────────────
+
+model Venue {
+  id   String @id @default(cuid())
+  slug String @unique
+  name String // Yerel adı olduğu gibi: "Kadıköy Pilavcısı Hüseyin Usta"
+
+  type       VenueType
+  isMobile   Boolean    @default(false) // true = seyyar; konum VendorSchedule'a göre değişebilir
+  priceLevel PriceLevel @default(BUDGET)
+
+  /// 1–100 yerellik puanı. Aralık kontrolü migration'da CHECK constraint ile.
+  authenticityScore Int @default(70)
+
+  // Ana / varsayılan konum. Seyyarlarda "genelde bulunduğu köşe".
+  latitude     Float
+  longitude    Float
+  address      String?
+  locationNote String? // "Rıhtım'daki vapur iskelesinin tam karşısı"
+  neighborhood String? // Moda, Sultanahmet, Eminönü...
+  district     String? // Kadıköy, Fatih... (kullanıcı önerilerinde bilinmeyebilir)
+  city         String  @default("Istanbul")
+
+  localTips LocalTip[]
+  phone     String?
+
+  status VenueStatus @default(APPROVED)
+
+  // Topluluk sinyali (denormalize, SpotReport yazılırken güncellenir)
+  lastSpottedAt DateTime?
+  spottedCount  Int       @default(0)
+  upvoteCount   Int       @default(0)
+
+  submittedById String?
+  submittedBy   User?   @relation("SubmittedVenues", fields: [submittedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  translations VenueTranslation[]
+  dishes       Dish[]
+  schedules    VendorSchedule[]
+  reports      SpotReport[]
+  reviews      Review[]
+
+  @@index([latitude, longitude]) // bbox sorgusu için
+  @@index([type, status])
+  @@index([district])
+}
+
+/// Turiste gösterilen açıklama metinleri (dil başına bir satır).
+model VenueTranslation {
+  id          String  @id @default(cuid())
+  venueId     String
+  locale      Locale
+  tagline     String // "Locals' favorite late-night rice cart"
+  description String?
+  customTip   String? // Enum'a sığmayan ipuçları: "Ask for extra butter"
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, locale])
+}
+
+// ─────────────────────────────────────────────
+// Yemek (Must-Try)
+// ─────────────────────────────────────────────
+
+model Dish {
+  id           String   @id @default(cuid())
+  venueId      String
+  localName    String // "Kuru Fasulye" — menüde/tabelada göreceği ad
+  isMustTry    Boolean  @default(true)
+  sortOrder    Int      @default(0) // 1–3 öne çıkan yemek sırası
+  priceTry     Decimal? @db.Decimal(8, 2) // TL; enflasyon nedeniyle opsiyonel
+  isVegetarian Boolean  @default(false)
+
+  venue        Venue             @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  translations DishTranslation[]
+
+  @@index([venueId, isMustTry, sortOrder])
+}
+
+model DishTranslation {
+  id          String  @id @default(cuid())
+  dishId      String
+  locale      Locale
+  name        String // "Stewed white beans"
+  description String? // "Slow-cooked beans in tomato sauce, eaten with rice pilaf"
+
+  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@unique([dishId, locale])
+}
+
+// ─────────────────────────────────────────────
+// Çalışma saatleri (sabit mekanlar + seyyarlar)
+// ─────────────────────────────────────────────
+
+/// Hem dükkanların açılış saatlerini hem seyyarların "hangi gün, hangi köşede" bilgisini tutar.
+/// Saatler gece yarısından itibaren dakika cinsinden: 19:00 = 1140.
+/// closeMinute < openMinute ise gece yarısını aşar (19:00–02:00 → 1140–120).
+model VendorSchedule {
+  id          String @id @default(cuid())
+  venueId     String
+  dayOfWeek   Int // 0 = Pazar … 6 = Cumartesi (açılış gününe göre)
+  openMinute  Int
+  closeMinute Int
+
+  // Seyyar o gün farklı bir köşedeyse; null ise Venue konumu geçerli.
+  latitude     Float?
+  longitude    Float?
+  locationNote String? // "Cuma akşamları Bahariye çıkışında"
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId, dayOfWeek])
+}
+
+// ─────────────────────────────────────────────
+// Yorumlar
+// ─────────────────────────────────────────────
+
+model Review {
+  id             String       @id @default(cuid())
+  venueId        String
+  authorName     String // "Elif K." — soyadı kısaltılmış
+  /// 1–5, migration'da CHECK constraint ile
+  rating         Int
+  source         ReviewSource @default(COMMUNITY)
+  /// GOOGLE için zorunlu atıf bağlantısı
+  sourceUrl      String?
+  originalLocale Locale
+  publishedAt    DateTime
+  createdAt      DateTime     @default(now())
+
+  venue        Venue               @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  translations ReviewTranslation[]
+
+  @@index([venueId, publishedAt])
+}
+
+/// Yorum metni dil başına; originalLocale satırı özgün metindir.
+model ReviewTranslation {
+  id       String @id @default(cuid())
+  reviewId String
+  locale   Locale
+  text     String
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, locale])
+}
+
+// ─────────────────────────────────────────────
+// Topluluk doğrulaması
+// ─────────────────────────────────────────────
+
+model SpotReport {
+  id      String     @id @default(cuid())
+  venueId String
+  userId  String
+  type    ReportType
+
+  /// Yerel saatle "YYYY-MM-DD" (Europe/Istanbul). Aynı cihaz aynı gün aynı tip oyu bir kez verebilir.
+  dayKey String
+
+  // Raporlayanın konumu — mekana uzaklık kontrolü (ör. SPOTTED için ≤ 300 m)
+  latitude  Float?
+  longitude Float?
+  note      String?
+
+  createdAt DateTime @default(now())
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, userId, type, dayKey])
+  @@index([venueId, type, createdAt])
+}
