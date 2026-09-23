@@ -4,12 +4,15 @@ import {
   nearbyQuerySchema,
   recentConfirmationsQuerySchema,
   reportInputSchema,
+  reviewInputSchema,
   suggestVenueSchema,
 } from '@localbite/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { requireUserId } from '../lib/auth';
 import { resolveLocale } from '../lib/locale';
 import { recentConfirmations, submitReport } from '../services/report.service';
+import { upsertReview } from '../services/review.service';
 import { suggestVenue } from '../services/suggest.service';
 import { findNearbyVenues, getVenueDetail } from '../services/venue.service';
 
@@ -66,5 +69,15 @@ export const venueRoutes: FastifyPluginAsyncZod = async (app) => {
       const venue = await suggestVenue(req.headers['x-device-id'], req.body);
       return reply.code(201).send(venue);
     },
+  );
+
+  // Üye yorumu: aynı mekana tekrar gönderilirse günceller
+  app.put(
+    '/venues/:id/review',
+    {
+      schema: { params: z.object({ id: z.string().min(1).max(100) }), body: reviewInputSchema },
+      config: { rateLimit: { max: 10, timeWindow: '10 minutes' } },
+    },
+    async (req) => upsertReview(req.params.id, await requireUserId(req), req.body),
   );
 };

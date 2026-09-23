@@ -11,6 +11,12 @@ const envSchema = z.object({
   HOST: z.string().default('0.0.0.0'),
   /** "*" veya virgülle ayrılmış origin listesi */
   CORS_ORIGIN: z.string().default('*'),
+  /** HS256 imzalama anahtarı */
+  JWT_SECRET: z.string().min(32),
+  /** Oturum süresi (gün) */
+  JWT_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  /** Virgülle ayrılmış Google OAuth client ID'leri; boşsa Google ile giriş kapalı */
+  GOOGLE_CLIENT_ID: z.string().default(''),
 });
 
 export const env = envSchema.parse(process.env);

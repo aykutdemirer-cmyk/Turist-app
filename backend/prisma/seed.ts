@@ -686,6 +686,111 @@ const reviewsBySlug: Record<string, SeedReview[]> = {
   ],
 };
 
+// ───────────── Örnek topluluk gönderileri ─────────────
+// Kurgusal üyeler; şifreleri yoktur, uygulamadan giriş yapılamaz. Idempotent: bu deviceId'li
+// üyeler silinince gönderi/yorum/beğenileri de cascade ile silinir.
+
+interface SeedMember {
+  deviceId: string;
+  fullName: string;
+  role: 'USER' | 'LOCAL_GUIDE';
+  locale: 'en' | 'tr';
+}
+
+const members: SeedMember[] = [
+  { deviceId: 'seed-member-selin', fullName: 'Selin Aydın', role: 'LOCAL_GUIDE', locale: 'tr' },
+  { deviceId: 'seed-member-mark', fullName: 'Mark Jensen', role: 'USER', locale: 'en' },
+  { deviceId: 'seed-member-emre', fullName: 'Emre Kaplan', role: 'USER', locale: 'tr' },
+];
+
+interface SeedPost {
+  author: string; // deviceId
+  venueSlug?: string;
+  hoursAgo: number;
+  title: string;
+  content: string;
+  likedBy: string[];
+  comments: { author: string; minutesAfter: number; content: string }[];
+}
+
+const posts: SeedPost[] = [
+  {
+    author: 'seed-member-mark',
+    hoursAgo: 20,
+    title: 'Where can I find good kokoreç after midnight in Kadıköy?',
+    content:
+      "First time in Istanbul and I keep hearing about kokoreç. Is there a cart near the ferry pier that stays open late? Any tips on how to order it — half or full?",
+    likedBy: ['seed-member-emre'],
+    comments: [
+      {
+        author: 'seed-member-selin',
+        minutesAfter: 35,
+        content:
+          'Try the carts on Rıhtım side after 23:00. Ask for "yarım ekmek, bol baharatlı" — half bread with extra spice. Pay cash, they rarely take cards.',
+      },
+      {
+        author: 'seed-member-emre',
+        minutesAfter: 90,
+        content: 'Also the rice cart right there is great if you want something milder. Cheap and filling.',
+      },
+    ],
+  },
+  {
+    author: 'seed-member-selin',
+    venueSlug: 'rihtim-gece-pilavcisi',
+    hoursAgo: 6,
+    title: 'Gece pilavcısında nohutlu pilav hâlâ efsane',
+    content:
+      'Dün gece son vapurdan inip uğradım. Porsiyon büyüdü bile, tereyağı kokusu iskeleden geliyor. Tavuklu yerine nohutlu deneyin, gerçek yerel tercih o.',
+    likedBy: ['seed-member-mark', 'seed-member-emre'],
+    comments: [
+      {
+        author: 'seed-member-mark',
+        minutesAfter: 50,
+        content: 'Went there after reading this — can confirm, the chickpea rice was perfect. Thanks!',
+      },
+    ],
+  },
+];
+
+async function seedCommunity(now: number) {
+  const deviceIds = members.map((m) => m.deviceId);
+  const { count } = await prisma.user.deleteMany({ where: { deviceId: { in: deviceIds } } });
+  if (count) console.log(`Removed ${count} previously seeded members`);
+
+  const idByDevice = new Map<string, string>();
+  for (const m of members) {
+    const user = await prisma.user.create({ data: m });
+    idByDevice.set(m.deviceId, user.id);
+  }
+  const uid = (deviceId: string) => idByDevice.get(deviceId)!;
+
+  for (const p of posts) {
+    const createdAt = new Date(now - p.hoursAgo * 3_600_000);
+    const venue = p.venueSlug ? await prisma.venue.findUnique({ where: { slug: p.venueSlug }, select: { id: true } }) : null;
+    await prisma.post.create({
+      data: {
+        userId: uid(p.author),
+        venueId: venue?.id,
+        title: p.title,
+        content: p.content,
+        createdAt,
+        likeCount: p.likedBy.length,
+        commentCount: p.comments.length,
+        likes: { create: p.likedBy.map((d) => ({ userId: uid(d) })) },
+        comments: {
+          create: p.comments.map((c) => ({
+            userId: uid(c.author),
+            content: c.content,
+            createdAt: new Date(createdAt.getTime() + c.minutesAfter * 60_000),
+          })),
+        },
+      },
+    });
+  }
+  console.log(`Seeded ${posts.length} community posts.`);
+}
+
 async function main() {
   const slugs = venues.map((v) => v.slug);
   const { count } = await prisma.venue.deleteMany({ where: { slug: { in: slugs } } });
@@ -767,6 +872,8 @@ async function main() {
 
   const mobile = venues.filter((v) => v.isMobile).length;
   console.log(`Seeded ${venues.length} venues (${mobile} mobile vendors).`);
+
+  await seedCommunity(now);
 }
 
 main()

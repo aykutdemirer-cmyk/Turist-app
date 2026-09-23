@@ -9,6 +9,8 @@ import {
 } from 'fastify-type-provider-zod';
 import { prisma } from './db';
 import { HttpError } from './lib/errors';
+import { authRoutes } from './routes/auth';
+import { communityRoutes } from './routes/community';
 import { mapRoutes } from './routes/map';
 import { venueRoutes } from './routes/venues';
 
@@ -57,6 +59,8 @@ export async function buildApp({ corsOrigin = '*', logger = true }: AppOptions =
   });
 
   await app.register(venueRoutes, { prefix: '/api/v1' });
+  await app.register(authRoutes, { prefix: '/api/v1' });
+  await app.register(communityRoutes, { prefix: '/api/v1' });
   await app.register(mapRoutes);
 
   app.addHook('onClose', async () => {

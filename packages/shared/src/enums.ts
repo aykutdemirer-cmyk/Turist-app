@@ -36,3 +36,6 @@ export type ReviewSource = (typeof REVIEW_SOURCES)[number];
 export const LOCALES = ['en', 'tr'] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'en';
+
+export const USER_ROLES = ['USER', 'LOCAL_GUIDE', 'ADMIN'] as const;
+export type UserRole = (typeof USER_ROLES)[number];

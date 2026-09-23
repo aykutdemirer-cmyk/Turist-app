@@ -264,6 +264,7 @@ export async function getVenueDetail(idOrSlug: string, locale: Locale, now = new
         text: text?.text ?? '',
         originalLocale: r.originalLocale,
         isTranslated: text !== undefined && text.locale !== r.originalLocale,
+        userId: r.userId,
       };
     }),
     dishes: venue.dishes.map((d) => {

@@ -2,13 +2,15 @@
 CREATE TYPE "UserRole" AS ENUM ('USER', 'LOCAL_GUIDE', 'ADMIN');
 
 -- AlterTable
-ALTER TABLE "Review" ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL,
+-- Mevcut satırlar için geçici default; Prisma @updatedAt'i uygulama tarafında yönetir
+ALTER TABLE "Review" ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 ADD COLUMN     "userId" TEXT;
 
--- AlterTable
-ALTER TABLE "User" DROP COLUMN "displayName",
-ADD COLUMN     "avatarUrl" TEXT,
-ADD COLUMN     "fullName" TEXT,
+ALTER TABLE "Review" ALTER COLUMN "updatedAt" DROP DEFAULT;
+
+-- AlterTable: displayName -> fullName (veri korunur)
+ALTER TABLE "User" RENAME COLUMN "displayName" TO "fullName";
+ALTER TABLE "User" ADD COLUMN     "avatarUrl" TEXT,
 ADD COLUMN     "lastLoginAt" TIMESTAMP(3),
 ADD COLUMN     "passwordHash" TEXT,
 ADD COLUMN     "role" "UserRole" NOT NULL DEFAULT 'USER',

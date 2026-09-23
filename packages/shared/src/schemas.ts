@@ -104,3 +104,62 @@ export const suggestVenueSchema = z.object({
   schedules: z.array(scheduleInputSchema).max(21).default([]),
 });
 export type SuggestVenueInput = z.infer<typeof suggestVenueSchema>;
+
+// ─────────────────────────────────────────────
+// Üyelik
+// ─────────────────────────────────────────────
+
+export const emailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email());
+export const passwordSchema = z.string().min(8).max(128);
+
+export const registerSchema = z.object({
+  fullName: z.string().trim().min(2).max(60),
+  email: emailSchema,
+  password: passwordSchema,
+  locale: localeSchema.optional(),
+});
+export type RegisterInput = z.infer<typeof registerSchema>;
+
+export const loginSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1).max(128),
+});
+export type LoginInput = z.infer<typeof loginSchema>;
+
+/** Google ile giriş: istemcinin Google'dan aldığı ID token */
+export const googleLoginSchema = z.object({ idToken: z.string().min(20).max(4096) });
+export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;
+
+// ─────────────────────────────────────────────
+// Mekan yorumu (üye başına mekan başına bir tane; tekrar gönderince güncellenir)
+// ─────────────────────────────────────────────
+
+export const reviewInputSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  text: z.string().trim().min(10).max(1000),
+  locale: localeSchema.default('en'),
+});
+export type ReviewInput = z.infer<typeof reviewInputSchema>;
+
+// ─────────────────────────────────────────────
+// Topluluk
+// ─────────────────────────────────────────────
+
+export const createPostSchema = z.object({
+  title: z.string().trim().min(3).max(120),
+  content: z.string().trim().min(3).max(2000),
+  venueId: z.string().min(1).max(100).optional(),
+});
+export type CreatePostInput = z.infer<typeof createPostSchema>;
+
+export const createCommentSchema = z.object({
+  content: z.string().trim().min(1).max(1000),
+});
+export type CreateCommentInput = z.infer<typeof createCommentSchema>;
+
+export const feedQuerySchema = z.object({
+  /** Önceki sayfanın son gönderisinin id'si */
+  cursor: z.string().min(1).max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export type FeedQuery = z.infer<typeof feedQuerySchema>;

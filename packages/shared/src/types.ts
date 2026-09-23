@@ -1,4 +1,4 @@
-import type { Locale, LocalTip, PriceLevel, ReportType, ReviewSource, VenueType } from './enums';
+import type { Locale, LocalTip, PriceLevel, ReportType, ReviewSource, UserRole, VenueType } from './enums';
 
 export interface ReviewDTO {
   id: string;
@@ -12,6 +12,8 @@ export interface ReviewDTO {
   originalLocale: Locale;
   /** Metin özgün dilinden farklı bir dilde mi gösteriliyor */
   isTranslated: boolean;
+  /** COMMUNITY yorumlarında yazan üye */
+  userId: string | null;
 }
 
 export interface RatingSummary {
@@ -110,4 +112,71 @@ export interface ReportResultDTO {
   type: ReportType;
   dayKey: string;
   venue: { lastSpottedAt: string | null; spottedCount: number; spottedTodayCount: number; upvoteCount: number };
+}
+
+// ─────────────────────────────────────────────
+// Üyelik
+// ─────────────────────────────────────────────
+
+export interface AuthUserDTO {
+  id: string;
+  fullName: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+  role: UserRole;
+  locale: Locale;
+  createdAt: string;
+}
+
+export interface AuthResponseDTO {
+  /** Authorization: Bearer <token> */
+  token: string;
+  expiresAt: string;
+  user: AuthUserDTO;
+}
+
+// ─────────────────────────────────────────────
+// Topluluk
+// ─────────────────────────────────────────────
+
+/** Herkese açık yazar bilgisi: e-posta asla paylaşılmaz, soyadı kısaltılır. */
+export interface PublicAuthorDTO {
+  id: string;
+  name: string;
+  role: UserRole;
+}
+
+export interface PostDTO {
+  id: string;
+  title: string;
+  content: string;
+  author: PublicAuthorDTO;
+  venue: { id: string; name: string } | null;
+  likeCount: number;
+  commentCount: number;
+  /** Giriş yapmamış kullanıcı için false */
+  likedByMe: boolean;
+  createdAt: string;
+}
+
+export interface CommentDTO {
+  id: string;
+  content: string;
+  author: PublicAuthorDTO;
+  createdAt: string;
+}
+
+export interface FeedResponseDTO {
+  items: PostDTO[];
+  /** Sonraki sayfa için; son sayfada null */
+  nextCursor: string | null;
+}
+
+export interface PostDetailDTO extends PostDTO {
+  comments: CommentDTO[];
+}
+
+export interface LikeResultDTO {
+  liked: boolean;
+  likeCount: number;
 }
