@@ -281,3 +281,15 @@ export interface TrailDetailDTO extends TrailSummaryDTO {
   description: string;
   stops: TrailStopDTO[];
 }
+
+/** Web formundan gelen hesap silme talebi (yönetici görünümü) */
+export interface DeletionRequestDTO {
+  id: string;
+  email: string;
+  note: string | null;
+  status: 'PENDING' | 'COMPLETED' | 'REJECTED';
+  createdAt: string;
+  processedAt: string | null;
+  /** Bu e-postaya kayıtlı hesap var mı */
+  accountExists: boolean;
+}

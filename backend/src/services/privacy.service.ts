@@ -1,3 +1,4 @@
+import type { DeletionRequestDTO } from '@localbite/shared';
 import { prisma } from '../db';
 import { notFound } from '../lib/errors';
 import { deleteAccount } from './auth.service';
@@ -13,7 +14,7 @@ export async function createDeletionRequest(email: string, note?: string) {
   return prisma.accountDeletionRequest.create({ data: { email, note } });
 }
 
-export async function listDeletionRequests() {
+export async function listDeletionRequests(): Promise<DeletionRequestDTO[]> {
   const rows = await prisma.accountDeletionRequest.findMany({ orderBy: { createdAt: 'asc' }, take: 200 });
   const users = await prisma.user.findMany({
     where: { email: { in: rows.map((r) => r.email) } },

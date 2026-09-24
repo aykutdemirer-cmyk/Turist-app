@@ -26,6 +26,11 @@ const envSchema = z.object({
   PUBLIC_API_URL: z.string().url().optional(),
   /** Girişten sonra dönülebilecek uygulama şemaları (açık yönlendirmeyi önler) */
   OAUTH_APP_SCHEMES: z.string().default('exp,exps,localbite'),
+  /**
+   * Web'den (yönetici paneli) sosyal girişe izin verilen tam origin'ler, virgülle.
+   * Şema değil origin eşleşmesi: tek kullanımlık kod yalnızca bu adreslere gönderilir.
+   */
+  OAUTH_WEB_ORIGINS: z.string().default('http://localhost:5173'),
   /** Kullanım şartları, gizlilik ve silme talepleri için iletişim adresi (yayından önce gerçek adresle değiştirin) */
   LEGAL_CONTACT_EMAIL: z.string().email().default('privacy@localbite.example'),
   /** İş ortaklığı kimlikleri (boşsa bağlantı kimliksiz gider) */

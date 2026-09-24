@@ -41,7 +41,10 @@ function assertEnabled(provider: OAuthProvider) {
   }
 }
 
-/** Yalnızca izinli uygulama şemalarına dönülür (ör. exp://, localbite://): kod bir web sitesine sızmasın */
+/**
+ * Dönüş yalnızca izinli uygulama şemalarına (exp://, localbite://) ya da açıkça izin verilen web origin'lerine
+ * (yönetici paneli) yapılır: tek kullanımlık kod başka bir siteye sızmasın.
+ */
 export function assertAppRedirect(redirect: string): URL {
   let url: URL;
   try {
@@ -50,7 +53,11 @@ export function assertAppRedirect(redirect: string): URL {
     throw new HttpError(400, 'INVALID_REDIRECT', 'redirect must be an app URL');
   }
   const schemes = env.OAUTH_APP_SCHEMES.split(',').map((s) => `${s.trim()}:`);
-  if (!schemes.includes(url.protocol)) throw new HttpError(400, 'INVALID_REDIRECT', 'redirect scheme is not allowed');
+  const webOrigins = env.OAUTH_WEB_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
+  const isWeb = url.protocol === 'http:' || url.protocol === 'https:';
+  if (isWeb ? !webOrigins.includes(url.origin) : !schemes.includes(url.protocol)) {
+    throw new HttpError(400, 'INVALID_REDIRECT', 'redirect target is not allowed');
+  }
   return url;
 }
 

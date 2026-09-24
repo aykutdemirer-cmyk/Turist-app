@@ -36,6 +36,7 @@ export default function RootLayout() {
         <Stack.Screen name="auth" options={{ presentation: 'modal' }} />
         <Stack.Screen name="legal/[doc]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trail/[slug]" />
+        <Stack.Screen name="admin" />
       </Stack>
       <Paywall />
       {/* Sistem konum izni penceresinden önce gösterilen açıklama (mağaza politikası) */}

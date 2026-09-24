@@ -1,8 +1,10 @@
 import * as Haptics from 'expo-haptics';
-import { BadgeCheck, Info, LogIn, LogOut, MapPinPlus, Sparkles } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { BadgeCheck, ChevronRight, Info, LogIn, LogOut, MapPinPlus, ShieldCheck, Sparkles } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAdminReports } from '../../api/admin';
 import { useSignOut } from '../../api/auth';
 import { AvatarBadge } from '../../components/ui/Avatar';
 import { LanguagePicker } from '../../components/settings/LanguagePicker';
@@ -29,6 +31,8 @@ export default function ProfileScreen() {
       <Text style={font.title}>{t.profile.title}</Text>
 
       <AccountCard />
+
+      <ModerationCard />
 
       <Card title={t.profile.avatar} subtitle={t.avatar.subtitle}>
         <View style={styles.avatars}>
@@ -144,6 +148,44 @@ function AccountCard() {
   );
 }
 
+/** Yalnızca yöneticilere: bekleyen şikayet sayısıyla moderasyon ekranına geçiş */
+function ModerationCard() {
+  const user = useCurrentUser();
+  if (user?.role !== 'ADMIN') return null;
+  return <ModerationCardInner />;
+}
+
+function ModerationCardInner() {
+  const { colors, font } = useTheme();
+  const styles = useStyles();
+  const t = useT();
+  const router = useRouter();
+  const pending = useAdminReports('PENDING').data?.items.length ?? 0;
+
+  return (
+    <Pressable
+      onPress={() => router.push('/admin')}
+      style={({ pressed }) => [styles.card, styles.modCard, pressed && { opacity: 0.85 }]}
+      accessibilityRole="button"
+      accessibilityLabel={`${t.moderationPanel.open}${pending ? `, ${pending}` : ''}`}
+    >
+      <View style={styles.modIcon}>
+        <ShieldCheck size={22} color={colors.textInverse} />
+      </View>
+      <View style={styles.flex}>
+        <Text style={font.heading}>{t.moderationPanel.card}</Text>
+        <Text style={styles.modBody}>{t.moderationPanel.cardBody}</Text>
+      </View>
+      {pending > 0 && (
+        <View style={styles.modCount}>
+          <Text style={styles.modCountText}>{pending}</Text>
+        </View>
+      )}
+      <ChevronRight size={20} color={colors.textMuted} />
+    </Pressable>
+  );
+}
+
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   const { font } = useTheme();
   const styles = useStyles();
@@ -219,6 +261,11 @@ const useStyles = makeStyles(({ colors }) => ({
     borderColor: colors.border,
   },
   signOutText: { color: colors.danger, fontWeight: '700', fontSize: 14 },
+  modCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderColor: colors.primary, borderWidth: 1.5 },
+  modIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  modBody: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  modCount: { minWidth: 24, height: 24, paddingHorizontal: 6, borderRadius: 12, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
+  modCountText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
   about: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md },
   aboutTitle: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
   aboutBody: { fontSize: 12, color: colors.textMuted, lineHeight: 18, marginTop: 2 },

@@ -4,13 +4,15 @@
   "workspaces": [
     "app",
     "backend",
+    "admin",
     "packages/*"
   ],
   "scripts": {
     "dev:api": "npm run dev -w @localbite/backend",
     "db:migrate": "npm run db:migrate -w @localbite/backend",
     "db:seed": "npm run db:seed -w @localbite/backend",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:admin": "npm run dev -w @localbite/admin"
   },
   "engines": {
     "node": ">=20.11"

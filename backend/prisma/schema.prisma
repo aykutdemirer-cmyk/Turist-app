@@ -408,9 +408,10 @@ enum ModerationStatus {
 }
 
 /// Kullanıcı şikayeti. Aynı kişi aynı içeriği bir kez şikayet eder.
+/// Şikayet eden hesabını silerse kayıt kalır, kimliği boşaltılır: moderasyon geçmişi ve bekleyen şikayetler kaybolmaz.
 model ContentReport {
   id           String              @id @default(cuid())
-  reporterId   String
+  reporterId   String?
   contentType  ReportableContent
   /// Post/Comment/Review kimliği (çok biçimli; FK yok)
   contentId    String
@@ -421,7 +422,7 @@ model ContentReport {
   resolvedAt   DateTime?
   resolvedById String?
 
-  reporter   User  @relation("ReportedBy", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporter   User? @relation("ReportedBy", fields: [reporterId], references: [id], onDelete: SetNull)
   resolvedBy User? @relation("ResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
 
   @@unique([reporterId, contentType, contentId])
