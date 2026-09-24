@@ -122,7 +122,7 @@ export async function getTrail(slug: string, locale: Locale, viewerId: string | 
   }
 
   const venues = await prisma.venue.findMany({
-    where: { slug: { in: def.stops.map((s) => s.venue) }, status: 'APPROVED' },
+    where: { slug: { in: def.stops.map((s) => s.venue) }, status: 'ACTIVE' },
     include: {
       dishes: { where: { isMustTry: true }, orderBy: { sortOrder: 'asc' }, include: { translations: true } },
     },
@@ -143,7 +143,7 @@ export async function getTrail(slug: string, locale: Locale, viewerId: string | 
             id: v.id,
             name: v.name,
             type: v.type,
-            isMobile: v.isMobile,
+            isMobile: v.locationType === 'DYNAMIC_STREET',
             neighborhood: v.neighborhood,
             coverImageUrl: v.coverImageUrl,
             latitude: v.latitude,

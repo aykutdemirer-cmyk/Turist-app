@@ -27,7 +27,7 @@ export function LoginPage() {
     setError(null);
     try {
       const res = await authApi.login(email.trim(), password);
-      if (res.user.role !== 'ADMIN') {
+      if (res.user.role !== 'SUPER_ADMIN') {
         setError('Bu hesabın yönetici yetkisi yok.');
         return;
       }

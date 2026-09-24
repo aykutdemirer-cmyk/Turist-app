@@ -1,18 +1,29 @@
 import type { AdminReportDTO, ContentReportReason, DeletionRequestDTO, ReportableContent } from '@localbite/shared';
-import * as Haptics from 'expo-haptics';
 import { Redirect, useRouter } from 'expo-router';
-import { Check, ChevronLeft, CircleAlert, CircleCheck, Flag, Mail, Trash2, UserX, X } from 'lucide-react-native';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { Check, ChevronLeft, Flag, Mail, Trash2, UserX, X } from 'lucide-react-native';
+import { useState } from 'react';
+import { Alert, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAdminReports, useDeletionRequests, useModerateReport, useProcessDeletion } from '../api/admin';
-import { ApiError } from '../api/client';
+import {
+  useAdminAnnouncements,
+  useAdminReports,
+  useAdminVenues,
+  useDeletionRequests,
+  useModerateReport,
+  useProcessDeletion,
+} from '../api/admin';
+import { AnnouncementsTab } from '../components/admin/AnnouncementsTab';
+import { LiveLocationsTab } from '../components/admin/LiveLocationsTab';
+import { ActionButton, apiErrorText, ListState, useRefreshControl } from '../components/admin/parts';
+import { SponsorshipTab } from '../components/admin/SponsorshipTab';
+import { VenueApprovalsTab } from '../components/admin/VenueApprovalsTab';
+import { NoticeBanner, useNotice, type Notify } from '../components/ui/Notice';
 import { useT } from '../i18n';
 import { formatRelative } from '../lib/format';
 import { useCurrentUser } from '../store/auth';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 
-type Tab = 'reports' | 'deletions';
+type Tab = 'reports' | 'deletions' | 'venues' | 'announcements' | 'sponsorship' | 'live';
 type Filter = 'all' | 'comments' | 'posts';
 
 const FILTER_TYPES: Record<Filter, ReportableContent[]> = {
@@ -21,13 +32,8 @@ const FILTER_TYPES: Record<Filter, ReportableContent[]> = {
   posts: ['POST'],
 };
 
-interface Notice {
-  kind: 'success' | 'error';
-  text: string;
-}
-
-/** Yönetici moderasyonu (web panelindeki /admin ile aynı uç noktalar) */
-export default function ModerationScreen() {
+/** Yönetim merkezi (yalnızca SUPER_ADMIN): moderasyon, esnaf onayları, duyurular, sponsorluk, canlı konum */
+export default function AdminCenterScreen() {
   const { colors, font } = useTheme();
   const styles = useStyles();
   const t = useT();
@@ -35,24 +41,35 @@ export default function ModerationScreen() {
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const [tab, setTab] = useState<Tab>('reports');
-  const [notice, setNotice] = useState<Notice | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [notice, notify] = useNotice();
 
   const reports = useAdminReports('PENDING');
   const deletions = useDeletionRequests();
-  const pendingDeletions = (deletions.data?.items ?? []).filter((d) => d.status === 'PENDING');
+  const pendingVenues = useAdminVenues({ status: 'PENDING_APPROVAL' });
+  const announcements = useAdminAnnouncements('PENDING');
+  const liveVendors = useAdminVenues({ live: true });
 
-  useEffect(() => () => clearTimeout(timer.current), []);
+  // Yalnızca genel yönetici; sunucu da her istekte rolü doğrular
+  if (user?.role !== 'SUPER_ADMIN') return <Redirect href="/profile" />;
 
-  // Yalnızca yöneticiler; sunucu da her istekte rolü doğrular
-  if (user?.role !== 'ADMIN') return <Redirect href="/profile" />;
+  const tabs: { key: Tab; label: string; count: number; muted?: boolean }[] = [
+    { key: 'reports', label: t.adminCenter.tabReports, count: reports.data?.items.length ?? 0 },
+    { key: 'deletions', label: t.adminCenter.tabDeletions, count: (deletions.data?.items ?? []).filter((d) => d.status === 'PENDING').length },
+    { key: 'venues', label: t.adminCenter.tabVenues, count: pendingVenues.data?.items.length ?? 0 },
+    { key: 'announcements', label: t.adminCenter.tabAnnouncements, count: announcements.data?.items.length ?? 0 },
+    { key: 'sponsorship', label: t.adminCenter.tabSponsorship, count: 0 },
+    // Bilgi amaçlı sayı (bekleyen iş değil)
+    { key: 'live', label: t.adminCenter.tabLive, count: liveVendors.data?.items.length ?? 0, muted: true },
+  ];
 
-  const notify = (n: Notice) => {
-    Haptics.notificationAsync(n.kind === 'success' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
-    setNotice(n);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setNotice(null), 2800);
-  };
+  const body = {
+    reports: <ReportsTab notify={notify} bottom={insets.bottom} />,
+    deletions: <DeletionsTab notify={notify} bottom={insets.bottom} />,
+    venues: <VenueApprovalsTab notify={notify} bottom={insets.bottom} />,
+    announcements: <AnnouncementsTab notify={notify} bottom={insets.bottom} />,
+    sponsorship: <SponsorshipTab notify={notify} bottom={insets.bottom} />,
+    live: <LiveLocationsTab notify={notify} bottom={insets.bottom} />,
+  }[tab];
 
   return (
     <View style={styles.screen}>
@@ -60,36 +77,44 @@ export default function ModerationScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back} accessibilityLabel={t.suggest.close}>
           <ChevronLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={font.heading}>{t.moderationPanel.title}</Text>
+        <Text style={font.heading}>{t.adminCenter.title}</Text>
       </View>
 
-      <View style={styles.tabs} accessibilityRole="tablist">
-        <TabButton active={tab === 'reports'} onPress={() => setTab('reports')} label={t.moderationPanel.reports} count={reports.data?.items.length ?? 0} />
-        <TabButton active={tab === 'deletions'} onPress={() => setTab('deletions')} label={t.moderationPanel.deletions} count={pendingDeletions.length} />
+      <View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs} accessibilityRole="tablist">
+          {tabs.map((x) => (
+            <TabButton key={x.key} active={tab === x.key} onPress={() => setTab(x.key)} label={x.label} count={x.count} muted={x.muted} />
+          ))}
+        </ScrollView>
       </View>
 
-      {tab === 'reports' ? <ReportsTab notify={notify} bottom={insets.bottom} /> : <DeletionsTab notify={notify} bottom={insets.bottom} />}
+      <View style={styles.flex}>{body}</View>
 
-      {notice && (
-        <View
-          accessibilityLiveRegion="polite"
-          style={[styles.notice, notice.kind === 'error' && styles.noticeError, { bottom: insets.bottom + spacing.lg }]}
-        >
-          {notice.kind === 'success' ? <CircleCheck size={18} color={colors.open} /> : <CircleAlert size={18} color={colors.danger} />}
-          <Text style={[styles.noticeText, notice.kind === 'error' && { color: colors.danger }]}>{notice.text}</Text>
-        </View>
-      )}
+      <NoticeBanner notice={notice} bottom={insets.bottom} />
     </View>
   );
 }
 
-function TabButton({ active, onPress, label, count }: { active: boolean; onPress: () => void; label: string; count: number }) {
+function TabButton({
+  active,
+  onPress,
+  label,
+  count,
+  muted,
+}: {
+  active: boolean;
+  onPress: () => void;
+  label: string;
+  count: number;
+  muted?: boolean;
+}) {
+  const { colors } = useTheme();
   const styles = useStyles();
   return (
     <Pressable onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: active }} style={[styles.tab, active && styles.tabActive]}>
       <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
       {count > 0 && (
-        <View style={styles.count}>
+        <View style={[styles.count, muted && { backgroundColor: colors.open }]}>
           <Text style={styles.countText}>{count}</Text>
         </View>
       )}
@@ -101,12 +126,12 @@ function TabButton({ active, onPress, label, count }: { active: boolean; onPress
 // Şikayetler
 // ─────────────────────────────────────────────
 
-function ReportsTab({ notify, bottom }: { notify: (n: Notice) => void; bottom: number }) {
-  const { colors } = useTheme();
+function ReportsTab({ notify, bottom }: { notify: Notify; bottom: number }) {
   const styles = useStyles();
   const t = useT();
   const [filter, setFilter] = useState<Filter>('all');
   const reports = useAdminReports('PENDING');
+  const refresh = useRefreshControl(reports);
   const moderate = useModerateReport();
   const all = reports.data?.items ?? [];
   const items = all.filter((r) => FILTER_TYPES[filter].includes(r.contentType));
@@ -116,7 +141,7 @@ function ReportsTab({ notify, bottom }: { notify: (n: Notice) => void; bottom: n
       { id, action },
       {
         onSuccess: () => notify({ kind: 'success', text: action === 'remove' ? t.moderationPanel.removed : t.moderationPanel.dismissed }),
-        onError: (err) => notify({ kind: 'error', text: err instanceof ApiError ? err.message : t.moderationPanel.failed }),
+        onError: (err) => notify({ kind: 'error', text: apiErrorText(err, t) }),
       },
     );
 
@@ -125,7 +150,7 @@ function ReportsTab({ notify, bottom }: { notify: (n: Notice) => void; bottom: n
       data={items}
       keyExtractor={(r) => r.id}
       contentContainerStyle={[styles.list, { paddingBottom: bottom + spacing.xxl * 2 }]}
-      refreshControl={<RefreshControl refreshing={reports.isRefetching} onRefresh={() => reports.refetch()} tintColor={colors.primary} />}
+      refreshControl={refresh}
       ListHeaderComponent={
         <View style={styles.filters} accessibilityRole="radiogroup">
           {(['all', 'comments', 'posts'] as const).map((f) => (
@@ -143,17 +168,7 @@ function ReportsTab({ notify, bottom }: { notify: (n: Notice) => void; bottom: n
           ))}
         </View>
       }
-      ListEmptyComponent={
-        reports.isPending ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
-        ) : (
-          <Empty
-            icon={reports.isError ? <CircleAlert size={32} color={colors.danger} /> : <Check size={32} color={colors.open} />}
-            title={reports.isError ? t.moderationPanel.loadError : t.moderationPanel.noReports}
-            body={reports.isError ? undefined : t.moderationPanel.noReportsBody}
-          />
-        )
-      }
+      ListEmptyComponent={<ListState query={reports} emptyTitle={t.moderationPanel.noReports} emptyBody={t.moderationPanel.noReportsBody} />}
       ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
       renderItem={({ item }) => (
         <ReportCard
@@ -241,7 +256,7 @@ function ReportCard({
           onPress={onRemove}
           loading={busy === 'remove'}
           disabled={disabled}
-          danger
+          tone="danger"
         />
       </View>
     </View>
@@ -252,11 +267,12 @@ function ReportCard({
 // Silme talepleri
 // ─────────────────────────────────────────────
 
-function DeletionsTab({ notify, bottom }: { notify: (n: Notice) => void; bottom: number }) {
+function DeletionsTab({ notify, bottom }: { notify: Notify; bottom: number }) {
   const { colors } = useTheme();
   const styles = useStyles();
   const t = useT();
   const requests = useDeletionRequests();
+  const refresh = useRefreshControl(requests);
   const processDeletion = useProcessDeletion();
   const items = (requests.data?.items ?? []).filter((r) => r.status === 'PENDING');
 
@@ -274,7 +290,7 @@ function DeletionsTab({ notify, bottom }: { notify: (n: Notice) => void; bottom:
                   ? t.moderationPanel.completed
                   : t.moderationPanel.completedNoAccount,
           }),
-        onError: (err) => notify({ kind: 'error', text: err instanceof ApiError ? err.message : t.moderationPanel.failed }),
+        onError: (err) => notify({ kind: 'error', text: apiErrorText(err, t) }),
       },
     );
 
@@ -289,17 +305,8 @@ function DeletionsTab({ notify, bottom }: { notify: (n: Notice) => void; bottom:
       data={items}
       keyExtractor={(r) => r.id}
       contentContainerStyle={[styles.list, { paddingBottom: bottom + spacing.xxl * 2 }]}
-      refreshControl={<RefreshControl refreshing={requests.isRefetching} onRefresh={() => requests.refetch()} tintColor={colors.primary} />}
-      ListEmptyComponent={
-        requests.isPending ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
-        ) : (
-          <Empty
-            icon={requests.isError ? <CircleAlert size={32} color={colors.danger} /> : <Check size={32} color={colors.open} />}
-            title={requests.isError ? t.moderationPanel.loadError : t.moderationPanel.noDeletions}
-          />
-        )
-      }
+      refreshControl={refresh}
+      ListEmptyComponent={<ListState query={requests} emptyTitle={t.moderationPanel.noDeletions} />}
       ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
       renderItem={({ item }) => {
         const busy = processDeletion.isPending && processDeletion.variables?.id === item.id ? processDeletion.variables.action : null;
@@ -330,7 +337,7 @@ function DeletionsTab({ notify, bottom }: { notify: (n: Notice) => void; bottom:
                 onPress={() => confirmComplete(item)}
                 loading={busy === 'complete'}
                 disabled={processDeletion.isPending}
-                danger
+                tone="danger"
               />
             </View>
           </View>
@@ -340,55 +347,9 @@ function DeletionsTab({ notify, bottom }: { notify: (n: Notice) => void; bottom:
   );
 }
 
-// ─────────────────────────────────────────────
-// Ortak parçalar
-// ─────────────────────────────────────────────
-
-function ActionButton({
-  label,
-  icon,
-  onPress,
-  loading,
-  disabled,
-  danger,
-}: {
-  label: string;
-  icon: ReactNode;
-  onPress: () => void;
-  loading: boolean;
-  disabled: boolean;
-  danger?: boolean;
-}) {
-  const styles = useStyles();
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityState={{ disabled, busy: loading }}
-      style={({ pressed }) => [styles.action, danger ? styles.actionDanger : styles.actionOutline, (pressed || (disabled && !loading)) && { opacity: 0.6 }]}
-    >
-      {loading ? <ActivityIndicator size="small" color={danger ? '#FFFFFF' : undefined} /> : icon}
-      <Text style={[styles.actionText, danger && { color: '#FFFFFF' }]} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-function Empty({ icon, title, body }: { icon: ReactNode; title: string; body?: string }) {
-  const styles = useStyles();
-  return (
-    <View style={styles.empty}>
-      {icon}
-      <Text style={styles.emptyTitle}>{title}</Text>
-      {body && <Text style={styles.emptyBody}>{body}</Text>}
-    </View>
-  );
-}
-
 const useStyles = makeStyles(({ colors }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -401,7 +362,7 @@ const useStyles = makeStyles(({ colors }) => ({
   back: { padding: spacing.xs },
   tabs: { flexDirection: 'row', gap: spacing.sm, padding: spacing.lg, paddingBottom: spacing.sm },
   tab: {
-    flex: 1,
+    paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -438,30 +399,8 @@ const useStyles = makeStyles(({ colors }) => ({
   notesTitle: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
   note: { fontSize: 13, color: colors.textMuted },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
-  action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: radius.md, paddingHorizontal: spacing.sm },
-  actionOutline: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  actionDanger: { backgroundColor: colors.danger },
-  actionText: { fontSize: 13, fontWeight: '700', color: colors.text, flexShrink: 1 },
   emailRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   email: { flex: 1, fontSize: 15, fontWeight: '700', color: colors.text },
   accountLine: { fontSize: 13, fontWeight: '600' },
   deletionNote: { fontSize: 13, color: colors.text, backgroundColor: colors.surfaceMuted, borderRadius: radius.sm, padding: spacing.sm },
-  empty: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xxl * 1.5 },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
-  emptyBody: { fontSize: 13, color: colors.textMuted },
-  notice: {
-    position: 'absolute',
-    left: spacing.lg,
-    right: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.openSoft,
-    borderWidth: 1,
-    borderColor: colors.open,
-  },
-  noticeError: { backgroundColor: colors.surface, borderColor: colors.danger },
-  noticeText: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.open },
 }));

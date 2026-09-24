@@ -12,6 +12,7 @@ import {
 } from '@localbite/shared';
 import { prisma } from '../db';
 import { HttpError, notFound } from '../lib/errors';
+import { currentPosition } from '../lib/venueLocation';
 import { spottedTodayCounts } from './venue.service';
 
 /** "Bugün burada gördüm" / "Yoktu" diyen kişi mekana en fazla bu kadar uzak olabilir. */
@@ -35,7 +36,7 @@ export async function recentConfirmations(
       type: 'SPOTTED_TODAY',
       createdAt: { gte: new Date(now.getTime() - query.hours * 3_600_000) },
       venue: {
-        status: 'APPROVED',
+        status: 'ACTIVE',
         latitude: { gte: box.minLat, lte: box.maxLat },
         longitude: { gte: box.minLng, lte: box.maxLng },
       },
@@ -45,20 +46,32 @@ export async function recentConfirmations(
     select: {
       id: true,
       createdAt: true,
-      venue: { select: { id: true, name: true, type: true, isMobile: true, latitude: true, longitude: true } },
+      venue: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          locationType: true,
+          latitude: true,
+          longitude: true,
+          isLiveLocation: true,
+          liveLatitude: true,
+          liveLongitude: true,
+        },
+      },
     },
   });
 
   return rows
     .map((r) => {
       // Mesafe mekana göre: raporlayan 500 m'ye kadar uzaktan teyit verebilir, onun konumu yanıltır
-      const at: LatLng = { latitude: r.venue.latitude, longitude: r.venue.longitude };
+      const at = currentPosition(r.venue);
       return {
         id: r.id,
         venueId: r.venue.id,
         venueName: r.venue.name,
         venueType: r.venue.type,
-        isMobile: r.venue.isMobile,
+        isMobile: r.venue.locationType === 'DYNAMIC_STREET',
         createdAt: r.createdAt.toISOString(),
         distanceMeters: Math.round(haversineMeters(origin, at)),
       };
@@ -74,7 +87,7 @@ export async function submitReport(
   now = new Date(),
 ): Promise<ReportResultDTO> {
   const venue = await prisma.venue.findFirst({
-    where: { id: venueId, status: 'APPROVED' },
+    where: { id: venueId, status: 'ACTIVE' },
     include: { schedules: true },
   });
   if (!venue) throw notFound('Venue');
@@ -84,6 +97,10 @@ export async function submitReport(
     // Seyyar, programındaki köşelerden herhangi birinde olabilir.
     const candidates: LatLng[] = [
       { latitude: venue.latitude, longitude: venue.longitude },
+      // Satıcının gönderdiği canlı konum
+      ...(venue.liveLatitude != null && venue.liveLongitude != null
+        ? [{ latitude: venue.liveLatitude, longitude: venue.liveLongitude }]
+        : []),
       ...venue.schedules.flatMap((s) =>
         s.latitude != null && s.longitude != null ? [{ latitude: s.latitude, longitude: s.longitude }] : [],
       ),

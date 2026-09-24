@@ -1,10 +1,10 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { BadgeCheck, ChevronRight, Info, LogIn, LogOut, MapPinPlus, ShieldCheck, Sparkles } from 'lucide-react-native';
-import type { ReactNode } from 'react';
+import { BadgeCheck, ChevronRight, Info, LogIn, LogOut, MapPinPlus, ShieldCheck, Sparkles, Store } from 'lucide-react-native';
+import type { ComponentType, ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAdminReports } from '../../api/admin';
+import { useAdminAnnouncements, useAdminReports, useAdminVenues } from '../../api/admin';
 import { useSignOut } from '../../api/auth';
 import { AvatarBadge } from '../../components/ui/Avatar';
 import { LanguagePicker } from '../../components/settings/LanguagePicker';
@@ -32,7 +32,9 @@ export default function ProfileScreen() {
 
       <AccountCard />
 
-      <ModerationCard />
+      <AdminCenterCard />
+
+      <VendorCard />
 
       <Card title={t.profile.avatar} subtitle={t.avatar.subtitle}>
         <View style={styles.avatars}>
@@ -148,37 +150,83 @@ function AccountCard() {
   );
 }
 
-/** Yalnızca yöneticilere: bekleyen şikayet sayısıyla moderasyon ekranına geçiş */
-function ModerationCard() {
+/** Yalnızca genel yöneticiye: bekleyen iş sayısıyla (şikayet + başvuru + duyuru) yönetim merkezine geçiş */
+function AdminCenterCard() {
   const user = useCurrentUser();
-  if (user?.role !== 'ADMIN') return null;
-  return <ModerationCardInner />;
+  if (user?.role !== 'SUPER_ADMIN') return null;
+  return <AdminCenterCardInner />;
 }
 
-function ModerationCardInner() {
+function AdminCenterCardInner() {
+  const router = useRouter();
+  const t = useT();
+  const reports = useAdminReports('PENDING').data?.items.length ?? 0;
+  const venues = useAdminVenues({ status: 'PENDING_APPROVAL' }).data?.items.length ?? 0;
+  const announcements = useAdminAnnouncements('PENDING').data?.items.length ?? 0;
+  return (
+    <RoleCard
+      Icon={ShieldCheck}
+      title={t.adminCenter.card}
+      body={t.adminCenter.cardBody}
+      label={t.adminCenter.open}
+      count={reports + venues + announcements}
+      onPress={() => router.push('/admin')}
+    />
+  );
+}
+
+/** Yalnızca esnafa: "Tezgahımı / Mekanımı Yönet" */
+function VendorCard() {
+  const user = useCurrentUser();
+  const router = useRouter();
+  const t = useT();
+  if (user?.role !== 'VENDOR') return null;
+  return (
+    <RoleCard
+      Icon={Store}
+      title={t.vendorPanel.card}
+      body={t.vendorPanel.cardBody}
+      label={t.vendorPanel.card}
+      count={0}
+      onPress={() => router.push('/vendor')}
+    />
+  );
+}
+
+function RoleCard({
+  Icon,
+  title,
+  body,
+  label,
+  count,
+  onPress,
+}: {
+  Icon: ComponentType<{ size: number; color: string }>;
+  title: string;
+  body: string;
+  label: string;
+  count: number;
+  onPress: () => void;
+}) {
   const { colors, font } = useTheme();
   const styles = useStyles();
-  const t = useT();
-  const router = useRouter();
-  const pending = useAdminReports('PENDING').data?.items.length ?? 0;
-
   return (
     <Pressable
-      onPress={() => router.push('/admin')}
+      onPress={onPress}
       style={({ pressed }) => [styles.card, styles.modCard, pressed && { opacity: 0.85 }]}
       accessibilityRole="button"
-      accessibilityLabel={`${t.moderationPanel.open}${pending ? `, ${pending}` : ''}`}
+      accessibilityLabel={`${label}${count ? `, ${count}` : ''}`}
     >
       <View style={styles.modIcon}>
-        <ShieldCheck size={22} color={colors.textInverse} />
+        <Icon size={22} color={colors.textInverse} />
       </View>
       <View style={styles.flex}>
-        <Text style={font.heading}>{t.moderationPanel.card}</Text>
-        <Text style={styles.modBody}>{t.moderationPanel.cardBody}</Text>
+        <Text style={font.heading}>{title}</Text>
+        <Text style={styles.modBody}>{body}</Text>
       </View>
-      {pending > 0 && (
+      {count > 0 && (
         <View style={styles.modCount}>
-          <Text style={styles.modCountText}>{pending}</Text>
+          <Text style={styles.modCountText}>{count}</Text>
         </View>
       )}
       <ChevronRight size={20} color={colors.textMuted} />

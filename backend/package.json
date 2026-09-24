@@ -13,7 +13,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
-    "admin:grant": "tsx scripts/grant-admin.ts"
+    "admin:grant": "tsx scripts/grant-admin.ts",
+    "vendor:grant": "tsx scripts/grant-vendor.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

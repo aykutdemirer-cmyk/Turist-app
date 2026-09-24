@@ -22,7 +22,7 @@ export function AuthCallback() {
     authApi
       .exchange(code)
       .then((res) => {
-        if (res.user.role !== 'ADMIN') {
+        if (res.user.role !== 'SUPER_ADMIN') {
           navigate(`/auth/login?reason=forbidden`, { replace: true });
           return;
         }

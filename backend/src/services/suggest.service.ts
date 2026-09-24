@@ -3,7 +3,7 @@ import { prisma } from '../db';
 import { uniqueSlug } from '../lib/slug';
 import { findOrCreateUserByDevice } from './report.service';
 
-/** Kullanıcı önerisi: moderasyon onaylayana kadar haritada görünmez (status = PENDING). */
+/** Kullanıcı önerisi: Super Admin onaylayana kadar haritada görünmez (status = PENDING_APPROVAL). */
 export async function suggestVenue(deviceId: string, input: SuggestVenueInput) {
   const user = await findOrCreateUserByDevice(deviceId);
   const hasText = input.tagline !== undefined || input.description !== undefined;
@@ -13,7 +13,7 @@ export async function suggestVenue(deviceId: string, input: SuggestVenueInput) {
       slug: uniqueSlug(input.name),
       name: input.name,
       type: input.type,
-      isMobile: input.isMobile,
+      locationType: input.isMobile ? 'DYNAMIC_STREET' : 'STATIC',
       priceLevel: input.priceLevel,
       latitude: input.latitude,
       longitude: input.longitude,
@@ -21,7 +21,7 @@ export async function suggestVenue(deviceId: string, input: SuggestVenueInput) {
       neighborhood: input.neighborhood,
       district: input.district,
       localTips: input.localTips,
-      status: 'PENDING',
+      status: 'PENDING_APPROVAL',
       submittedById: user.id,
       translations: hasText
         ? {

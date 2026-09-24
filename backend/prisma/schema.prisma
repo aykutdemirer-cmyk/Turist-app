@@ -40,10 +40,27 @@ enum LocalTip {
 }
 
 enum VenueStatus {
-  PENDING // Kullanıcı önerisi, moderasyon bekliyor
-  APPROVED
+  PENDING_APPROVAL // Kullanıcı/esnaf başvurusu, Super Admin onayı bekliyor
+  ACTIVE
   REJECTED
   CLOSED // Kalıcı olarak kapandı
+}
+
+/// STATIC: sabit dükkan. DYNAMIC_STREET: seyyar; konumu gün içinde değişebilir.
+enum LocationType {
+  STATIC
+  DYNAMIC_STREET
+}
+
+enum AnnouncementType {
+  ANNOUNCEMENT // "Bugün 20:00'de sıcak lokma dökülüyor"
+  PROMOTION // İndirim / fırsat
+}
+
+enum AnnouncementStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum ReportType {
@@ -68,7 +85,8 @@ enum ReviewSource {
 enum UserRole {
   USER
   LOCAL_GUIDE // Topluluk tarafından güvenilen yerel rehber (rozet)
-  ADMIN
+  VENDOR // Seyyar / esnaf: yalnızca sahibi olduğu mekanı yönetir
+  SUPER_ADMIN // Genel yönetici: moderasyon, onaylar, sponsorluk
 }
 
 // ─────────────────────────────────────────────
@@ -113,6 +131,7 @@ model User {
   resolvedReports ContentReport[] @relation("ResolvedBy")
   blocking        BlockedUser[]   @relation("Blocker")
   blockedBy       BlockedUser[]   @relation("Blocked")
+  ownedVenues     Venue[]         @relation("OwnedVenues")
 
   @@unique([authProvider, authProviderId])
 }
@@ -126,9 +145,10 @@ model Venue {
   slug String @unique
   name String // Yerel adı olduğu gibi: "Kadıköy Pilavcısı Hüseyin Usta"
 
-  type       VenueType
-  isMobile   Boolean    @default(false) // true = seyyar; konum VendorSchedule'a göre değişebilir
-  priceLevel PriceLevel @default(BUDGET)
+  type         VenueType
+  /// DYNAMIC_STREET = seyyar; konum VendorSchedule'a ya da satıcının canlı konumuna göre değişir
+  locationType LocationType @default(STATIC)
+  priceLevel   PriceLevel   @default(BUDGET)
 
   /// 1–100 yerellik puanı. Aralık kontrolü migration'da CHECK constraint ile.
   authenticityScore Int @default(70)
@@ -152,7 +172,21 @@ model Venue {
   /// Kapak fotoğrafı (lisanslı/kendi çekimi). Yoksa uygulama illüstrasyon gösterir.
   coverImageUrl String?
 
-  status VenueStatus @default(APPROVED)
+  status VenueStatus @default(ACTIVE)
+
+  /// Mekanı yöneten VENDOR üye
+  ownerId String?
+  owner   User?   @relation("OwnedVenues", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  /// Satıcının gönderdiği canlı konum. Varsayılan konum (latitude/longitude) korunur; "sıfırla" ona döner.
+  isLiveLocation     Boolean   @default(false)
+  liveLatitude       Float?
+  liveLongitude      Float?
+  lastLocationUpdate DateTime?
+
+  /// Satıcının "Açık/Kapalı" anahtarı; null = çalışma saatlerine göre. Belli süre sonra geçersiz sayılır.
+  openOverride   Boolean?
+  openOverrideAt DateTime?
 
   /// Esnaf sponsorlu öne çıkarma (ücretli); arayüzde "Sponsorlu" olarak etiketlenir
   isPromoted Boolean @default(false)
@@ -168,16 +202,36 @@ model Venue {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  translations VenueTranslation[]
-  dishes       Dish[]
-  schedules    VendorSchedule[]
-  reports      SpotReport[]
-  reviews      Review[]
-  posts        Post[]
+  translations  VenueTranslation[]
+  dishes        Dish[]
+  schedules     VendorSchedule[]
+  reports       SpotReport[]
+  reviews       Review[]
+  posts         Post[]
+  announcements VendorAnnouncement[]
 
   @@index([latitude, longitude]) // bbox sorgusu için
   @@index([type, status])
   @@index([district])
+  @@index([ownerId])
+}
+
+/// Satıcı duyurusu / fırsatı. Super Admin onaylayınca mekan detayında yayınlanır.
+model VendorAnnouncement {
+  id         String             @id @default(cuid())
+  venueId    String
+  title      String
+  content    String
+  type       AnnouncementType   @default(ANNOUNCEMENT)
+  status     AnnouncementStatus @default(PENDING)
+  createdAt  DateTime           @default(now())
+  /// Onay/ret anı; yayın süresi onaydan itibaren sayılır
+  reviewedAt DateTime?
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([venueId, status])
 }
 
 /// Turiste gösterilen açıklama metinleri (dil başına bir satır).
@@ -205,6 +259,8 @@ model Dish {
   isMustTry      Boolean  @default(true)
   sortOrder      Int      @default(0) // 1–3 öne çıkan yemek sırası
   priceTry       Decimal? @db.Decimal(8, 2) // TL; enflasyon nedeniyle opsiyonel
+  /// Porsiyon bilgisi: "1 porsiyon · 350 g", "yarım ekmek"
+  portion        String?
   isVegetarian   Boolean  @default(false)
   /// Yemek fotoğrafı. Göreli yol (/media/...) API adresine göre çözülür; yoksa uygulama illüstrasyon gösterir.
   imageUrl       String?

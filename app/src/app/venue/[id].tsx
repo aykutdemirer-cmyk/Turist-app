@@ -29,7 +29,9 @@ import { ApiError } from '../../api/client';
 import { useReportVenue, useVenue } from '../../api/venues';
 import { FoodImage } from '../../components/ui/FoodImage';
 import { ExperienceSection } from '../../components/monetization/ExperienceSection';
+import { AnnouncementsSection } from '../../components/venue/AnnouncementsSection';
 import { DishRow } from '../../components/venue/DishRow';
+import { LiveLocationBadge } from '../../components/venue/LiveLocationBadge';
 import { ReviewsSection } from '../../components/venue/ReviewsSection';
 import { SpottedLine } from '../../components/venue/SpottedLine';
 import { getPreciseLocation } from '../../hooks/useUserLocation';
@@ -137,7 +139,10 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
             </View>
           )}
           {venue.tagline && <Text style={styles.tagline}>{venue.tagline}</Text>}
+          {venue.liveLocation && <LiveLocationBadge updatedAt={venue.liveLocation.updatedAt} />}
         </View>
+
+        <AnnouncementsSection items={venue.announcements} />
 
         {/* Yol tarifi (ana eylem) */}
         <Pressable

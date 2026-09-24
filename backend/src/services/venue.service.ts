@@ -1,5 +1,7 @@
 import type { Prisma, VendorSchedule, Venue } from '@prisma/client';
 import {
+  activeOpenOverride,
+  ANNOUNCEMENT_TTL_MS,
   boundingBox,
   findActiveSlot,
   formatMinutes,
@@ -110,24 +112,53 @@ interface Aggregates {
   latest: Map<string, ReviewSnippetDTO>;
 }
 
-export type LiveStatusInput = Pick<Venue, 'isMobile' | 'latitude' | 'longitude' | 'locationNote' | 'lastSpottedAt'> & {
+export type LiveStatusInput = Pick<
+  Venue,
+  | 'locationType'
+  | 'latitude'
+  | 'longitude'
+  | 'locationNote'
+  | 'lastSpottedAt'
+  | 'isLiveLocation'
+  | 'liveLatitude'
+  | 'liveLongitude'
+  | 'lastLocationUpdate'
+  | 'openOverride'
+  | 'openOverrideAt'
+> & {
   schedules: VendorSchedule[];
 };
 
-/** Şu anki program dilimini, seyyarın o anki konumunu ve açık/aktif durumunu hesaplar. */
-export function liveStatus(venue: LiveStatusInput, now: Date) {
-  const activeSlot = findActiveSlot(venue.schedules, now);
-  const useSlotLocation = venue.isMobile && activeSlot?.latitude != null && activeSlot.longitude != null;
-  const position: LatLng = useSlotLocation
-    ? { latitude: activeSlot.latitude!, longitude: activeSlot.longitude! }
-    : { latitude: venue.latitude, longitude: venue.longitude };
+export const isStreetVendor = (venue: Pick<Venue, 'locationType'>) => venue.locationType === 'DYNAMIC_STREET';
 
+/**
+ * Şu anki program dilimini, seyyarın o anki konumunu ve açık/aktif durumunu hesaplar.
+ * Konum önceliği: satıcının canlı konumu → program diliminin köşesi → kayıtlı konum.
+ * Açıklık önceliği: satıcının elle "Açık/Kapalı" ayarı (12 saat geçerli) → program + topluluk teyidi.
+ */
+export function liveStatus(venue: LiveStatusInput, now: Date) {
+  const mobile = isStreetVendor(venue);
+  const activeSlot = findActiveSlot(venue.schedules, now);
+  const live =
+    venue.isLiveLocation && venue.liveLatitude != null && venue.liveLongitude != null && venue.lastLocationUpdate
+      ? { latitude: venue.liveLatitude, longitude: venue.liveLongitude, updatedAt: venue.lastLocationUpdate }
+      : null;
+  const useSlotLocation = mobile && activeSlot?.latitude != null && activeSlot.longitude != null;
+  const position: LatLng = live
+    ? { latitude: live.latitude, longitude: live.longitude }
+    : useSlotLocation
+      ? { latitude: activeSlot.latitude!, longitude: activeSlot.longitude! }
+      : { latitude: venue.latitude, longitude: venue.longitude };
+
+  const override = activeOpenOverride(venue.openOverride, venue.openOverrideAt, now);
   return {
     position,
-    locationNote: (venue.isMobile && activeSlot?.locationNote) || venue.locationNote,
-    isScheduledOpen: activeSlot !== undefined,
+    // Canlı konumda kayıtlı köşenin tarifi yanıltır
+    locationNote: live ? null : (mobile && activeSlot?.locationNote) || venue.locationNote,
+    liveLocation: live && { updatedAt: live.updatedAt.toISOString() },
+    isScheduledOpen: override ?? activeSlot !== undefined,
     // Topluluk teyidi yalnızca seyyarlar için anlamlı; dükkanlarda program belirleyici.
-    isActiveNow: isOpenNow(venue.schedules, venue.isMobile ? venue.lastSpottedAt : null, now),
+    isActiveNow: override ?? isOpenNow(venue.schedules, mobile ? venue.lastSpottedAt : null, now),
   };
 }
 
@@ -145,7 +176,7 @@ function toSummary(
     slug: venue.slug,
     name: venue.name,
     type: venue.type,
-    isMobile: venue.isMobile,
+    isMobile: isStreetVendor(venue),
     priceLevel: venue.priceLevel,
     authenticityScore: venue.authenticityScore,
     ...status.position,
@@ -164,6 +195,7 @@ function toSummary(
     rating: ratings.get(venue.id) ?? NO_RATING,
     coverImageUrl: venue.coverImageUrl,
     isPromoted: venue.isPromoted,
+    liveLocation: status.liveLocation,
     topReview: latest.get(venue.id) ?? null,
     mustTry: venue.dishes.map((d) => ({
       id: d.id,
@@ -179,9 +211,16 @@ export async function findNearbyVenues(query: NearbyQuery, locale: Locale, now =
 
   const venues = await prisma.venue.findMany({
     where: {
-      status: 'APPROVED',
-      latitude: { gte: box.minLat, lte: box.maxLat },
-      longitude: { gte: box.minLng, lte: box.maxLng },
+      status: 'ACTIVE',
+      // Kayıtlı konumu ya da satıcının canlı konumu bölgede olanlar
+      OR: [
+        { latitude: { gte: box.minLat, lte: box.maxLat }, longitude: { gte: box.minLng, lte: box.maxLng } },
+        {
+          isLiveLocation: true,
+          liveLatitude: { gte: box.minLat, lte: box.maxLat },
+          liveLongitude: { gte: box.minLng, lte: box.maxLng },
+        },
+      ],
       type: query.category?.length ? { in: query.category } : undefined,
       priceLevel: query.maxPrice === 'BUDGET' ? 'BUDGET' : undefined,
     },
@@ -191,7 +230,7 @@ export async function findNearbyVenues(query: NearbyQuery, locale: Locale, now =
   const ids = venues.map((v) => v.id);
   const [spottedToday, ratings, latest] = await Promise.all([
     spottedTodayCounts(
-      venues.filter((v) => v.isMobile).map((v) => v.id),
+      venues.filter(isStreetVendor).map((v) => v.id),
       now,
     ),
     ratingSummaries(ids),
@@ -215,8 +254,15 @@ export async function getVenueDetail(
   now = new Date(),
 ): Promise<VenueDetailDTO> {
   const venue = await prisma.venue.findFirst({
-    where: { status: 'APPROVED', OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
-    include: includeFor(locale, false),
+    where: { status: 'ACTIVE', OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
+    include: {
+      ...includeFor(locale, false),
+      announcements: {
+        where: { status: 'APPROVED', reviewedAt: { gte: new Date(now.getTime() - ANNOUNCEMENT_TTL_MS) } },
+        orderBy: { reviewedAt: 'desc' },
+        take: 3,
+      },
+    },
   });
   if (!venue) throw notFound('Venue');
 
@@ -245,7 +291,7 @@ export async function getVenueDetail(
     slug: venue.slug,
     name: venue.name,
     type: venue.type,
-    isMobile: venue.isMobile,
+    isMobile: isStreetVendor(venue),
     priceLevel: venue.priceLevel,
     authenticityScore: venue.authenticityScore,
     ...status.position,
@@ -267,6 +313,14 @@ export async function getVenueDetail(
     rating: ratings.get(venue.id) ?? NO_RATING,
     coverImageUrl: venue.coverImageUrl,
     isPromoted: venue.isPromoted,
+    liveLocation: status.liveLocation,
+    announcements: venue.announcements.map((a) => ({
+      id: a.id,
+      type: a.type,
+      title: a.title,
+      content: a.content,
+      publishedAt: (a.reviewedAt ?? a.createdAt).toISOString(),
+    })),
     pricePerPerson:
       venue.avgPriceMinTry !== null && venue.avgPriceMaxTry !== null
         ? { min: venue.avgPriceMinTry, max: venue.avgPriceMaxTry }
@@ -296,6 +350,7 @@ export async function getVenueDetail(
         isMustTry: d.isMustTry,
         isVegetarian: d.isVegetarian,
         priceTry: d.priceTry ? Number(d.priceTry) : null,
+        portion: d.portion,
         imageUrl: d.imageUrl,
         imageCredit: d.imageCredit,
         imageSourceUrl: d.imageSourceUrl,

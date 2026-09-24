@@ -1,4 +1,4 @@
-import type { LatLng, VenueType } from '@localbite/shared';
+import type { LatLng, LiveLocationFreshness, VenueType } from '@localbite/shared';
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
@@ -13,6 +13,8 @@ export interface MapPin {
   type: VenueType;
   isMobile: boolean;
   isActiveNow: boolean;
+  /** Satıcının canlı konum tazeliği (seyyarlar); null = canlı konum yok */
+  live: LiveLocationFreshness | null;
 }
 
 export interface MapUser extends LatLng {
@@ -36,6 +38,9 @@ interface Props {
   onPinPress?: (id: string) => void;
   onMapPress?: () => void;
   onMoveEnd?: (center: LatLng, info: { isGesture: boolean; zoom: number }) => void;
+  /** Konum seçici modu: sürüklenebilir pin bu noktada başlar */
+  picker?: LatLng | null;
+  onPick?: (point: LatLng) => void;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -51,6 +56,7 @@ type PageMessage =
   | { type: 'error'; message: string }
   | { type: 'markerPress'; id: string }
   | { type: 'mapPress' }
+  | { type: 'pick'; latitude: number; longitude: number }
   | { type: 'moveend'; latitude: number; longitude: number; zoom: number; isGesture: boolean };
 
 /**
@@ -69,6 +75,8 @@ export function LeafletView({
   onPinPress,
   onMapPress,
   onMoveEnd,
+  picker = null,
+  onPick,
   style,
 }: Props) {
   const webRef = useRef<WebView>(null);
@@ -114,6 +122,13 @@ export function LeafletView({
     if (ready) send({ type: 'padding', padding: { top: padding.top, bottom: padding.bottom } });
   }, [ready, padding.top, padding.bottom, send]);
 
+  const pickerLat = picker?.latitude;
+  const pickerLng = picker?.longitude;
+  useEffect(() => {
+    if (ready && pickerLat !== undefined && pickerLng !== undefined)
+      send({ type: 'picker', latitude: pickerLat, longitude: pickerLng });
+  }, [ready, pickerLat, pickerLng, send]);
+
   const onMessage = (event: WebViewMessageEvent) => {
     let msg: PageMessage;
     try {
@@ -124,6 +139,7 @@ export function LeafletView({
     if (msg.type === 'ready') setReady(true);
     else if (msg.type === 'markerPress') onPinPress?.(msg.id);
     else if (msg.type === 'mapPress') onMapPress?.();
+    else if (msg.type === 'pick') onPick?.({ latitude: msg.latitude, longitude: msg.longitude });
     else if (msg.type === 'moveend')
       onMoveEnd?.({ latitude: msg.latitude, longitude: msg.longitude }, { isGesture: msg.isGesture, zoom: msg.zoom });
     else if (msg.type === 'error') console.warn('[LeafletView]', msg.message);

@@ -5,6 +5,7 @@ import { useT, type Dictionary } from '../../i18n';
 import { formatDistance, formatRelative } from '../../lib/format';
 import { makeStyles, radius, spacing, useTheme, venueTypeMeta } from '../../theme';
 import { Stars } from '../ui/Stars';
+import { LiveLocationBadge } from '../venue/LiveLocationBadge';
 
 /** Seyyarın teyit durumu: "1 dk önce teyit edildi" / "Bugün henüz teyit edilmedi" */
 export function confirmationLabel(v: VenueSummaryDTO, t: Dictionary) {
@@ -88,6 +89,11 @@ export function SocialReportCallout({
               {open ? t.status.openNow : t.status.closed}
             </Text>
           </View>
+          {venue.liveLocation && (
+            <View style={{ marginTop: 6 }}>
+              <LiveLocationBadge updatedAt={venue.liveLocation.updatedAt} compact />
+            </View>
+          )}
         </View>
         <Pressable onPress={onClose} hitSlop={10} style={styles.close} accessibilityLabel={t.suggest.close}>
           <X size={16} color={colors.text} />

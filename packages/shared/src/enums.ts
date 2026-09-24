@@ -20,7 +20,7 @@ export const LOCAL_TIPS = [
 ] as const;
 export type LocalTip = (typeof LOCAL_TIPS)[number];
 
-export const VENUE_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'CLOSED'] as const;
+export const VENUE_STATUSES = ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'CLOSED'] as const;
 export type VenueStatus = (typeof VENUE_STATUSES)[number];
 
 export const REPORT_TYPES = ['SPOTTED_TODAY', 'UPVOTE', 'NOT_HERE', 'CLOSED'] as const;
@@ -37,8 +37,18 @@ export const LOCALES = ['en', 'tr'] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'en';
 
-export const USER_ROLES = ['USER', 'LOCAL_GUIDE', 'ADMIN'] as const;
+export const USER_ROLES = ['USER', 'LOCAL_GUIDE', 'VENDOR', 'SUPER_ADMIN'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** STATIC: sabit dükkan · DYNAMIC_STREET: seyyar (konumu değişir) */
+export const LOCATION_TYPES = ['STATIC', 'DYNAMIC_STREET'] as const;
+export type LocationType = (typeof LOCATION_TYPES)[number];
+
+export const ANNOUNCEMENT_TYPES = ['ANNOUNCEMENT', 'PROMOTION'] as const;
+export type AnnouncementType = (typeof ANNOUNCEMENT_TYPES)[number];
+
+export const ANNOUNCEMENT_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const;
+export type AnnouncementStatus = (typeof ANNOUNCEMENT_STATUSES)[number];
 
 /** Şikayet edilebilir içerik türleri ve nedenleri (moderasyon) */
 export const REPORTABLE_CONTENT = ['POST', 'COMMENT', 'REVIEW'] as const;

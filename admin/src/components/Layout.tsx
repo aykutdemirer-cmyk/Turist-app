@@ -2,11 +2,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Flag, LogOut, ShieldCheck, UserX } from 'lucide-react';
 import { useEffect } from 'react';
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router';
-import { adminApi, authApi, session, useToken } from '../api';
+import { adminApi, ApiError, authApi, session, useToken } from '../api';
 import { SkeletonList } from './ui';
 
 /**
- * /admin altındaki her şeyi korur: oturum yoksa ya da rol ADMIN değilse /auth/login'e yönlendirir.
+ * /admin altındaki her şeyi korur: oturum yoksa ya da rol SUPER_ADMIN değilse /auth/login'e yönlendirir.
  * Sunucu da her admin uç noktasında rolü ayrıca doğrular; bu yalnızca arayüz kapısıdır.
  */
 export function RequireAdmin() {
@@ -14,7 +14,9 @@ export function RequireAdmin() {
   const location = useLocation();
   const me = useQuery({ queryKey: ['me', token], queryFn: authApi.me, enabled: !!token, retry: false });
 
-  const forbidden = !!token && (me.isError || (me.isSuccess && me.data.user.role !== 'ADMIN'));
+  // Yalnızca sunucu reddederse (401/403) ya da rol yetmezse çıkış; API geçici olarak kapalıysa oturum korunur
+  const rejected = me.error instanceof ApiError && (me.error.status === 401 || me.error.status === 403);
+  const forbidden = !!token && (rejected || (me.isSuccess && me.data.user.role !== 'SUPER_ADMIN'));
 
   // Yetkisiz oturumu kapat (render dışında)
   useEffect(() => {
@@ -28,6 +30,16 @@ export function RequireAdmin() {
     return (
       <div className="mx-auto max-w-5xl p-6">
         <SkeletonList rows={2} />
+      </div>
+    );
+  }
+  if (me.isError) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-3 p-6 text-sm">
+        <p>{me.error.message}</p>
+        <button type="button" onClick={() => me.refetch()} className="font-semibold text-brand underline">
+          Tekrar dene
+        </button>
       </div>
     );
   }

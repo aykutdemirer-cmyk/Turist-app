@@ -4,10 +4,13 @@ import {
   LOCALES,
   LOCAL_TIPS,
   LOCATION_REQUIRED_REPORTS,
+  ANNOUNCEMENT_STATUSES,
+  ANNOUNCEMENT_TYPES,
   MODERATION_STATUSES,
   PRICE_LEVELS,
   REPORTABLE_CONTENT,
   REPORT_TYPES,
+  VENUE_STATUSES,
   VENUE_TYPES,
 } from './enums';
 
@@ -208,4 +211,54 @@ export const adminReportsQuerySchema = z.object({
 export const deletionRequestSchema = z.object({
   email: emailSchema,
   note: z.string().trim().max(1000).optional(),
+});
+
+// ─────────────────────────────────────────────
+// Esnaf paneli (VENDOR — yalnızca kendi mekanı)
+// ─────────────────────────────────────────────
+
+/** GPS: cihazın anlık konumu · MAP: haritada pin sürüklenerek seçildi */
+export const vendorLocationSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  source: z.enum(['GPS', 'MAP']),
+});
+export type VendorLocationInput = z.infer<typeof vendorLocationSchema>;
+
+/** null = çalışma saatlerine göre (elle ayarı kaldır) */
+export const vendorOpenSchema = z.object({ isOpen: z.boolean().nullable() });
+export type VendorOpenInput = z.infer<typeof vendorOpenSchema>;
+
+export const vendorAnnouncementSchema = z.object({
+  title: z.string().trim().min(3).max(80),
+  content: z.string().trim().min(3).max(500),
+  type: z.enum(ANNOUNCEMENT_TYPES).default('ANNOUNCEMENT'),
+});
+export type VendorAnnouncementInput = z.input<typeof vendorAnnouncementSchema>;
+
+export const vendorDishSchema = z.object({
+  /** TL; null = fiyatı kaldır */
+  priceTry: z.number().min(0).max(100_000).nullable(),
+  portion: z.string().trim().max(60).nullable(),
+});
+export type VendorDishInput = z.infer<typeof vendorDishSchema>;
+
+// ─────────────────────────────────────────────
+// Super Admin yönetim merkezi
+// ─────────────────────────────────────────────
+
+export const adminVenuesQuerySchema = z.object({
+  status: z.enum(VENUE_STATUSES).optional(),
+  promoted: booleanish.optional(),
+  /** Yalnızca canlı konum paylaşan seyyarlar */
+  live: booleanish.optional(),
+  q: z.string().trim().max(80).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+export type AdminVenuesQuery = z.infer<typeof adminVenuesQuerySchema>;
+
+export const adminPromotedSchema = z.object({ isPromoted: z.boolean() });
+
+export const adminAnnouncementsQuerySchema = z.object({
+  status: z.enum(ANNOUNCEMENT_STATUSES).default('PENDING'),
 });

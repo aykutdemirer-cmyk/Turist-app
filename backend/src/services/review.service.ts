@@ -10,7 +10,7 @@ import { notFound } from '../lib/errors';
  */
 export async function upsertReview(venueId: string, userId: string, input: ReviewInput, now = new Date()): Promise<ReviewDTO> {
   const [venue, user] = await Promise.all([
-    prisma.venue.findFirst({ where: { id: venueId, status: 'APPROVED' }, select: { id: true } }),
+    prisma.venue.findFirst({ where: { id: venueId, status: 'ACTIVE' }, select: { id: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { fullName: true, authProvider: true } }),
   ]);
   if (!venue) throw notFound('Venue');

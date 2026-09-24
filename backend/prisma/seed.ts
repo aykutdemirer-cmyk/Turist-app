@@ -7,9 +7,10 @@
  * Idempotent: yalnızca buradaki slug'lara sahip mekanları silip yeniden oluşturur,
  * kullanıcı önerilerine dokunmaz.
  */
-import { PrismaClient, type LocalTip, type PriceLevel, type VenueType } from '@prisma/client';
+import { PrismaClient, type LocalTip, type PriceLevel, type UserRole, type VenueType } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { toMinutes } from '@localbite/shared';
+import { hashPassword } from '../src/lib/password';
 
 const prisma = new PrismaClient();
 
@@ -607,6 +608,22 @@ const pricePerPerson: Record<string, [number, number]> = {
 };
 
 /** Porsiyon fiyatı, yemeğin yerel adına göre */
+/** Porsiyon bilgisi (esnaf panelinden güncellenebilir) */
+const dishPortion: Record<string, string> = {
+  'Nohutlu Pilav': '1 tabak · ~300 g',
+  'Tavuklu Nohutlu Pilav': '1 tabak · ~350 g',
+};
+
+/**
+ * Satıcı canlı konumu örnekleri: harita göstergesinin üç durumu
+ * (≤4 sa canlı, 4–12 sa güncellendi, >12 sa son bilinen nokta).
+ */
+const liveDemo: Record<string, { minutesAgo: number; dLat: number; dLng: number }> = {
+  'rihtim-gece-pilavcisi': { minutesAgo: 15, dLat: 0.0005, dLng: -0.0006 },
+  'kadikoy-seyyar-kofteci': { minutesAgo: 6 * 60, dLat: -0.0004, dLng: 0.0005 },
+  'sirkeci-kestane-misir': { minutesAgo: 20 * 60, dLat: 0.0003, dLng: 0.0004 },
+};
+
 const dishPrice: Record<string, number> = {
   'Nohutlu Pilav': 120,
   'Tavuklu Nohutlu Pilav': 160,
@@ -928,8 +945,127 @@ async function seedCommunity(now: number) {
   console.log(`Seeded ${posts.length} community posts.`);
 }
 
+// ─────────────────────────────────────────────
+// Yönetim test hesapları + esnaf paneli örnek verisi
+// ─────────────────────────────────────────────
+
+interface StaffAccount {
+  email: string;
+  fullName: string;
+  role: UserRole;
+  password: string;
+  /** VENDOR'ın yönettiği mekan */
+  owns?: string;
+}
+
+/** Yerel geliştirme şifreleri; üretimde ortam değişkeniyle verilmezse hesaplar oluşturulmaz */
+const staff: StaffAccount[] = [
+  {
+    email: 'admin@localbite.app',
+    fullName: 'LocalBite Yönetici',
+    role: 'SUPER_ADMIN',
+    password: process.env.SEED_ADMIN_PASSWORD ?? 'LocalBite-Admin-2026',
+  },
+  {
+    email: 'pilavci@localbite.app',
+    fullName: 'Hüseyin Usta',
+    role: 'VENDOR',
+    password: process.env.SEED_VENDOR_PASSWORD ?? 'LocalBite-Pilav-2026',
+    owns: 'rihtim-gece-pilavcisi',
+  },
+];
+
+/** Yönetim merkezindeki "Esnaf & Mekan Onayları" için bekleyen başvuru */
+const PENDING_APPLICATION_SLUG = 'moda-sahil-lokmacisi';
+
+async function seedStaff(now: number) {
+  if (process.env.NODE_ENV === 'production' && !(process.env.SEED_ADMIN_PASSWORD && process.env.SEED_VENDOR_PASSWORD)) {
+    console.log('Skipped staff accounts (set SEED_ADMIN_PASSWORD and SEED_VENDOR_PASSWORD in production).');
+    return;
+  }
+  for (const a of staff) {
+    const passwordHash = await hashPassword(a.password);
+    const user = await prisma.user.upsert({
+      where: { email: a.email },
+      create: {
+        email: a.email,
+        fullName: a.fullName,
+        role: a.role,
+        passwordHash,
+        authProvider: 'email',
+        locale: 'tr',
+        termsAcceptedAt: new Date(now),
+      },
+      update: { role: a.role, passwordHash },
+    });
+    if (a.owns) {
+      const venue = await prisma.venue.update({ where: { slug: a.owns }, data: { ownerId: user.id }, select: { id: true } });
+      await prisma.vendorAnnouncement.createMany({
+        data: [
+          {
+            venueId: venue.id,
+            type: 'ANNOUNCEMENT',
+            title: 'Bu gece tencere 22:00’de açılıyor',
+            content: 'Son vapurdan inenlere sıcak tereyağlı nohutlu pilav. Tencere bitene kadar buradayız.',
+            status: 'APPROVED',
+            createdAt: new Date(now - 3 * 3_600_000),
+            reviewedAt: new Date(now - 2 * 3_600_000),
+          },
+          {
+            venueId: venue.id,
+            type: 'PROMOTION',
+            title: 'Öğrencilere ayran bizden',
+            content: 'Öğrenci kartını gösterene pilavın yanında ayran ikram. Bu hafta sonu geçerli.',
+            status: 'PENDING',
+            createdAt: new Date(now - 20 * 60_000),
+          },
+        ],
+      });
+    }
+    console.log(`  ✓ ${a.role} ${a.email}`);
+  }
+}
+
+async function seedPendingApplication() {
+  await prisma.venue.create({
+    data: {
+      slug: PENDING_APPLICATION_SLUG,
+      name: 'Moda Sahil Lokmacısı',
+      type: 'DESSERT_TEA',
+      locationType: 'DYNAMIC_STREET',
+      priceLevel: 'BUDGET',
+      latitude: 40.9819,
+      longitude: 29.0254,
+      locationNote: 'Moda sahili, çay bahçesinin yanındaki merdivenler',
+      neighborhood: 'Moda',
+      district: 'Kadıköy',
+      localTips: ['CASH_ONLY', 'STANDING_ONLY'],
+      status: 'PENDING_APPROVAL',
+      translations: {
+        create: [
+          { locale: 'tr', tagline: 'Akşamüstü sahilde sıcak, şerbetli lokma' },
+          { locale: 'en', tagline: 'Warm syrupy lokma doughnuts on the seafront at dusk' },
+        ],
+      },
+      dishes: {
+        create: [
+          {
+            localName: 'Lokma',
+            sortOrder: 1,
+            priceTry: 60,
+            portion: '10 adet',
+            isVegetarian: true,
+            translations: { create: [{ locale: 'en', name: 'Lokma (fried dough in syrup)' }] },
+          },
+        ],
+      },
+    },
+  });
+  console.log('Seeded 1 pending venue application.');
+}
+
 async function main() {
-  const slugs = venues.map((v) => v.slug);
+  const slugs = [...venues.map((v) => v.slug), PENDING_APPLICATION_SLUG];
   const { count } = await prisma.venue.deleteMany({ where: { slug: { in: slugs } } });
   if (count) console.log(`Removed ${count} previously seeded venues`);
 
@@ -941,7 +1077,7 @@ async function main() {
         slug: v.slug,
         name: v.name,
         type: v.type,
-        isMobile: v.isMobile,
+        locationType: v.isMobile ? 'DYNAMIC_STREET' : 'STATIC',
         priceLevel: v.priceLevel,
         authenticityScore: v.authenticityScore,
         latitude: v.latitude,
@@ -951,7 +1087,13 @@ async function main() {
         neighborhood: v.neighborhood,
         district: v.district,
         localTips: v.localTips,
-        status: 'APPROVED',
+        status: 'ACTIVE',
+        ...(liveDemo[v.slug] && {
+          isLiveLocation: true,
+          liveLatitude: v.latitude + liveDemo[v.slug]!.dLat,
+          liveLongitude: v.longitude + liveDemo[v.slug]!.dLng,
+          lastLocationUpdate: new Date(now - liveDemo[v.slug]!.minutesAgo * 60_000),
+        }),
         lastSpottedAt: v.spottedMinutesAgo !== undefined ? new Date(now - v.spottedMinutesAgo * 60_000) : null,
         spottedCount: v.spottedCount ?? 0,
         upvoteCount: v.upvoteCount ?? 0,
@@ -971,6 +1113,7 @@ async function main() {
             sortOrder: i + 1,
             isVegetarian: d.isVegetarian ?? false,
             priceTry: dishPrice[d.localName],
+            portion: dishPortion[d.localName],
             imageUrl: dishPhotos[d.localName] ? `/media/dishes/${dishPhotos[d.localName]!.file}` : undefined,
             imageCredit: dishPhotos[d.localName]?.credit,
             imageSourceUrl: dishPhotos[d.localName]?.sourceUrl,
@@ -1018,6 +1161,8 @@ async function main() {
   console.log(`Seeded ${venues.length} venues (${mobile} mobile vendors).`);
 
   await seedCommunity(now);
+  await seedPendingApplication();
+  await seedStaff(now);
 }
 
 main()

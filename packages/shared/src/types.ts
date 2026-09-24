@@ -1,4 +1,6 @@
 import type {
+  AnnouncementStatus,
+  AnnouncementType,
   ContentReportReason,
   Locale,
   LocalTip,
@@ -7,7 +9,9 @@ import type {
   ReportableContent,
   ReportType,
   ReviewSource,
+  LocationType,
   UserRole,
+  VenueStatus,
   VenueType,
 } from './enums';
 
@@ -41,6 +45,8 @@ export interface DishDTO {
   isVegetarian: boolean;
   /** Yaklaşık porsiyon fiyatı (TL) */
   priceTry: number | null;
+  /** Porsiyon bilgisi: "1 porsiyon · 350 g" */
+  portion: string | null;
   /** Mutlak URL ya da API'ye göre göreli yol (/media/...) */
   imageUrl: string | null;
   /** Lisanslı fotoğrafın görünür atfı: "Yazar · CC BY-SA 4.0" */
@@ -96,6 +102,11 @@ export interface VenueSummaryDTO {
   coverImageUrl: string | null;
   /** Esnaf sponsorlu öne çıkarma (ücretli yerleşim; "Sponsorlu" olarak etiketlenmeli) */
   isPromoted: boolean;
+  /**
+   * Satıcının kendi gönderdiği konum (seyyarlar). Doluysa latitude/longitude bu konumdur.
+   * Tazelik istemcide liveLocationFreshness(updatedAt) ile hesaplanır (zaman ilerledikçe değişir).
+   */
+  liveLocation: { updatedAt: string } | null;
   topReview: ReviewSnippetDTO | null;
   mustTry: Pick<DishDTO, 'id' | 'localName' | 'name'>[];
 }
@@ -120,6 +131,16 @@ export interface VenueDetailDTO extends Omit<VenueSummaryDTO, 'distanceMeters' |
   schedules: ScheduleDTO[];
   /** En yeni yorumlar (en fazla 10) */
   reviews: ReviewDTO[];
+  /** Onaylı, yayın süresi dolmamış satıcı duyuruları */
+  announcements: PublicAnnouncementDTO[];
+}
+
+export interface PublicAnnouncementDTO {
+  id: string;
+  type: AnnouncementType;
+  title: string;
+  content: string;
+  publishedAt: string;
 }
 
 /** Teyitler akışı: yakındaki son "Bugün burada gördüm" bildirimleri (raporlayan kimliği paylaşılmaz) */
@@ -292,4 +313,75 @@ export interface DeletionRequestDTO {
   processedAt: string | null;
   /** Bu e-postaya kayıtlı hesap var mı */
   accountExists: boolean;
+}
+
+// ─────────────────────────────────────────────
+// Esnaf paneli / Super Admin yönetim merkezi
+// ─────────────────────────────────────────────
+
+export interface VendorAnnouncementDTO {
+  id: string;
+  type: AnnouncementType;
+  title: string;
+  content: string;
+  status: AnnouncementStatus;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export interface VendorDishDTO {
+  id: string;
+  localName: string;
+  name: string;
+  priceTry: number | null;
+  portion: string | null;
+}
+
+export interface GeoPointDTO {
+  latitude: number;
+  longitude: number;
+}
+
+/** Satıcının kendi mekanı */
+export interface VendorVenueDTO {
+  id: string;
+  slug: string;
+  name: string;
+  type: VenueType;
+  locationType: LocationType;
+  status: VenueStatus;
+  /** Varsayılan (kayıtlı) konum */
+  baseLocation: GeoPointDTO;
+  /** Satıcının son gönderdiği konum */
+  liveLocation: (GeoPointDTO & { updatedAt: string }) | null;
+  /** Ziyaretçinin gördüğü durum (elle ayar ya da çalışma saatleri) */
+  isOpenNow: boolean;
+  /** Satıcının geçerli elle ayarı; null = çalışma saatlerine göre */
+  openOverride: boolean | null;
+  dishes: VendorDishDTO[];
+  announcements: VendorAnnouncementDTO[];
+}
+
+/** Yönetim merkezi mekan satırı (onay, sponsorluk, konum denetimi) */
+export interface AdminVenueDTO {
+  id: string;
+  slug: string;
+  name: string;
+  type: VenueType;
+  locationType: LocationType;
+  status: VenueStatus;
+  isPromoted: boolean;
+  neighborhood: string | null;
+  district: string | null;
+  locationNote: string | null;
+  tagline: string | null;
+  mustTry: string[];
+  baseLocation: GeoPointDTO;
+  liveLocation: (GeoPointDTO & { updatedAt: string }) | null;
+  owner: { id: string; name: string; email: string | null } | null;
+  createdAt: string;
+}
+
+export interface AdminAnnouncementDTO extends VendorAnnouncementDTO {
+  venue: { id: string; name: string; slug: string };
 }

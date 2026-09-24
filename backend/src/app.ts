@@ -14,8 +14,10 @@ import { communityRoutes } from './routes/community';
 import { mapRoutes } from './routes/map';
 import { mediaRoutes } from './routes/media';
 import { monetizationRoutes } from './routes/monetization';
-import { adminRoutes, moderationRoutes } from './routes/moderation';
+import { adminRoutes } from './routes/admin';
+import { moderationRoutes } from './routes/moderation';
 import { privacyRoutes } from './routes/privacy';
+import { vendorRoutes } from './routes/vendor';
 import { venueRoutes } from './routes/venues';
 
 export interface AppOptions {
@@ -25,6 +27,9 @@ export interface AppOptions {
 
 export async function buildApp({ corsOrigin = '*', logger = true }: AppOptions = {}) {
   const app = Fastify({ logger }).withTypeProvider<ZodTypeProvider>();
+
+  // roleGuard doldurur (bkz. lib/auth.ts); şekil sabit kalsın diye önceden tanımlı
+  app.decorateRequest('actorId', '');
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -69,6 +74,7 @@ export async function buildApp({ corsOrigin = '*', logger = true }: AppOptions =
   await app.register(communityRoutes, { prefix: '/api/v1' });
   await app.register(moderationRoutes, { prefix: '/api/v1' });
   await app.register(adminRoutes, { prefix: '/api/v1' });
+  await app.register(vendorRoutes, { prefix: '/api/v1' });
   await app.register(monetizationRoutes, { prefix: '/api/v1' });
   await app.register(mapRoutes);
   await app.register(mediaRoutes);

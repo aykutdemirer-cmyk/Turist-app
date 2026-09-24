@@ -1,4 +1,4 @@
-import type { LatLng, VenueSummaryDTO } from '@localbite/shared';
+import { liveLocationFreshness, type LatLng, type VenueSummaryDTO } from '@localbite/shared';
 import { useImperativeHandle, useMemo, useRef, type Ref } from 'react';
 import { StyleSheet } from 'react-native';
 import { LeafletView, type LeafletHandle, type MapPin, type MapUser } from './leaflet/LeafletView';
@@ -53,6 +53,7 @@ export function VenueMap({
         type: v.type,
         isMobile: v.isMobile,
         isActiveNow: v.isActiveNow,
+        live: liveLocationFreshness(v.liveLocation?.updatedAt),
       })),
     [venues],
   );

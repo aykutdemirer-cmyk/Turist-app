@@ -5,3 +5,4 @@ export * from './time';
 export * from './types';
 export * from './pronounce';
 export * from './legal';
+export * from './vendor';

@@ -94,7 +94,7 @@ export async function createPost(userId: string, input: CreatePostInput): Promis
   await assertMember(userId);
   assertAcceptableContent(input.title, input.content);
   if (input.venueId) {
-    const venue = await prisma.venue.findFirst({ where: { id: input.venueId, status: 'APPROVED' }, select: { id: true } });
+    const venue = await prisma.venue.findFirst({ where: { id: input.venueId, status: 'ACTIVE' }, select: { id: true } });
     if (!venue) throw notFound('Venue');
   }
   const post = await prisma.post.create({

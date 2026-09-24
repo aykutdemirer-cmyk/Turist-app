@@ -111,6 +111,7 @@ export function DishRow({ dish, venueType, isMobile }: { dish: DishDTO; venueTyp
               <Text style={styles.priceText}>{t.detail.portion(formatTry(dish.priceTry))}</Text>
             </View>
           )}
+          {dish.portion && <Text style={styles.portionText}>{dish.portion}</Text>}
         </View>
         {/* CC lisansı atfın tam ve görünür olmasını ister; dokununca kaynak sayfa açılır */}
         {dish.imageCredit && (
@@ -154,5 +155,6 @@ const useStyles = makeStyles(({ colors }) => ({
     borderRadius: radius.pill,
   },
   priceText: { fontSize: 12, fontWeight: '800', color: colors.open },
+  portionText: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
   credit: { fontSize: 10, color: colors.textMuted, marginTop: 6, textDecorationLine: 'underline' },
 }));

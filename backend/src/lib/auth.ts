@@ -1,4 +1,5 @@
-import type { FastifyRequest } from 'fastify';
+import type { UserRole } from '@localbite/shared';
+import type { FastifyRequest, onRequestAsyncHookHandler } from 'fastify';
 import { errors as joseErrors, jwtVerify, SignJWT } from 'jose';
 import { prisma } from '../db';
 import { env } from '../env';
@@ -55,10 +56,23 @@ export function publicName(fullName: string | null | undefined, fallback = 'Gues
   return `${parts.slice(0, -1).join(' ')} ${parts.at(-1)!.charAt(0).toLocaleUpperCase('tr')}.`;
 }
 
-/** Yalnızca ADMIN rolündeki üyeler (moderasyon uç noktaları) */
-export async function requireAdminId(req: FastifyRequest): Promise<string> {
-  const id = await requireUserId(req);
-  const user = await prisma.user.findUnique({ where: { id }, select: { role: true } });
-  if (user?.role !== 'ADMIN') throw new HttpError(403, 'FORBIDDEN', 'Admins only');
-  return id;
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** roleGuard'ın doğruladığı üye; yalnızca korunan kapsamlarda dolu */
+    actorId: string;
+  }
+}
+
+/**
+ * Kapsam (plugin) düzeyinde rol koruması: `app.addHook('onRequest', roleGuard('SUPER_ADMIN'))`.
+ * Rol her istekte veritabanından okunur; token'daki eski bilgiye güvenilmez (yetki geri alınınca hemen düşer).
+ */
+export function roleGuard(role: UserRole): onRequestAsyncHookHandler {
+  return async (req) => {
+    const id = await requireUserId(req);
+    const user = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+    if (!user) throw unauthorized('Account not found');
+    if (user.role !== role) throw new HttpError(403, 'FORBIDDEN', `${role} role required`);
+    req.actorId = id;
+  };
 }

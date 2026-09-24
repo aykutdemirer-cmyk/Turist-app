@@ -14,8 +14,8 @@ export interface LeafletConfig {
 
 /**
  * WebView içinde çalışan Leaflet sayfası. RN ile köprü:
- *  RN → sayfa: window.bridge.receive({ type: 'venues' | 'select' | 'user' | 'padding' | 'focus', ... })
- *  sayfa → RN: { type: 'ready' | 'markerPress' | 'moveend' }
+ *  RN → sayfa: window.bridge.receive({ type: 'venues' | 'select' | 'user' | 'padding' | 'focus' | 'picker', ... })
+ *  sayfa → RN: { type: 'ready' | 'markerPress' | 'moveend' | 'pick' }
  */
 export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
   const page = {
@@ -53,6 +53,21 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
   .pulse { position: absolute; border-radius: 50%; background: ${page.colors.open};
            animation: pulse 1.6s ease-out infinite; }
   @keyframes pulse { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(1.7); opacity: 0; } }
+
+  /* Satıcının canlı konumu: ≤4 sa yeşil nokta, >12 sa soluk "son bilinen nokta" */
+  .live-dot { position: absolute; top: 9px; right: 9px; width: 14px; height: 14px; border-radius: 50%;
+              background: ${page.colors.open}; border: 2.5px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
+  .live-dot::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid ${page.colors.open};
+                     animation: pulse 1.6s ease-out infinite; }
+  .pin-box.stale { opacity: 0.45; filter: grayscale(0.6); }
+
+  /* Konum seçici: sürüklenebilir pin */
+  .picker { position: relative; width: 48px; height: 60px; }
+  .picker-head { position: absolute; left: 6px; top: 0; width: 36px; height: 36px; border-radius: 50% 50% 50% 0;
+                 transform: rotate(-45deg); background: ${page.colors.mobile}; border: 3px solid #fff;
+                 box-shadow: 0 3px 8px rgba(0,0,0,0.35); }
+  .picker-dot { position: absolute; left: 18px; top: 12px; width: 12px; height: 12px; border-radius: 50%; background: #fff; }
+  .picker-shadow { position: absolute; left: 17px; bottom: 0; width: 14px; height: 6px; border-radius: 50%; background: rgba(0,0,0,0.25); }
 
   .me { position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center; }
   .radar { position: absolute; width: 56px; height: 56px; border-radius: 50%;
@@ -122,14 +137,17 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
     var border = v.isMobile ? cfg.colors.mobileAccent : cfg.colors.shop;
     var fg = v.isMobile ? '#fff' : cfg.colors.shop;
     var ring = size + 8;
-    return '<div class="pin-box">' +
-      (v.isActiveNow ? '<div class="pulse" style="width:' + ring + 'px;height:' + ring + 'px"></div>' : '') +
-      '<div class="ring' + (v.isActiveNow ? ' active' : '') + '" style="width:' + ring + 'px;height:' + ring + 'px">' +
+    var live = v.live === 'LIVE';
+    var stale = v.live === 'STALE';
+    var active = (v.isActiveNow || live) && !stale;
+    return '<div class="pin-box' + (stale ? ' stale' : '') + '">' +
+      (active ? '<div class="pulse" style="width:' + ring + 'px;height:' + ring + 'px"></div>' : '') +
+      '<div class="ring' + (active ? ' active' : '') + '" style="width:' + ring + 'px;height:' + ring + 'px">' +
         '<div class="pin" style="width:' + size + 'px;height:' + size + 'px;background:' + bg + ';border-color:' + border +
           ';border-width:' + (selected ? 3 : 2.5) + 'px;color:' + fg + '">' +
           '<svg viewBox="0 0 24 24" width="' + icon + '" height="' + icon + '">' + cfg.icons[v.type] + '</svg>' +
         '</div>' +
-      '</div></div>';
+      '</div>' + (live ? '<div class="live-dot"></div>' : '') + '</div>';
   }
 
   function venueIcon(v, selected) {
@@ -144,7 +162,7 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
     entry.key = key;
     entry.marker.setLatLng([entry.data.latitude, entry.data.longitude]);
     entry.marker.setIcon(venueIcon(entry.data, selected));
-    entry.marker.setZIndexOffset(selected ? 2000 : entry.data.isActiveNow ? 200 : 0);
+    entry.marker.setZIndexOffset(selected ? 2000 : entry.data.live === 'STALE' ? -100 : entry.data.isActiveNow ? 200 : 0);
   }
 
   function setVenues(list) {
@@ -191,6 +209,28 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
     }
   }
 
+  // Konum seçici: sürüklenebilir pin; haritaya dokunmak da pini taşır
+  var pickerMarker = null;
+  function emitPick() {
+    var p = pickerMarker.getLatLng();
+    post({ type: 'pick', latitude: p.lat, longitude: p.lng });
+  }
+  function setPicker(m) {
+    if (!pickerMarker) {
+      pickerMarker = L.marker([m.latitude, m.longitude], {
+        draggable: true, keyboard: false, zIndexOffset: 6000,
+        icon: L.divIcon({
+          className: 'lb-icon', iconSize: [48, 60], iconAnchor: [24, 58],
+          html: '<div class="picker"><div class="picker-shadow"></div><div class="picker-head"></div><div class="picker-dot"></div></div>'
+        })
+      }).addTo(map);
+      pickerMarker.on('dragend', emitPick);
+      map.on('click', function (e) { pickerMarker.setLatLng(e.latlng); emitPick(); });
+    } else {
+      pickerMarker.setLatLng([m.latitude, m.longitude]);
+    }
+  }
+
   // Hedef, görünür alanın (üst/alt boşluklar hariç) ortasına gelsin
   function focus(m) {
     var zoom = m.zoom || map.getZoom();
@@ -205,6 +245,7 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
       else if (m.type === 'user') setUser(m.user);
       else if (m.type === 'padding') padding = m.padding;
       else if (m.type === 'focus') focus(m);
+      else if (m.type === 'picker') setPicker(m);
     }
   };
   post({ type: 'ready' });
