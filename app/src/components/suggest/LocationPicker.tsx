@@ -3,7 +3,7 @@ import { MapPin, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useT } from '../../i18n';
-import { colors, radius, shadow, spacing } from '../../theme';
+import { makeStyles, radius, spacing, useTheme } from '../../theme';
 import { LeafletView, type MapUser } from '../map/leaflet/LeafletView';
 
 interface Props {
@@ -18,6 +18,8 @@ const PICKER_ZOOM = 17; // sokak seviyesi
 
 /** Pin ekranın ortasında sabit; kullanıcı haritayı kaydırarak yeri ayarlar. */
 export function LocationPicker({ initial, user, bottomInset, onConfirm, onCancel }: Props) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const [center, setCenter] = useState<LatLng>(initial);
 
@@ -58,7 +60,7 @@ export function LocationPicker({ initial, user, bottomInset, onConfirm, onCancel
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, shadow }) => ({
   container: { flex: 1 },
   pressed: { opacity: 0.8 },
   pinWrap: {
@@ -113,4 +115,4 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   confirmText: { color: colors.textInverse, fontWeight: '700', fontSize: 16 },
-});
+}));

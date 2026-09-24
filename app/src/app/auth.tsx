@@ -9,7 +9,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
   type TextInput,
@@ -20,7 +19,7 @@ import { ApiError } from '../api/client';
 import { Field, Input } from '../components/suggest/FormControls';
 import { useLocale, useT, type Dictionary } from '../i18n';
 import { useAuthStore, type AuthReason } from '../store/auth';
-import { colors, font, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing, useTheme } from '../theme';
 
 type Mode = 'login' | 'register';
 type Errors = Partial<Record<'fullName' | 'email' | 'password' | 'form', string>>;
@@ -38,6 +37,8 @@ function errorMessage(err: unknown, t: Dictionary): string {
 }
 
 export default function AuthScreen() {
+  const { colors, font } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
@@ -212,7 +213,7 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, font }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: spacing.xl, gap: spacing.md },
   badge: {
@@ -270,4 +271,4 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-});
+}));

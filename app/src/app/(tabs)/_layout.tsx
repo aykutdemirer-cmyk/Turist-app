@@ -1,14 +1,18 @@
 import { Tabs } from 'expo-router';
 import { Bell, Compass, House, MessagesSquare, User } from 'lucide-react-native';
+import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { SuggestSpotModal } from '../../components/suggest/SuggestSpotModal';
 import { DEFAULT_CENTER, useLocationTracker, useUserLocation } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
 import { useExploreStore } from '../../store/explore';
-import { colors } from '../../theme';
+import { useTheme } from '../../theme';
 
 export default function TabsLayout() {
+  const { colors } = useTheme();
   const t = useT();
+  const insets = useSafeAreaInsets();
   // Konum bir kez burada alınır ve canlı takip edilir; tüm sekmeler aynı konumu paylaşır
   useLocationTracker();
   const location = useUserLocation();
@@ -24,7 +28,8 @@ export default function TabsLayout() {
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textMuted,
           tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-          tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+          tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+          sceneStyle: { backgroundColor: colors.bg },
         }}
       >
         <Tabs.Screen
@@ -48,6 +53,9 @@ export default function TabsLayout() {
           options={{ title: t.tabs.profile, tabBarIcon: ({ color, size }) => <User color={color} size={size} /> }}
         />
       </Tabs>
+
+      {/* Durum çubuğu zemini: kaydırılan içerik saat/pil simgelerinin altına girmesin */}
+      <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: colors.bg }} />
 
       {/* "Gizli lezzet bildir": Teyitler ve Profil sekmelerinden açılır */}
       <SuggestSpotModal

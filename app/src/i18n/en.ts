@@ -1,4 +1,5 @@
 import type { LocalTip, PriceLevel, UserRole, VenueType } from '@localbite/shared';
+import { formatDistance } from './util';
 
 export const en = {
   tabs: {
@@ -10,6 +11,17 @@ export const en = {
   },
   language: {
     label: 'Language',
+    sheetTitle: 'Choose your language',
+    sheetSubtitle: 'Menus, tabs and tips switch instantly. Reviews stay in their original language.',
+  },
+  appearance: {
+    title: 'Appearance',
+    subtitle: 'Pick a theme — it applies instantly.',
+    themes: {
+      warm: { name: 'Street Warmth', description: 'Terracotta accents on warm cream' },
+      dark: { name: 'Night Gourmet', description: 'Smoky dark with gold & neon orange' },
+      clean: { name: 'Clean Minimal', description: 'White, anthracite and emerald' },
+    },
   },
   home: {
     searchPlaceholder: 'Search a place or dish',
@@ -282,7 +294,3 @@ export const en = {
 };
 
 export type Dictionary = typeof en;
-
-function formatDistance(m: number) {
-  return m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`;
-}

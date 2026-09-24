@@ -1,4 +1,5 @@
-import { colors } from '../../../theme';
+
+import type { Palette } from '../../../theme';
 import { VENUE_ICON_SVG } from './icons';
 
 export interface LeafletConfig {
@@ -7,6 +8,8 @@ export interface LeafletConfig {
   center: [number, number];
   zoom: number;
   interactive: boolean;
+  /** Pin ve seçim renkleri: harita açıldığındaki tema */
+  colors: Palette;
 }
 
 /**
@@ -14,7 +17,7 @@ export interface LeafletConfig {
  *  RN → sayfa: window.bridge.receive({ type: 'venues' | 'select' | 'user' | 'padding' | 'focus', ... })
  *  sayfa → RN: { type: 'ready' | 'markerPress' | 'moveend' }
  */
-export function buildLeafletHtml(config: LeafletConfig): string {
+export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
   const page = {
     ...config,
     icons: VENUE_ICON_SVG,

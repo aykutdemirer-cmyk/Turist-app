@@ -1,8 +1,9 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '../../theme';
+import { Text, View } from 'react-native';
+import { makeStyles } from '../../theme';
 
 /** Gezgin avatarı + sırt çantası rozeti (haritadaki karakterle aynı görünüm) */
 export function AvatarBadge({ face, size = 48 }: { face: string; size?: number }) {
+  const styles = useStyles();
   const badge = Math.round(size * 0.46);
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
@@ -14,7 +15,7 @@ export function AvatarBadge({ face, size = 48 }: { face: string; size?: number }
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) => ({
   avatar: {
     backgroundColor: colors.surface,
     borderWidth: 2.5,
@@ -31,4 +32,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

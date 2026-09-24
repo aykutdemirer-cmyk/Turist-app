@@ -2,7 +2,7 @@ import type { LatLng } from '@localbite/shared';
 import { Crosshair, MapPin } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useT } from '../../i18n';
-import { colors, font, radius, spacing } from '../../theme';
+import { makeStyles, radius, spacing, useTheme } from '../../theme';
 import { LeafletView } from '../map/leaflet/LeafletView';
 
 export type LocationSource = 'gps' | 'map';
@@ -20,6 +20,8 @@ const PREVIEW_ZOOM = 17;
 
 /** Formdaki etkileşimsiz mini harita; ayar için tam ekran seçici açılır. */
 export function LocationPreview({ location, source, locating, hasError, onUseMyLocation, onPickOnMap }: Props) {
+  const { colors, font } = useTheme();
+  const styles = useStyles();
   const t = useT();
   return (
     <View style={styles.container}>
@@ -84,7 +86,7 @@ export function LocationPreview({ location, source, locating, hasError, onUseMyL
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, font }) => ({
   container: { gap: spacing.sm },
   pressed: { opacity: 0.8 },
   preview: {
@@ -124,4 +126,4 @@ const styles = StyleSheet.create({
   },
   buttonActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   buttonText: { fontSize: 14, fontWeight: '600', color: colors.primary, flexShrink: 1 },
-});
+}));

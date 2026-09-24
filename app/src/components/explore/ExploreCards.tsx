@@ -1,9 +1,9 @@
 import type { VenueSummaryDTO } from '@localbite/shared';
 import { ChevronRight, Eye, MapPin, Quote, Truck, X } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useT, type Dictionary } from '../../i18n';
 import { formatDistance, formatRelative } from '../../lib/format';
-import { colors, font, radius, shadow, spacing, venueTypeMeta } from '../../theme';
+import { makeStyles, radius, spacing, useTheme, venueTypeMeta } from '../../theme';
 import { Stars } from '../ui/Stars';
 
 /** Seyyarın teyit durumu: "1 dk önce teyit edildi" / "Bugün henüz teyit edilmedi" */
@@ -14,6 +14,8 @@ export function confirmationLabel(v: VenueSummaryDTO, t: Dictionary) {
 
 /** Alt kart: bana en yakın 3 seyyar */
 export function NearestCartsCard({ carts, onPick }: { carts: VenueSummaryDTO[]; onPick: (id: string) => void }) {
+  const { colors, font, shadow } = useTheme();
+  const styles = useStyles();
   const t = useT();
   return (
     <View style={[styles.card, shadow.card]}>
@@ -60,6 +62,8 @@ export function SocialReportCallout({
   onOpen: (id: string) => void;
   onClose: () => void;
 }) {
+  const { colors, shadow } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const accent = venue.isMobile ? colors.mobile : colors.shop;
   const TypeIcon = venueTypeMeta[venue.type].Icon;
@@ -124,7 +128,7 @@ export function SocialReportCallout({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, font }) => ({
   flex: { flex: 1 },
   pressed: { opacity: 0.8 },
   card: {
@@ -188,4 +192,4 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   detailText: { color: colors.textInverse, fontWeight: '700', fontSize: 13 },
-});
+}));

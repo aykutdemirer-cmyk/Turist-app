@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { colors, radius } from '../../theme';
+import { Text, View, type ViewStyle } from 'react-native';
+import { makeStyles, radius, useTheme } from '../../theme';
 
 interface Props {
   label: string;
@@ -10,18 +10,20 @@ interface Props {
   style?: ViewStyle;
 }
 
-export function Badge({ label, color = colors.textMuted, background = colors.surfaceMuted, icon, style }: Props) {
+export function Badge({ label, color, background, icon, style }: Props) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
-    <View style={[styles.badge, { backgroundColor: background }, style]}>
+    <View style={[styles.badge, { backgroundColor: background ?? colors.surfaceMuted }, style]}>
       {icon}
-      <Text style={[styles.text, { color }]} numberOfLines={1}>
+      <Text style={[styles.text, { color: color ?? colors.textMuted }]} numberOfLines={1}>
         {label}
       </Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(() => ({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -32,4 +34,4 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   text: { fontSize: 12, fontWeight: '600' },
-});
+}));

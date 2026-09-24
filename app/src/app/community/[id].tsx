@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -19,9 +18,11 @@ import { AuthorLine, PostCard } from '../../components/community/PostCard';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useT } from '../../i18n';
 import { useCurrentUser } from '../../store/auth';
-import { colors, font, radius, spacing } from '../../theme';
+import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
 export default function PostDetailScreen() {
+  const { colors, font } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -71,6 +72,7 @@ export default function PostDetailScreen() {
 }
 
 function CommentRow({ comment }: { comment: CommentDTO }) {
+  const styles = useStyles();
   return (
     <View style={styles.comment}>
       <AuthorLine author={comment.author} createdAt={comment.createdAt} size={30} />
@@ -81,6 +83,8 @@ function CommentRow({ comment }: { comment: CommentDTO }) {
 
 /** Misafire giriş düğmesi, üyeye yanıt kutusu */
 function ReplyBar({ postId, bottomInset }: { postId: string; bottomInset: number }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const user = useCurrentUser();
   const requireAuth = useRequireAuth();
@@ -131,7 +135,7 @@ function ReplyBar({ postId, bottomInset }: { postId: string; bottomInset: number
 
 const Separator = () => <View style={{ height: spacing.sm }} />;
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
   topBar: {
@@ -202,4 +206,4 @@ const styles = StyleSheet.create({
   },
   guestReplyText: { color: colors.primary, fontWeight: '700', fontSize: 14 },
   error: { width: '100%', color: colors.danger, fontSize: 12, fontWeight: '600' },
-});
+}));

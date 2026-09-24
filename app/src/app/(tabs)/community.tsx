@@ -1,14 +1,16 @@
 import { useRouter } from 'expo-router';
 import { PenSquare } from 'lucide-react-native';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCommunityFeed } from '../../api/community';
 import { PostCard } from '../../components/community/PostCard';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useT } from '../../i18n';
-import { colors, font, radius, shadow, spacing } from '../../theme';
+import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
 export default function CommunityScreen() {
+  const { colors, font, shadow } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -63,7 +65,7 @@ export default function CommunityScreen() {
 
 const Separator = () => <View style={{ height: spacing.md }} />;
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, font }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   pressed: { opacity: 0.85 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
@@ -82,4 +84,4 @@ const styles = StyleSheet.create({
   loader: { paddingVertical: spacing.xl },
   empty: { padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, gap: spacing.xs },
   emptyText: { ...font.small, fontWeight: '500', lineHeight: 19 },
-});
+}));

@@ -2,14 +2,14 @@ import type { RatingSummary, ReviewDTO } from '@localbite/shared';
 import * as Haptics from 'expo-haptics';
 import { CircleCheck, FlaskConical, Languages, PencilLine } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native';
 import { ApiError } from '../../api/client';
 import { useSubmitReview } from '../../api/venues';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useLocale, useT } from '../../i18n';
 import { formatRelative } from '../../lib/format';
 import { useCurrentUser } from '../../store/auth';
-import { authorColor, colors, font, radius, spacing } from '../../theme';
+import { authorColor, makeStyles, radius, spacing, useTheme } from '../../theme';
 import { Input } from '../suggest/FormControls';
 import { StarPicker, Stars } from '../ui/Stars';
 
@@ -20,6 +20,8 @@ interface Props {
 }
 
 export function ReviewsSection({ venueId, rating, reviews }: Props) {
+  const { colors, font } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const user = useCurrentUser();
   const requireAuth = useRequireAuth();
@@ -106,6 +108,8 @@ function ReviewComposer({
   onCancel: () => void;
   onSaved: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const locale = useLocale();
   const submit = useSubmitReview(venueId);
@@ -166,6 +170,8 @@ function ReviewComposer({
 }
 
 function ReviewCard({ review, isMine }: { review: ReviewDTO; isMine: boolean }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const t = useT();
   return (
     <View style={styles.card}>
@@ -204,7 +210,7 @@ function ReviewCard({ review, isMine }: { review: ReviewDTO; isMine: boolean }) 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) => ({
   flex: { flex: 1 },
   section: { gap: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -291,4 +297,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   submitText: { color: colors.textInverse, fontWeight: '700', fontSize: 14 },
-});
+}));

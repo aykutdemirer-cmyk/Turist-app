@@ -1,14 +1,16 @@
 import type { PostDTO, PublicAuthorDTO } from '@localbite/shared';
 import * as Haptics from 'expo-haptics';
 import { BadgeCheck, MapPin, MessageCircle, ThumbsUp } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useToggleLike } from '../../api/community';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useT } from '../../i18n';
 import { formatRelative } from '../../lib/format';
-import { authorColor, colors, radius, spacing } from '../../theme';
+import { authorColor, makeStyles, radius, spacing, useTheme } from '../../theme';
 
 export function AuthorLine({ author, createdAt, size = 36 }: { author: PublicAuthorDTO; createdAt: string; size?: number }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const t = useT();
   return (
     <View style={styles.authorRow}>
@@ -35,6 +37,8 @@ export function AuthorLine({ author, createdAt, size = 36 }: { author: PublicAut
 
 /** Gönderi kartı: akışta özet (satır sınırlı), detay ekranında tam metin */
 export function PostCard({ post, onPress, full = false }: { post: PostDTO; onPress?: () => void; full?: boolean }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const requireAuth = useRequireAuth();
   const like = useToggleLike();
@@ -94,7 +98,7 @@ export function PostCard({ post, onPress, full = false }: { post: PostDTO; onPre
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) => ({
   flex: { flex: 1 },
   pressed: { opacity: 0.9 },
   card: {
@@ -148,4 +152,4 @@ const styles = StyleSheet.create({
   actionActive: { backgroundColor: colors.primarySoft },
   actionText: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
   actionTextActive: { color: colors.primary },
-});
+}));

@@ -1,13 +1,12 @@
 import type { VenueSummaryDTO, VenueType } from '@localbite/shared';
 import { useRouter } from 'expo-router';
 import { Search, X } from 'lucide-react-native';
-import { useMemo, useRef, useState } from 'react';
+import { createElement, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -17,7 +16,7 @@ import { useNearbyVenues } from '../../api/venues';
 import { VenueFeedCard } from '../../components/home/VenueFeedCard';
 import { DEFAULT_CENTER, useUserLocation } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
-import { colors, font, radius, shadow, spacing, venueTypeMeta } from '../../theme';
+import { makeStyles, radius, spacing, useTheme, venueTypeMeta } from '../../theme';
 
 /** Ana sayfadaki üç temel kategori */
 const HOME_CATEGORIES: VenueType[] = ['HOME_COOKING', 'STREET_CART', 'LOCAL_BURGER_WRAP'];
@@ -33,6 +32,8 @@ function matchesSearch(v: VenueSummaryDTO, query: string) {
 }
 
 export default function HomeScreen() {
+  const { colors, font, shadow } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -106,7 +107,7 @@ export default function HomeScreen() {
                 ]}
               >
                 <View style={[styles.categoryIcon, { backgroundColor: active ? 'rgba(255,255,255,0.25)' : `${meta.color}1A` }]}>
-                  <Text style={styles.categoryEmoji}>{meta.emoji}</Text>
+                  {createElement(meta.Icon, { size: 26, color: active ? '#FFFFFF' : meta.color, strokeWidth: 2 })}
                 </View>
                 <Text style={[styles.categoryLabel, active && { color: colors.textInverse }]} numberOfLines={2}>
                   {t.categories[type]}
@@ -141,7 +142,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, font }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg },
   pressed: { opacity: 0.85 },
@@ -179,11 +180,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   categoryIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  categoryEmoji: { fontSize: 30 },
   categoryLabel: { fontSize: 13, fontWeight: '700', color: colors.text, textAlign: 'center' },
 
   sectionHeader: { gap: 2, marginTop: spacing.xs },
   loader: { paddingVertical: spacing.xxl },
   empty: { padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, gap: spacing.xs },
   emptyText: { ...font.small, fontWeight: '500', lineHeight: 19 },
-});
+}));

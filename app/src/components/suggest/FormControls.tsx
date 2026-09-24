@@ -1,9 +1,11 @@
 import { Check } from 'lucide-react-native';
 import type { ReactNode, Ref } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
-import { colors, font, radius, spacing } from '../../theme';
+import { Pressable, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
 export function Step({ index, title, hint, children }: { index: number; title: string; hint?: string; children: ReactNode }) {
+  const { font } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.step}>
       <View style={styles.stepHeader}>
@@ -17,6 +19,7 @@ export function Step({ index, title, hint, children }: { index: number; title: s
 }
 
 export function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
+  const styles = useStyles();
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
@@ -27,6 +30,8 @@ export function Field({ label, error, children }: { label: string; error?: strin
 }
 
 export function Input({ invalid, style, ref, ...props }: TextInputProps & { invalid?: boolean; ref?: Ref<TextInput> }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <TextInput
       ref={ref}
@@ -53,6 +58,7 @@ export function OptionGrid<T extends string>({
   value: T;
   onChange: (value: T) => void;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.grid} accessibilityRole="radiogroup">
       {options.map((o) => {
@@ -86,6 +92,7 @@ export function Segmented<T extends string>({
   value: T;
   onChange: (value: T) => void;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.segmented} accessibilityRole="radiogroup">
       {options.map((o) => {
@@ -116,6 +123,8 @@ export function MultiChips<T extends string>({
   values: T[];
   onToggle: (value: T) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.chips}>
       {options.map((o) => {
@@ -137,7 +146,7 @@ export function MultiChips<T extends string>({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, font }) => ({
   pressed: { opacity: 0.8 },
   step: { gap: spacing.md },
   stepHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -145,7 +154,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     color: colors.textInverse,
     textAlign: 'center',
     lineHeight: 24,
@@ -215,4 +224,4 @@ const styles = StyleSheet.create({
   },
   chipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   chipText: { fontSize: 14, fontWeight: '600', color: colors.text },
-});
+}));

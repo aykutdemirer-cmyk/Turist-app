@@ -1,15 +1,17 @@
 import { useRouter } from 'expo-router';
 import { ChevronRight, Eye, MapPinPlus } from 'lucide-react-native';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRecentConfirmations } from '../../api/venues';
 import { DEFAULT_CENTER, useUserLocation } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
 import { formatDistance, formatRelative } from '../../lib/format';
 import { useExploreStore } from '../../store/explore';
-import { colors, font, radius, shadow, spacing } from '../../theme';
+import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
 export default function ConfirmationsScreen() {
+  const { colors, font, shadow } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -75,7 +77,7 @@ export default function ConfirmationsScreen() {
 
 const Separator = () => <View style={{ height: spacing.sm }} />;
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, font }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   pressed: { opacity: 0.85 },
@@ -117,4 +119,4 @@ const styles = StyleSheet.create({
   },
   rowTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
   rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2, fontWeight: '600' },
-});
+}));

@@ -9,7 +9,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Switch,
   Text,
   View,
@@ -20,7 +19,7 @@ import { useSuggestVenue } from '../../api/venues';
 import { getPreciseLocation } from '../../hooks/useUserLocation';
 import { getT, useLocale, useT } from '../../i18n';
 import { useAvatarFace } from '../../store/profile';
-import { colors, font, radius, spacing } from '../../theme';
+import { makeStyles, radius, spacing, useTheme } from '../../theme';
 import { Field, Input, MultiChips, OptionGrid, Segmented, Step } from './FormControls';
 import { LocationPicker } from './LocationPicker';
 import { LocationPreview, type LocationSource } from './LocationPreview';
@@ -81,6 +80,8 @@ export function SuggestSpotModal({ visible, onClose, userLocation, fallbackCente
 type Mode = 'form' | 'picker' | 'success';
 
 function SuggestSpotContent({ onClose, userLocation, fallbackCenter }: Omit<Props, 'visible'>) {
+  const { colors, font } = useTheme();
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const suggest = useSuggestVenue();
   const t = useT();
@@ -355,7 +356,7 @@ function submitErrorMessage(err: unknown): string {
   return t.suggest.errors.failed;
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   pressed: { opacity: 0.8 },
@@ -427,4 +428,4 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   doneButton: { alignSelf: 'stretch', marginTop: spacing.lg },
-});
+}));

@@ -2,7 +2,7 @@ import { haversineMeters, type LatLng } from '@localbite/shared';
 import { useRouter } from 'expo-router';
 import { LocateFixed, Search } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { useNearbyVenues } from '../../api/venues';
@@ -12,7 +12,7 @@ import { DEFAULT_CENTER, useUserLocation } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
 import { useExploreStore, type MapLayers } from '../../store/explore';
 import { useAvatarFace } from '../../store/profile';
-import { colors, radius, shadow, spacing } from '../../theme';
+import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
 const TOP_BAR_HEIGHT = 56;
 /** Alt kartın yaklaşık yüksekliği; harita odaklaması bu alanın üstüne yapılır */
@@ -22,6 +22,8 @@ const SEARCH_HERE_THRESHOLD_M = 800;
 const NEAREST_CARTS = 3;
 
 export default function ExploreScreen() {
+  const { colors, shadow } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -176,6 +178,8 @@ function LayerChip({
   layers: MapLayers;
   onToggle: (layer: keyof MapLayers) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const active = layers[layer];
   return (
     <Pressable
@@ -194,7 +198,7 @@ function LayerChip({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, shadow }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   pressed: { opacity: 0.8 },
 
@@ -224,7 +228,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.text,
+    backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
     height: 38,
     borderRadius: radius.pill,
@@ -255,4 +259,4 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   errorText: { fontSize: 14, color: colors.textMuted },
-});
+}));

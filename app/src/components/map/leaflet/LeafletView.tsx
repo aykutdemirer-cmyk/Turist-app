@@ -3,6 +3,7 @@ import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { API_URL, TILE_URL } from '../../../api/config';
+import { getTheme } from '../../../theme';
 import { buildLeafletHtml } from './html';
 
 export interface MapPin {
@@ -81,6 +82,7 @@ export function LeafletView({
       center: [initialCenter.latitude, initialCenter.longitude],
       zoom: initialZoom,
       interactive,
+      colors: getTheme().colors,
     }),
   );
 

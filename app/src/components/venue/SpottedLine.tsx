@@ -1,14 +1,16 @@
 import type { VenueSummaryDTO } from '@localbite/shared';
 import { Eye } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useT } from '../../i18n';
 import { formatRelative } from '../../lib/format';
-import { colors } from '../../theme';
+import { makeStyles, useTheme } from '../../theme';
 
 type Props = Pick<VenueSummaryDTO, 'isMobile' | 'isActiveNow' | 'isScheduledOpen' | 'lastSpottedAt' | 'spottedTodayCount'>;
 
 /** Seyyarlarda topluluk teyidi, dükkanlarda açık/kapalı satırı */
 export function SpottedLine({ isMobile, isActiveNow, isScheduledOpen, lastSpottedAt, spottedTodayCount }: Props) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const t = useT();
   if (!isMobile) {
     const open = isScheduledOpen || isActiveNow;
@@ -39,8 +41,8 @@ export function SpottedLine({ isMobile, isActiveNow, isScheduledOpen, lastSpotte
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(() => ({
   row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   text: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
-});
+}));

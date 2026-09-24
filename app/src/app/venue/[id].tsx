@@ -23,7 +23,7 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../../api/client';
 import { useReportVenue, useVenue } from '../../api/venues';
@@ -34,7 +34,7 @@ import { getPreciseLocation } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
 import { openDirections } from '../../lib/directions';
 import { priceSymbol } from '../../lib/format';
-import { colors, font, radius, shadow, spacing } from '../../theme';
+import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
 const TIP_ICONS: Record<LocalTip, LucideIcon> = {
   CASH_ONLY: Banknote,
@@ -51,6 +51,8 @@ const TIP_ICONS: Record<LocalTip, LucideIcon> = {
 const COVER_HEIGHT = 240;
 
 export default function VenueDetailScreen() {
+  const { colors, font, shadow } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -83,6 +85,8 @@ export default function VenueDetailScreen() {
 }
 
 function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInset: number }) {
+  const { colors, font } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const today = new Date().getDay();
   const open = venue.isActiveNow || venue.isScheduledOpen;
@@ -100,7 +104,7 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
           style={{ height: COVER_HEIGHT, width: '100%' }}
           emojiSize={96}
         />
-        <View style={[styles.statusPill, { backgroundColor: open ? colors.open : 'rgba(31,26,20,0.75)' }]}>
+        <View style={[styles.statusPill, { backgroundColor: open ? colors.open : colors.overlay }]}>
           <View style={styles.statusDot} />
           <Text style={styles.statusText}>{statusLabel}</Text>
         </View>
@@ -232,6 +236,8 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
 
 /** Seyyarlar için topluluk teyidi: "Bugün burada gördüm" (konum doğrulamalı) */
 function SpottedAction({ venue }: { venue: VenueDetailDTO }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const report = useReportVenue(venue.id);
   const [done, setDone] = useState(false);
@@ -298,6 +304,8 @@ function SpottedAction({ venue }: { venue: VenueDetailDTO }) {
 }
 
 function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
+  const { font } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.section}>
       <View>
@@ -316,7 +324,7 @@ function groupByDay(schedules: ScheduleDTO[]): [number, ScheduleDTO[]][] {
   return [1, 2, 3, 4, 5, 6, 0].filter((d) => byDay.has(d)).map((d) => [d, byDay.get(d)!]);
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors, font }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
@@ -439,4 +447,4 @@ const styles = StyleSheet.create({
   },
   hoursToday: { backgroundColor: colors.primarySoft },
   hoursDay: { width: 52, fontWeight: '700', color: colors.textMuted, fontSize: 14, lineHeight: 22 },
-});
+}));

@@ -1,4 +1,5 @@
 import type { Dictionary } from './en';
+import { formatDistance } from './util';
 
 export const tr: Dictionary = {
   tabs: {
@@ -10,6 +11,17 @@ export const tr: Dictionary = {
   },
   language: {
     label: 'Dil',
+    sheetTitle: 'Dilini seç',
+    sheetSubtitle: 'Menüler, sekmeler ve ipuçları anında değişir. Yorumlar özgün dilinde kalır.',
+  },
+  appearance: {
+    title: 'Görünüm',
+    subtitle: 'Bir tema seç — anında uygulanır.',
+    themes: {
+      warm: { name: 'Sokak Sıcaklığı', description: 'Krem zemin üzerinde kiremit vurgular' },
+      dark: { name: 'Gece Keşfi', description: 'Füme gece modu, altın ve neon turuncu' },
+      clean: { name: 'Temiz Minimalist', description: 'Beyaz zemin, antrasit ve zümrüt' },
+    },
   },
   home: {
     searchPlaceholder: 'Mekan veya yemek ara',
@@ -223,7 +235,7 @@ export const tr: Dictionary = {
   report: {
     needLocation: 'Mekanda olduğunuzu doğrulamak için konum izni gerekiyor.',
     tooFar: (m: number) =>
-      `Mekana yaklaşık ${m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`} uzaktasınız. Teyit için 500 m içinde olun.`,
+      `Mekana yaklaşık ${formatDistance(m)} uzaktasınız. Teyit için 500 m içinde olun.`,
     already: 'Bu mekanı bugün zaten teyit ettiniz.',
     failed: 'Bir şeyler ters gitti. Lütfen tekrar deneyin.',
   },

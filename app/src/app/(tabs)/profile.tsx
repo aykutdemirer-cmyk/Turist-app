@@ -1,19 +1,22 @@
 import * as Haptics from 'expo-haptics';
 import { BadgeCheck, Info, LogIn, LogOut, MapPinPlus } from 'lucide-react-native';
 import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSignOut } from '../../api/auth';
 import { AvatarBadge } from '../../components/ui/Avatar';
-import { LanguageSwitcher } from '../../components/ui/LanguageSwitcher';
+import { LanguagePicker } from '../../components/settings/LanguagePicker';
+import { ThemePicker } from '../../components/settings/ThemePicker';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useT } from '../../i18n';
 import { useCurrentUser } from '../../store/auth';
 import { useExploreStore } from '../../store/explore';
 import { AVATARS, useProfileStore } from '../../store/profile';
-import { authorColor, colors, font, radius, spacing } from '../../theme';
+import { authorColor, makeStyles, radius, spacing, useTheme } from '../../theme';
 
 export default function ProfileScreen() {
+  const { colors, font } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const insets = useSafeAreaInsets();
   const openSuggest = useExploreStore((s) => s.openSuggest);
@@ -48,11 +51,12 @@ export default function ProfileScreen() {
         </View>
       </Card>
 
+      <Card title={t.appearance.title} subtitle={t.appearance.subtitle}>
+        <ThemePicker />
+      </Card>
+
       <Card title={t.profile.language}>
-        <View style={styles.languageRow}>
-          <Text style={[font.body, styles.flex]}>{t.language.label}</Text>
-          <LanguageSwitcher />
-        </View>
+        <LanguagePicker />
       </Card>
 
       <Card title={t.profile.contribute}>
@@ -75,6 +79,8 @@ export default function ProfileScreen() {
 
 /** Misafir → giriş/kayıt çağrısı; üye → ad, e-posta, rol ve çıkış */
 function AccountCard() {
+  const { colors, font } = useTheme();
+  const styles = useStyles();
   const t = useT();
   const user = useCurrentUser();
   const requireAuth = useRequireAuth();
@@ -128,6 +134,8 @@ function AccountCard() {
 }
 
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+  const { font } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.card}>
       <Text style={font.heading}>{title}</Text>
@@ -137,7 +145,7 @@ function Card({ title, subtitle, children }: { title: string; subtitle?: string;
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg },
   flex: { flex: 1 },
@@ -160,7 +168,6 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   avatarActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  languageRow: { flexDirection: 'row', alignItems: 'center' },
   cta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -202,4 +209,4 @@ const styles = StyleSheet.create({
   about: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md },
   aboutTitle: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
   aboutBody: { fontSize: 12, color: colors.textMuted, lineHeight: 18, marginTop: 2 },
-});
+}));
