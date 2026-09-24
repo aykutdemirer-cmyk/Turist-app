@@ -5,6 +5,8 @@ import { LeafletView, type LeafletHandle, type MapPin, type MapUser } from './le
 
 export interface VenueMapHandle {
   focus: (target: LatLng, zoomedIn?: boolean) => void;
+  /** Mesafe dairesini ekrana sığdır ("Tümü"de şehir ölçeğine uzaklaş) */
+  fitRadius: () => void;
 }
 
 interface Props {
@@ -21,10 +23,14 @@ interface Props {
   topInset: number;
   bottomInset: number;
   onRegionChangeComplete?: (center: LatLng, isGesture: boolean) => void;
+  /** Mesafe filtresi dairesi */
+  radius?: (LatLng & { meters: number | null }) | null;
 }
 
 const DEFAULT_ZOOM = 15;
 const FOCUS_ZOOM = 16;
+/** "Tümü" seçilince (daire yok) şehir ölçeği */
+const ALL_ZOOM = 12;
 
 export function VenueMap({
   ref,
@@ -37,11 +43,13 @@ export function VenueMap({
   topInset,
   bottomInset,
   onRegionChangeComplete,
+  radius = null,
 }: Props) {
   const mapRef = useRef<LeafletHandle>(null);
 
   useImperativeHandle(ref, () => ({
     focus: (target, zoomedIn = false) => mapRef.current?.focus(target, zoomedIn ? FOCUS_ZOOM : undefined),
+    fitRadius: () => mapRef.current?.fitRadius(ALL_ZOOM),
   }));
 
   const pins = useMemo<MapPin[]>(
@@ -68,6 +76,7 @@ export function VenueMap({
       selectedId={selectedId}
       user={user}
       padding={{ top: topInset, bottom: bottomInset }}
+      radius={radius}
       onPinPress={onSelectVenue}
       onMapPress={onMapPress}
       onMoveEnd={(center, { isGesture }) => onRegionChangeComplete?.(center, isGesture)}

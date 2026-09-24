@@ -1,5 +1,5 @@
 import type { AdminReportDTO, ContentReportReason, DeletionRequestDTO, ReportableContent } from '@localbite/shared';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { Check, ChevronLeft, Flag, Mail, Trash2, UserX, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
@@ -22,6 +22,7 @@ import { useT } from '../i18n';
 import { formatRelative } from '../lib/format';
 import { useCurrentUser } from '../store/auth';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
+import { useGoBack } from '../hooks/useGoBack';
 
 type Tab = 'reports' | 'deletions' | 'venues' | 'announcements' | 'sponsorship' | 'live';
 type Filter = 'all' | 'comments' | 'posts';
@@ -37,7 +38,7 @@ export default function AdminCenterScreen() {
   const { colors, font } = useTheme();
   const styles = useStyles();
   const t = useT();
-  const router = useRouter();
+  const goBack = useGoBack('/profile');
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const [tab, setTab] = useState<Tab>('reports');
@@ -74,7 +75,7 @@ export default function AdminCenterScreen() {
   return (
     <View style={styles.screen}>
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.xs }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back} accessibilityLabel={t.suggest.close}>
+        <Pressable onPress={() => goBack()} hitSlop={12} style={styles.back} accessibilityLabel={t.suggest.close}>
           <ChevronLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={font.heading}>{t.adminCenter.title}</Text>

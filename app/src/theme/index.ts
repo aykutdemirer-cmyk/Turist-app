@@ -1,6 +1,8 @@
-import type { VenueType } from '@localbite/shared';
+import type { FoodCategory, VenueType } from '@localbite/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CakeSlice, Sandwich, Soup, Truck, type LucideIcon } from 'lucide-react-native';
+import { CakeSlice, CookingPot, Hamburger, Leaf, Pizza, Sandwich, Soup, Truck, type LucideIcon } from 'lucide-react-native';
+import type { ComponentType } from 'react';
+import { DonerIcon } from '../components/ui/DonerIcon';
 import { StyleSheet } from 'react-native';
 import { create } from 'zustand';
 
@@ -236,7 +238,23 @@ export const venueTypeMeta: Record<VenueType, { color: string; gradient: [string
   DESSERT_TEA: { color: '#DB2777', gradient: ['#831843', '#F472B6'], Icon: CakeSlice, emoji: '☕' },
 };
 
-const AUTHOR_COLORS = ['#C2410C', '#7C3AED', '#0F766E', '#B45309', '#DB2777', '#1D4ED8'];
+type CategoryIcon = ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+
+/**
+ * Ana sayfa yemek kategorileri. Başlık yerel (Türkçe) addır — menüde/tabelada göreceği ad;
+ * alt başlık kullanıcının dilinde (i18n: foodCategories).
+ */
+export const foodCategoryMeta: Record<FoodCategory, { title: string; color: string; Icon: CategoryIcon }> = {
+  STEW: { title: 'Tencere / Sulu', color: '#2563EB', Icon: CookingPot },
+  DONER_WRAP: { title: 'Döner & Dürüm', color: '#B91C1C', Icon: DonerIcon },
+  BURGER_TOAST: { title: 'Burger & Tost', color: '#7C3AED', Icon: Hamburger },
+  PIDE_PIZZA: { title: 'Pizza & Pide', color: '#C2410C', Icon: Pizza },
+  SOUP: { title: 'Çorbalar', color: '#B45309', Icon: Soup },
+  STREET_CART: { title: 'Seyyar', color: '#F97316', Icon: Truck },
+  OLIVE_OIL_VEGAN: { title: 'Zeytinyağlı', color: '#15803D', Icon: Leaf },
+};
+
+const AUTHOR_COLORS =['#C2410C', '#7C3AED', '#0F766E', '#B45309', '#DB2777', '#1D4ED8'];
 
 /** Yazar adından sabit bir renk (aynı kişi hep aynı renkte) */
 export function authorColor(name: string) {

@@ -1,6 +1,6 @@
 import type { AnnouncementType, VendorDishDTO, VendorVenueDTO } from '@localbite/shared';
 import * as Location from 'expo-location';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { ChevronLeft, Crosshair, MapPinned, Megaphone, Save, Store } from 'lucide-react-native';
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Switch, Text, View } from 'react-native';
@@ -16,6 +16,7 @@ import { useT, type Dictionary } from '../i18n';
 import { formatRelative } from '../lib/format';
 import { useCurrentUser } from '../store/auth';
 import { makeStyles, radius, spacing, useTheme, venueTypeMeta } from '../theme';
+import { useGoBack } from '../hooks/useGoBack';
 
 /** Sunucu hata kodlarını satıcıya anlaşılır metne çevirir */
 function errorText(err: unknown, t: Dictionary): string {
@@ -32,7 +33,7 @@ export default function VendorScreen() {
   const { colors, font } = useTheme();
   const styles = useStyles();
   const t = useT();
-  const router = useRouter();
+  const goBack = useGoBack('/profile');
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const venues = useVendorVenues();
@@ -47,7 +48,7 @@ export default function VendorScreen() {
   return (
     <View style={styles.screen}>
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.xs }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back} accessibilityLabel={t.vendorPanel.cancel}>
+        <Pressable onPress={() => goBack()} hitSlop={12} style={styles.back} accessibilityLabel={t.vendorPanel.cancel}>
           <ChevronLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={font.heading}>{t.vendorPanel.title}</Text>

@@ -8,6 +8,7 @@ import {
   getLocalClock,
   haversineMeters,
   isOpenNow,
+  type FoodCategory,
   type LatLng,
   type Locale,
   type NearbyQuery,
@@ -131,6 +132,11 @@ export type LiveStatusInput = Pick<
 
 export const isStreetVendor = (venue: Pick<Venue, 'locationType'>) => venue.locationType === 'DYNAMIC_STREET';
 
+/** Saklanan yemek kategorileri + seyyarlara türetilen STREET_CART (tekrarsız) */
+export const foodCategories = (venue: Pick<Venue, 'locationType' | 'foodCategories'>): FoodCategory[] => [
+  ...new Set<FoodCategory>([...venue.foodCategories, ...(isStreetVendor(venue) ? (['STREET_CART'] as const) : [])]),
+];
+
 /**
  * Şu anki program dilimini, seyyarın o anki konumunu ve açık/aktif durumunu hesaplar.
  * Konum önceliği: satıcının canlı konumu → program diliminin köşesi → kayıtlı konum.
@@ -184,6 +190,7 @@ function toSummary(
     neighborhood: venue.neighborhood,
     district: venue.district,
     localTips: venue.localTips,
+    categories: foodCategories(venue),
     tagline: t?.tagline ?? null,
     distanceMeters: Math.round(haversineMeters(origin, status.position)),
     isScheduledOpen: status.isScheduledOpen,
@@ -301,6 +308,7 @@ export async function getVenueDetail(
     address: venue.address,
     phone: venue.phone,
     localTips: venue.localTips,
+    categories: foodCategories(venue),
     tagline: t?.tagline ?? null,
     description: t?.description ?? null,
     customTip: t?.customTip ?? null,

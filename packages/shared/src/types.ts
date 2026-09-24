@@ -2,6 +2,7 @@ import type {
   AnnouncementStatus,
   AnnouncementType,
   ContentReportReason,
+  FoodCategory,
   Locale,
   LocalTip,
   ModerationStatus,
@@ -89,6 +90,8 @@ export interface VenueSummaryDTO {
   neighborhood: string | null;
   district: string | null;
   localTips: LocalTip[];
+  /** Ana sayfa yemek kategorileri (seyyarlarda STREET_CART dahil) */
+  categories: FoodCategory[];
   tagline: string | null;
   distanceMeters: number;
   isScheduledOpen: boolean;

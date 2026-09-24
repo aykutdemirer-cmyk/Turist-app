@@ -14,7 +14,7 @@ export interface LeafletConfig {
 
 /**
  * WebView içinde çalışan Leaflet sayfası. RN ile köprü:
- *  RN → sayfa: window.bridge.receive({ type: 'venues' | 'select' | 'user' | 'padding' | 'focus' | 'picker', ... })
+ *  RN → sayfa: window.bridge.receive({ type: 'venues' | 'select' | 'user' | 'padding' | 'focus' | 'picker' | 'radius' | 'fitRadius', ... })
  *  sayfa → RN: { type: 'ready' | 'markerPress' | 'moveend' | 'pick' }
  */
 export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
@@ -231,6 +231,26 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
     }
   }
 
+  // Keşfet mesafe filtresi: kesikli daire; "fitRadius" haritayı daireye sığdırır
+  var radiusCircle = null;
+  function setRadius(m) {
+    if (radiusCircle) { map.removeLayer(radiusCircle); radiusCircle = null; }
+    if (!m.meters) return;
+    radiusCircle = L.circle([m.latitude, m.longitude], {
+      radius: m.meters, color: cfg.colors.primary, weight: 1.5, opacity: 0.7,
+      dashArray: '6 6', fillColor: cfg.colors.primary, fillOpacity: 0.05, interactive: false
+    }).addTo(map);
+  }
+  function fitRadius(m) {
+    if (radiusCircle) {
+      map.fitBounds(radiusCircle.getBounds(), {
+        paddingTopLeft: [16, padding.top + 8], paddingBottomRight: [16, padding.bottom + 8], animate: true
+      });
+    } else if (m.zoom) {
+      map.setZoom(m.zoom, { animate: true });
+    }
+  }
+
   // Hedef, görünür alanın (üst/alt boşluklar hariç) ortasına gelsin
   function focus(m) {
     var zoom = m.zoom || map.getZoom();
@@ -246,6 +266,8 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
       else if (m.type === 'padding') padding = m.padding;
       else if (m.type === 'focus') focus(m);
       else if (m.type === 'picker') setPicker(m);
+      else if (m.type === 'radius') setRadius(m);
+      else if (m.type === 'fitRadius') fitRadius(m);
     }
   };
   post({ type: 'ready' });

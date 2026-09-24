@@ -1,5 +1,5 @@
 import { legalDocument, type LegalDocId } from '@localbite/shared';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { ExternalLink, X } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -8,6 +8,7 @@ import { API_URL } from '../../api/config';
 import { useLanguage, useT } from '../../i18n';
 import { LEGAL_CONTACT_EMAIL } from '../../lib/legal';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
+import { useGoBack } from '../../hooks/useGoBack';
 
 /** Kullanım Şartları / Gizlilik Politikası. Metin TR ve EN; diğer dillerde İngilizce gösterilir. */
 export default function LegalScreen() {
@@ -15,7 +16,7 @@ export default function LegalScreen() {
   const styles = useStyles();
   const t = useT();
   const language = useLanguage();
-  const router = useRouter();
+  const goBack = useGoBack('/profile');
   const insets = useSafeAreaInsets();
   const { doc: param } = useLocalSearchParams<{ doc: string }>();
   const id: LegalDocId = param === 'privacy' ? 'privacy' : 'terms';
@@ -55,7 +56,7 @@ export default function LegalScreen() {
       </ScrollView>
 
       <Pressable
-        onPress={() => router.back()}
+        onPress={() => goBack()}
         hitSlop={12}
         style={[styles.close, { top: insets.top + spacing.sm }]}
         accessibilityLabel={t.suggest.close}

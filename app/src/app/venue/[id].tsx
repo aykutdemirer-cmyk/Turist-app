@@ -1,6 +1,6 @@
 import type { LocalTip, ScheduleDTO, VenueDetailDTO } from '@localbite/shared';
 import * as Haptics from 'expo-haptics';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import {
   Banknote,
   CalendarX,
@@ -14,6 +14,7 @@ import {
   Navigation,
   Pointer,
   Receipt,
+  Share2,
   Star,
   Sun,
   Users,
@@ -23,14 +24,16 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../../api/client';
+import { placeUrl } from '../../api/config';
 import { useReportVenue, useVenue } from '../../api/venues';
 import { FoodImage } from '../../components/ui/FoodImage';
 import { ExperienceSection } from '../../components/monetization/ExperienceSection';
 import { AnnouncementsSection } from '../../components/venue/AnnouncementsSection';
 import { DishRow } from '../../components/venue/DishRow';
+import { LinkDistanceCard } from '../../components/venue/LinkDistanceCard';
 import { LiveLocationBadge } from '../../components/venue/LiveLocationBadge';
 import { ReviewsSection } from '../../components/venue/ReviewsSection';
 import { SpottedLine } from '../../components/venue/SpottedLine';
@@ -39,6 +42,7 @@ import { useT } from '../../i18n';
 import { openDirections } from '../../lib/directions';
 import { formatTry, priceSymbol } from '../../lib/format';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
+import { useGoBack } from '../../hooks/useGoBack';
 
 const TIP_ICONS: Record<LocalTip, LucideIcon> = {
   CASH_ONLY: Banknote,
@@ -58,8 +62,9 @@ export default function VenueDetailScreen() {
   const { colors, font, shadow } = useTheme();
   const styles = useStyles();
   const t = useT();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
+  // via=link: paylaşılan bağlantıyla açıldı (bkz. app/place/[id].tsx)
+  const { id, via } = useLocalSearchParams<{ id: string; via?: string }>();
+  const goBack = useGoBack('/');
   const insets = useSafeAreaInsets();
   const { data: venue, isPending, isError, refetch } = useVenue(id);
 
@@ -76,16 +81,42 @@ export default function VenueDetailScreen() {
         <VenueDetail venue={venue} bottomInset={insets.bottom} />
       )}
 
+      {venue && (
+        <Pressable
+          onPress={() => shareVenue(venue, t)}
+          hitSlop={8}
+          style={({ pressed }) => [styles.share, shadow.pin, { top: insets.top + spacing.sm }, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel={t.share.button}
+        >
+          <Share2 size={16} color={colors.text} />
+          <Text style={styles.shareText}>{t.share.button}</Text>
+        </Pressable>
+      )}
+
       <Pressable
-        onPress={() => router.back()}
+        onPress={() => goBack()}
         hitSlop={12}
         style={[styles.close, shadow.pin, { top: insets.top + spacing.sm }]}
         accessibilityLabel={t.suggest.close}
       >
         <X size={20} color={colors.text} />
       </Pressable>
+
+      {venue && via === 'link' && <LinkDistanceCard venue={venue} bottom={insets.bottom} />}
     </View>
   );
+}
+
+/** Yerel paylaşım menüsü (WhatsApp dahil): ad, kısa açıklama ve mekan bağlantısı tek metinde */
+async function shareVenue(venue: VenueDetailDTO, t: ReturnType<typeof useT>) {
+  Haptics.selectionAsync();
+  try {
+    // WhatsApp yalnızca "message" alanını okur; bağlantı metnin içinde olmalı
+    await Share.share({ message: t.share.message(venue.name, venue.tagline, placeUrl(venue.id)) });
+  } catch {
+    // Paylaşım menüsü açılamadı (nadir); sessizce geç
+  }
 }
 
 function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInset: number }) {
@@ -330,6 +361,18 @@ const useStyles = makeStyles(({ colors, font }) => ({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   pressed: { opacity: 0.8 },
 
+  share: {
+    position: 'absolute',
+    right: spacing.lg + 36 + spacing.sm,
+    height: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+  },
+  shareText: { fontSize: 14, fontWeight: '700', color: colors.text },
   close: {
     position: 'absolute',
     right: spacing.lg,

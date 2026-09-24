@@ -21,6 +21,7 @@ import { Field, Input } from '../components/suggest/FormControls';
 import { useLocale, useT, type Dictionary } from '../i18n';
 import { useAuthStore, type AuthReason } from '../store/auth';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
+import { useGoBack } from '../hooks/useGoBack';
 
 type Mode = 'login' | 'register';
 type Errors = Partial<Record<'fullName' | 'email' | 'password' | 'terms' | 'form', string>>;
@@ -43,6 +44,7 @@ export default function AuthScreen() {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
+  const goBack = useGoBack('/profile');
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ reason?: string }>();
   const reason = REASONS.find((r) => r === params.reason) ?? 'profile';
@@ -73,10 +75,10 @@ export default function AuthScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const { pendingAction, setPendingAction } = useAuthStore.getState();
     setPendingAction(null);
-    router.back();
+    goBack();
     // Modal kapandıktan sonra (ör. yeni gönderi ekranını açmak için)
     if (pendingAction) setTimeout(pendingAction, 350);
-  }, [router]);
+  }, [goBack]);
 
   // Oturum hangi yoldan açılırsa açılsın (e-posta, Google, GitHub) ekran bir kez kapanır
   const session = useAuthStore((s) => s.session);
@@ -251,7 +253,7 @@ export default function AuthScreen() {
       </ScrollView>
 
       <Pressable
-        onPress={() => router.back()}
+        onPress={() => goBack()}
         hitSlop={12}
         style={[styles.close, { top: insets.top + spacing.sm }]}
         accessibilityLabel={t.suggest.close}

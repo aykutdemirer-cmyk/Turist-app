@@ -31,3 +31,10 @@ export const TILE_URL = process.env.EXPO_PUBLIC_TILE_URL || `${API_URL}/tiles/{z
 /** Sunucunun verdiği göreli medya yollarını (/media/...) tam adrese çevirir */
 export const resolveMediaUrl = (url: string | null | undefined): string | null =>
   !url ? null : url.startsWith('/') ? `${API_URL}${url}` : url;
+
+/**
+ * Paylaşılan mekan bağlantıları: https://<alan>/place/{id}. Aynı alan app.config.ts'de Android App Links /
+ * iOS Universal Links olarak tanımlıdır; uygulama yüklüyse bağlantı doğrudan mekan detayını açar.
+ */
+export const SHARE_BASE_URL = (process.env.EXPO_PUBLIC_SHARE_BASE_URL || 'https://uygulama-linki.com').replace(/\/+$/, '');
+export const placeUrl = (id: string) => `${SHARE_BASE_URL}/place/${encodeURIComponent(id)}`;

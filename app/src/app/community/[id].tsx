@@ -22,12 +22,14 @@ import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useT } from '../../i18n';
 import { useCurrentUser } from '../../store/auth';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
+import { useGoBack } from '../../hooks/useGoBack';
 
 export default function PostDetailScreen() {
   const { colors, font } = useTheme();
   const styles = useStyles();
   const t = useT();
   const router = useRouter();
+  const goBack = useGoBack('/community');
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: post, isPending, isError, refetch } = usePost(id);
@@ -42,7 +44,7 @@ export default function PostDetailScreen() {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.xs }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back} accessibilityLabel={t.suggest.close}>
+        <Pressable onPress={() => goBack()} hitSlop={12} style={styles.back} accessibilityLabel={t.suggest.close}>
           <ChevronLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={font.heading}>{t.community.title}</Text>

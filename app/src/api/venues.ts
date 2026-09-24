@@ -16,6 +16,8 @@ import { useLocale } from '../i18n';
 import { api } from './client';
 
 export const NEARBY_RADIUS_M = 3_000;
+/** API'nin izin verdiği en geniş yarıçap (Keşfet'te "Tümü") */
+export const MAX_RADIUS_M = 20_000;
 
 // ~10 m hassasiyet: küçük GPS oynamaları yeni istek tetiklemesin
 const roundCenter = (c: LatLng) => ({ lat: c.latitude.toFixed(4), lng: c.longitude.toFixed(4) });
@@ -24,7 +26,8 @@ const roundCenter = (c: LatLng) => ({ lat: c.latitude.toFixed(4), lng: c.longitu
 export const venueKeys = {
   all: ['venues'] as const,
   nearby: () => [...venueKeys.all, 'nearby'] as const,
-  nearbyFor: (center: LatLng, locale: Locale) => [...venueKeys.nearby(), { ...roundCenter(center), locale }] as const,
+  nearbyFor: (center: LatLng, locale: Locale, radius: number) =>
+    [...venueKeys.nearby(), { ...roundCenter(center), locale, radius }] as const,
   detailAll: (id: string) => [...venueKeys.all, 'detail', id] as const,
   detail: (id: string, locale: Locale) => [...venueKeys.detailAll(id), locale] as const,
   confirmations: (center: LatLng) => [...venueKeys.all, 'confirmations', roundCenter(center)] as const,
@@ -34,15 +37,15 @@ export const venueKeys = {
  * Yarıçap içindeki tüm onaylı mekanlar (mesafeye göre sıralı).
  * Kategori/katman/arama filtreleri istemcide uygulanır: ekranlar aynı önbelleği paylaşır.
  */
-export function useNearbyVenues(center: LatLng | null) {
+export function useNearbyVenues(center: LatLng | null, radius = NEARBY_RADIUS_M) {
   const locale = useLocale();
   return useQuery({
-    queryKey: center ? venueKeys.nearbyFor(center, locale) : venueKeys.nearby(),
+    queryKey: center ? venueKeys.nearbyFor(center, locale, radius) : venueKeys.nearby(),
     enabled: center !== null,
     queryFn: ({ signal }) =>
       api<NearbyResponseDTO>('/venues/nearby', {
         signal,
-        query: { lat: center!.latitude, lng: center!.longitude, radius: NEARBY_RADIUS_M },
+        query: { lat: center!.latitude, lng: center!.longitude, radius, limit: 100 },
       }),
     placeholderData: keepPreviousData,
     staleTime: 30_000,

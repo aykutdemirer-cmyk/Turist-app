@@ -46,6 +46,18 @@ enum VenueStatus {
   CLOSED // Kalıcı olarak kapandı
 }
 
+/// Ana sayfa yemek kategorileri (bir mekan birden fazlasında olabilir).
+/// STREET_CART saklanmaz: locationType = DYNAMIC_STREET olan her mekana API ekler.
+enum FoodCategory {
+  STEW // Tencere / sulu yemek
+  DONER_WRAP // Döner & dürüm
+  BURGER_TOAST // Sokak burgeri & tost
+  PIDE_PIZZA // Taş fırın: pide & pizza
+  SOUP // Çorbalar
+  STREET_CART // Seyyar tezgahlar (türetilir)
+  OLIVE_OIL_VEGAN // Zeytinyağlı / vegan
+}
+
 /// STATIC: sabit dükkan. DYNAMIC_STREET: seyyar; konumu gün içinde değişebilir.
 enum LocationType {
   STATIC
@@ -164,6 +176,9 @@ model Venue {
 
   localTips LocalTip[]
   phone     String?
+
+  /// Yemek kategorileri (ana sayfa filtreleri)
+  foodCategories FoodCategory[] @default([])
 
   /// Kişi başı ortalama harcama (TL, yaklaşık). Aralık kontrolü migration'da CHECK ile.
   avgPriceMinTry Int?

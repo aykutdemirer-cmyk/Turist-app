@@ -1,5 +1,5 @@
 /**
- * İstanbul örnek verisi — 11 mekan (4 seyyar, 4 esnaf lokantası, 2 burger/dürüm, 1 tatlıcı).
+ * İstanbul örnek verisi — 13 mekan (4 seyyar, 4 esnaf lokantası, 3 burger/dürüm/döner, 1 pideci, 1 tatlıcı).
  *
  * Konumlar gerçek semtlerde (Kadıköy, Sirkeci, Eminönü, Vezneciler), ancak işletme adları,
  * saatleri ve puanları geliştirme için KURGUSALDIR; gerçek bir işletmeyi temsil etmez.
@@ -7,7 +7,7 @@
  * Idempotent: yalnızca buradaki slug'lara sahip mekanları silip yeniden oluşturur,
  * kullanıcı önerilerine dokunmaz.
  */
-import { PrismaClient, type LocalTip, type PriceLevel, type UserRole, type VenueType } from '@prisma/client';
+import { PrismaClient, type FoodCategory, type LocalTip, type PriceLevel, type UserRole, type VenueType } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { toMinutes } from '@localbite/shared';
 import { hashPassword } from '../src/lib/password';
@@ -540,6 +540,95 @@ const venues: SeedVenue[] = [
       { days: [SUN], open: '12:00', close: '22:00' },
     ],
   },
+  {
+    slug: 'altiyol-yaprak-doner',
+    name: 'Altıyol Yaprak Döner',
+    type: 'LOCAL_BURGER_WRAP',
+    isMobile: false,
+    priceLevel: 'BUDGET',
+    authenticityScore: 88,
+    latitude: 40.9889,
+    longitude: 29.0276,
+    address: 'Söğütlüçeşme Cd., Osmanağa Mah., Kadıköy',
+    neighborhood: 'Altıyol',
+    district: 'Kadıköy',
+    localTips: ['PAY_AT_COUNTER', 'STANDING_ONLY', 'CLOSES_WHEN_SOLD_OUT'],
+    upvoteCount: 64,
+    en: {
+      tagline: 'Hand-stacked leaf döner, sliced to order until the spit runs out',
+      description:
+        'A tiny counter where the döner is stacked by hand every morning from thin "yaprak" slices of beef. When the spit is finished, they close.',
+      customTip: "Ask for 'az ekmek, bol et' — less bread, more meat.",
+    },
+    tr: {
+      tagline: 'Elde dizilen yaprak döner; şiş bitene kadar',
+      description: 'Her sabah ince yaprak etle elde dizilen döner. Şiş bitince kepenk iner.',
+    },
+    dishes: [
+      {
+        localName: 'Et Döner Dürüm',
+        en: { name: 'Beef döner wrap', description: 'Thin-sliced leaf döner with tomato and onion in lavaş.' },
+        tr: { name: 'Et Döner Dürüm', description: 'Domates, soğan, lavaş.' },
+      },
+      {
+        localName: 'Pilav Üstü Döner',
+        en: { name: 'Döner over rice', description: 'Döner slices on buttery rice pilaf with roasted pepper.' },
+        tr: { name: 'Pilav Üstü Döner', description: 'Tereyağlı pilav üstünde, közlenmiş biberle.' },
+      },
+      {
+        localName: 'Ayran',
+        isVegetarian: true,
+        en: { name: 'Ayran', description: 'Frothy salty yogurt drink.' },
+        tr: { name: 'Ayran', description: 'Köpüklü ayran.' },
+      },
+    ],
+    schedules: [{ days: MON_SAT, open: '11:00', close: '21:00' }],
+  },
+  // ───────────── Taş fırın ─────────────
+  {
+    slug: 'yeldegirmeni-tas-firin-pide',
+    name: 'Yeldeğirmeni Taş Fırın Pide',
+    type: 'HOME_COOKING',
+    isMobile: false,
+    priceLevel: 'BUDGET',
+    authenticityScore: 90,
+    latitude: 40.9941,
+    longitude: 29.0297,
+    address: 'Karakolhane Cd., Rasimpaşa Mah., Kadıköy',
+    neighborhood: 'Yeldeğirmeni',
+    district: 'Kadıköy',
+    localTips: ['NO_RESERVATIONS', 'SHARED_TABLES'],
+    upvoteCount: 71,
+    en: {
+      tagline: 'Wood-fired Black Sea pide and lahmacun from a 1970s stone oven',
+      description:
+        'Boat-shaped pide baked on the stone floor of a wood-fired oven, brushed with butter as it comes out. Lahmacun is rolled thin and eaten with lemon and parsley.',
+      customTip: 'Order lahmacun while you wait for your pide — it takes three minutes.',
+    },
+    tr: {
+      tagline: '70lerden kalma taş fırında odun ateşi pide ve lahmacun',
+      description: 'Taş zeminde pişen, çıkarken tereyağı sürülen Karadeniz pidesi; limonlu, maydanozlu ince lahmacun.',
+    },
+    dishes: [
+      {
+        localName: 'Kıymalı Pide',
+        en: { name: 'Minced-meat pide', description: 'Boat-shaped flatbread with spiced minced beef, finished with butter.' },
+        tr: { name: 'Kıymalı Pide', description: 'Baharatlı kıyma, üstüne tereyağı.' },
+      },
+      {
+        localName: 'Kaşarlı Yumurtalı Pide',
+        isVegetarian: true,
+        en: { name: 'Cheese & egg pide', description: 'Melted kaşar cheese with an egg cracked on top in the oven.' },
+        tr: { name: 'Kaşarlı Yumurtalı Pide', description: 'Fırında kırılan yumurtayla.' },
+      },
+      {
+        localName: 'Lahmacun',
+        en: { name: 'Lahmacun', description: 'Paper-thin flatbread with spiced meat; roll it up with lemon and parsley.' },
+        tr: { name: 'Lahmacun', description: 'İnce hamur, limon ve maydanozla dürülür.' },
+      },
+    ],
+    schedules: [{ days: EVERY_DAY, open: '11:00', close: '22:30' }],
+  },
   // ───────────── Tatlı & çay ─────────────
   {
     slug: 'moda-sutlu-tatlici',
@@ -594,6 +683,8 @@ const venues: SeedVenue[] = [
 
 /** Kişi başı ortalama harcama bandı */
 const pricePerPerson: Record<string, [number, number]> = {
+  'altiyol-yaprak-doner': [180, 280],
+  'yeldegirmeni-tas-firin-pide': [220, 380],
   'rihtim-gece-pilavcisi': [120, 200],
   'kadikoy-seyyar-kofteci': [200, 320],
   'sirkeci-kestane-misir': [70, 180],
@@ -624,7 +715,27 @@ const liveDemo: Record<string, { minutesAgo: number; dLat: number; dLng: number 
   'sirkeci-kestane-misir': { minutesAgo: 20 * 60, dLat: 0.0003, dLng: 0.0004 },
 };
 
+/**
+ * Ana sayfa yemek kategorileri. Seyyar (STREET_CART) saklanmaz, API türetir;
+ * burada yalnızca yemek türleri. Listede olmayan mekan yalnızca "tümü"nde görünür.
+ */
+const foodCategoriesBySlug: Record<string, FoodCategory[]> = {
+  'hocapasa-sulu-yemek-evi': ['STEW'],
+  'tahtakale-esnaf-lokantasi': ['STEW', 'SOUP'],
+  'kadikoy-carsi-ev-yemekleri': ['STEW', 'OLIVE_OIL_VEGAN'],
+  'yeldegirmeni-anne-mutfagi': ['STEW', 'SOUP'],
+  'moda-mahalle-burger': ['BURGER_TOAST'],
+  'vezneciler-adana-durum': ['DONER_WRAP'],
+  'altiyol-yaprak-doner': ['DONER_WRAP'],
+  'yeldegirmeni-tas-firin-pide': ['PIDE_PIZZA'],
+};
+
 const dishPrice: Record<string, number> = {
+  'Et Döner Dürüm': 190,
+  'Pilav Üstü Döner': 240,
+  'Kıymalı Pide': 260,
+  'Kaşarlı Yumurtalı Pide': 230,
+  Lahmacun: 110,
   'Nohutlu Pilav': 120,
   'Tavuklu Nohutlu Pilav': 160,
   Turşu: 40,
@@ -1087,6 +1198,7 @@ async function main() {
         neighborhood: v.neighborhood,
         district: v.district,
         localTips: v.localTips,
+        foodCategories: foodCategoriesBySlug[v.slug] ?? [],
         status: 'ACTIVE',
         ...(liveDemo[v.slug] && {
           isLiveLocation: true,

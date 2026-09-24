@@ -23,6 +23,21 @@ export type LocalTip = (typeof LOCAL_TIPS)[number];
 export const VENUE_STATUSES = ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'CLOSED'] as const;
 export type VenueStatus = (typeof VENUE_STATUSES)[number];
 
+/**
+ * Ana sayfa yemek kategorileri. Bir mekan birden fazlasında olabilir;
+ * STREET_CART seyyarlara (locationType = DYNAMIC_STREET) API tarafından eklenir.
+ */
+export const FOOD_CATEGORIES = [
+  'STEW',
+  'DONER_WRAP',
+  'BURGER_TOAST',
+  'PIDE_PIZZA',
+  'SOUP',
+  'STREET_CART',
+  'OLIVE_OIL_VEGAN',
+] as const;
+export type FoodCategory = (typeof FOOD_CATEGORIES)[number];
+
 export const REPORT_TYPES = ['SPOTTED_TODAY', 'UPVOTE', 'NOT_HERE', 'CLOSED'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 

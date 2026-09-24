@@ -1,7 +1,7 @@
-import type { VenueSummaryDTO, VenueType } from '@localbite/shared';
+import type { FoodCategory, VenueSummaryDTO } from '@localbite/shared';
 import { useRouter } from 'expo-router';
 import { Search, X } from 'lucide-react-native';
-import { createElement, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -13,15 +13,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNearbyVenues } from '../../api/venues';
+import { CategoryRail } from '../../components/home/CategoryRail';
 import { VenueFeedCard } from '../../components/home/VenueFeedCard';
 import { ExperienceSection } from '../../components/monetization/ExperienceSection';
 import { TrailsSection } from '../../components/monetization/TrailsSection';
 import { DEFAULT_CENTER, useUserLocation } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
-import { makeStyles, radius, spacing, useTheme, venueTypeMeta } from '../../theme';
-
-/** Ana sayfadaki üç temel kategori */
-const HOME_CATEGORIES: VenueType[] = ['HOME_COOKING', 'STREET_CART', 'LOCAL_BURGER_WRAP'];
+import { foodCategoryMeta, makeStyles, radius, spacing, useTheme } from '../../theme';
 
 const normalize = (s: string) => s.toLocaleLowerCase('tr').trim();
 
@@ -42,7 +40,7 @@ export default function HomeScreen() {
   const inputRef = useRef<TextInput>(null);
 
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState<VenueType | null>(null);
+  const [category, setCategory] = useState<FoodCategory | null>(null);
 
   const location = useUserLocation();
   const center = location.coords ?? (location.status !== 'pending' ? DEFAULT_CENTER : null);
@@ -52,7 +50,7 @@ export default function HomeScreen() {
   const venues = useMemo(
     () =>
       (nearby.data?.items ?? []).filter(
-        (v) => (!category || v.type === category) && matchesSearch(v, query),
+        (v) => (!category || v.categories.includes(category)) && matchesSearch(v, query),
       ),
     [nearby.data, category, query],
   );
@@ -91,33 +89,8 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Kategoriler */}
-        <View style={styles.categories}>
-          {HOME_CATEGORIES.map((type) => {
-            const meta = venueTypeMeta[type];
-            const active = category === type;
-            return (
-              <Pressable
-                key={type}
-                onPress={() => setCategory(active ? null : type)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={({ pressed }) => [
-                  styles.category,
-                  { backgroundColor: active ? meta.color : colors.surface, borderColor: active ? meta.color : colors.border },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View style={[styles.categoryIcon, { backgroundColor: active ? 'rgba(255,255,255,0.25)' : `${meta.color}1A` }]}>
-                  {createElement(meta.Icon, { size: 26, color: active ? '#FFFFFF' : meta.color, strokeWidth: 2 })}
-                </View>
-                <Text style={[styles.categoryLabel, active && { color: colors.textInverse }]} numberOfLines={2}>
-                  {t.categories[type]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* Kategoriler: yatay kaydırılır, seçim listeyi anında süzer */}
+        <CategoryRail value={category} onChange={setCategory} />
 
         {/* Küratörlü rotalar: ücretsiz örnek + Explorer Pass */}
         <TrailsSection />
@@ -125,7 +98,23 @@ export default function HomeScreen() {
         {/* En yakın gizli lezzetler */}
         <View style={styles.sectionHeader}>
           <Text style={font.title}>{t.home.nearestTitle}</Text>
-          {nearby.data && <Text style={font.small}>{t.home.nearestSubtitle(venues.length)}</Text>}
+          <View style={styles.subtitleRow}>
+            {nearby.data && <Text style={font.small}>{t.home.nearestSubtitle(venues.length)}</Text>}
+            {category && (
+              <Pressable
+                onPress={() => setCategory(null)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`${t.foodCategories.clear}: ${foodCategoryMeta[category].title}`}
+                style={[styles.filterChip, { borderColor: foodCategoryMeta[category].color }]}
+              >
+                <Text style={[styles.filterChipText, { color: foodCategoryMeta[category].color }]}>
+                  {foodCategoryMeta[category].title}
+                </Text>
+                <X size={13} color={foodCategoryMeta[category].color} strokeWidth={2.6} />
+              </Pressable>
+            )}
+          </View>
         </View>
 
         {nearby.isPending ? (
@@ -176,20 +165,18 @@ const useStyles = makeStyles(({ colors, font }) => ({
     justifyContent: 'center',
   },
 
-  categories: { flexDirection: 'row', gap: spacing.sm },
-  category: {
-    flex: 1,
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xs,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-  },
-  categoryIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  categoryLabel: { fontSize: 13, fontWeight: '700', color: colors.text, textAlign: 'center' },
-
   sectionHeader: { gap: 2, marginTop: spacing.xs },
+  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  filterChipText: { fontSize: 12, fontWeight: '800' },
   loader: { paddingVertical: spacing.xxl },
   empty: { padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, gap: spacing.xs },
   emptyText: { ...font.small, fontWeight: '500', lineHeight: 19 },

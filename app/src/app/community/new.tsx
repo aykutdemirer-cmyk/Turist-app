@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { X } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text } from 'react-native';
@@ -10,12 +10,13 @@ import { Field, Input } from '../../components/suggest/FormControls';
 import { useT } from '../../i18n';
 import { useCurrentUser } from '../../store/auth';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
+import { useGoBack } from '../../hooks/useGoBack';
 
 export default function NewPostScreen() {
   const { colors, font } = useTheme();
   const styles = useStyles();
   const t = useT();
-  const router = useRouter();
+  const goBack = useGoBack('/community');
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const createPost = useCreatePost();
@@ -38,7 +39,7 @@ export default function NewPostScreen() {
       {
         onSuccess: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.back();
+          goBack();
         },
         onError: (err) =>
           setErrors({
@@ -103,7 +104,7 @@ export default function NewPostScreen() {
       </ScrollView>
 
       <Pressable
-        onPress={() => router.back()}
+        onPress={() => goBack()}
         hitSlop={12}
         style={[styles.close, { top: insets.top + spacing.sm }]}
         accessibilityLabel={t.suggest.close}

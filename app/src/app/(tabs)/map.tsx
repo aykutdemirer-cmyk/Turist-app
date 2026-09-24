@@ -1,20 +1,23 @@
 import { haversineMeters, type LatLng } from '@localbite/shared';
 import { useRouter } from 'expo-router';
-import { LocateFixed, Search } from 'lucide-react-native';
+import { LocateFixed, RotateCcw, Search } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
-import { useNearbyVenues } from '../../api/venues';
+import { MAX_RADIUS_M, NEARBY_RADIUS_M, useNearbyVenues } from '../../api/venues';
 import { NearestCartsCard, SocialReportCallout } from '../../components/explore/ExploreCards';
+import { ExploreFilterBar } from '../../components/explore/ExploreFilterBar';
 import { VenueMap, type VenueMapHandle } from '../../components/map/VenueMap';
 import { DEFAULT_CENTER, useUserLocation } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
-import { useExploreStore, type MapLayers } from '../../store/explore';
+import { applyExploreFilters } from '../../lib/exploreFilter';
+import { DEFAULT_DISTANCE, useExploreStore, type MapLayers } from '../../store/explore';
 import { useAvatarFace } from '../../store/profile';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
-const TOP_BAR_HEIGHT = 56;
+/** Üst çipler ve filtre satırları ölçülene kadarki tahmini yükseklik */
+const TOP_BAR_ESTIMATE = 140;
 /** Alt kartın yaklaşık yüksekliği; harita odaklaması bu alanın üstüne yapılır */
 const BOTTOM_CARD_HEIGHT = 230;
 /** Harita bu kadar kaydırılınca "Bu bölgede ara" görünür */
@@ -31,7 +34,7 @@ export default function ExploreScreen() {
   const avatarFace = useAvatarFace();
 
   const location = useUserLocation();
-  const { layers, toggleLayer, selectedId, select, searchCenter, setSearchCenter } = useExploreStore(
+  const { layers, toggleLayer, selectedId, select, searchCenter, setSearchCenter, distance, filters, resetFilters } = useExploreStore(
     useShallow((s) => ({
       layers: s.layers,
       toggleLayer: s.toggleLayer,
@@ -39,21 +42,41 @@ export default function ExploreScreen() {
       select: s.select,
       searchCenter: s.searchCenter,
       setSearchCenter: s.setSearchCenter,
+      distance: s.distance,
+      filters: s.filters,
+      resetFilters: s.resetFilters,
     })),
   );
+  const [topHeight, setTopHeight] = useState(TOP_BAR_ESTIMATE);
 
   // İzin yoksa ya da konum alınamadıysa varsayılan merkez; yalnızca izin cevabı beklenirken null
   const userCenter = location.coords ?? (location.status !== 'pending' ? DEFAULT_CENTER : null);
   const queryCenter = searchCenter ?? userCenter;
-  const nearby = useNearbyVenues(queryCenter);
-  const all = useMemo(() => nearby.data?.items ?? [], [nearby.data]);
+  // 500 m / 1 km da 3 km'lik ortak önbellekten süzülür; 5 km ve "Tümü" için daha geniş çekilir
+  const fetchRadius = distance === null ? MAX_RADIUS_M : Math.max(distance, NEARBY_RADIUS_M);
+  const nearby = useNearbyVenues(queryCenter, fetchRadius);
+
+  // Mesafe (Haversine, seçili merkeze göre) + kategori/açık/bütçe/canlı filtreleri; mesafeye göre sıralı
+  const all = useMemo(
+    () => (queryCenter ? applyExploreFilters(nearby.data?.items ?? [], { origin: queryCenter, maxDistance: distance, ...filters }) : []),
+    [nearby.data, queryCenter, distance, filters],
+  );
+  const filtersActive =
+    distance !== DEFAULT_DISTANCE || filters.category !== null || filters.openNow || filters.budget || filters.liveOnly;
 
   const visible = useMemo(
     () => all.filter((v) => (v.isMobile ? layers.carts : layers.shops)),
     [all, layers],
   );
-  // API mesafeye göre sıralı döner
   const nearestCarts = useMemo(() => all.filter((v) => v.isMobile).slice(0, NEAREST_CARTS), [all]);
+
+  // Mesafe değişince harita daireye sığsın (ilk açılışta kullanıcıya odaklanılır)
+  const lastDistance = useRef(distance);
+  useEffect(() => {
+    if (lastDistance.current === distance) return;
+    lastDistance.current = distance;
+    mapRef.current?.fitRadius();
+  }, [distance]);
   const selected = visible.find((v) => v.id === selectedId) ?? null;
 
   // İlk konum geldiğinde haritayı kullanıcıya odakla
@@ -107,23 +130,41 @@ export default function ExploreScreen() {
         onSelectVenue={focusVenue}
         onMapPress={() => select(null)}
         user={location.coords ? { ...location.coords, face: avatarFace } : null}
-        topInset={insets.top + TOP_BAR_HEIGHT}
+        topInset={topHeight}
         bottomInset={BOTTOM_CARD_HEIGHT}
         onRegionChangeComplete={(center, isGesture) => {
           if (isGesture) setMapCenter(center);
         }}
+        radius={queryCenter && { ...queryCenter, meters: distance }}
       />
 
       {/* Üst: katman çipleri + durum */}
       <View style={[styles.top, { paddingTop: insets.top + spacing.sm }]} pointerEvents="box-none">
-        <View style={styles.chips} pointerEvents="box-none">
-          <LayerChip layer="carts" label={t.explore.carts} color={colors.mobile} layers={layers} onToggle={toggleLayer} />
-          <LayerChip layer="shops" label={t.explore.shops} color={colors.shop} layers={layers} onToggle={toggleLayer} />
+        {/* Ölçülen yükseklik: harita odaklaması bu alanın altına yapılır */}
+        <View pointerEvents="box-none" onLayout={(e) => setTopHeight(insets.top + spacing.sm + e.nativeEvent.layout.height)}>
+          <View style={styles.chips} pointerEvents="box-none">
+            <LayerChip layer="carts" label={t.explore.carts} color={colors.mobile} layers={layers} onToggle={toggleLayer} />
+            <LayerChip layer="shops" label={t.explore.shops} color={colors.shop} layers={layers} onToggle={toggleLayer} />
+          </View>
+          <View style={styles.filters} pointerEvents="box-none">
+            <ExploreFilterBar />
+          </View>
         </View>
         <View style={styles.topStatus} pointerEvents="box-none">
           {location.status === 'denied' && !searchCenter && (
             <View style={styles.notice}>
               <Text style={styles.noticeText}>{t.map.locationDenied}</Text>
+            </View>
+          )}
+          {nearby.data && all.length === 0 && (
+            <View style={styles.notice}>
+              <Text style={styles.noticeText}>{t.exploreFilters.noResults}</Text>
+              {filtersActive && (
+                <Pressable onPress={resetFilters} hitSlop={8} style={styles.resetRow} accessibilityRole="button">
+                  <RotateCcw size={13} color={colors.primary} />
+                  <Text style={styles.resetText}>{t.exploreFilters.reset}</Text>
+                </Pressable>
+              )}
             </View>
           )}
           {showSearchHere && (
@@ -158,7 +199,7 @@ export default function ExploreScreen() {
         ) : selected ? (
           <SocialReportCallout venue={selected} onOpen={openVenue} onClose={() => select(null)} />
         ) : (
-          <NearestCartsCard carts={nearestCarts} onPick={focusVenue} />
+          <NearestCartsCard carts={nearestCarts} onPick={focusVenue} emptyText={filtersActive ? t.exploreFilters.noCarts : undefined} />
         )}
       </View>
     </View>
@@ -204,6 +245,9 @@ const useStyles = makeStyles(({ colors, shadow }) => ({
 
   top: { position: 'absolute', top: 0, left: 0, right: 0 },
   chips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
+  filters: { marginTop: spacing.sm },
+  resetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 4 },
+  resetText: { fontSize: 13, fontWeight: '800', color: colors.primary },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -8,13 +8,14 @@ import { usePaywall, useTrail } from '../../api/monetization';
 import { FoodImage } from '../../components/ui/FoodImage';
 import { useT } from '../../i18n';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
+import { useGoBack } from '../../hooks/useGoBack';
 
 /** Lezzet rotası: sıralı duraklar, her durakta ipucu ve öne çıkan yemekler */
 export default function TrailScreen() {
   const { colors, font } = useTheme();
   const styles = useStyles();
   const t = useT();
-  const router = useRouter();
+  const goBack = useGoBack('/');
   const insets = useSafeAreaInsets();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { data: trail, isPending, error, refetch } = useTrail(slug);
@@ -24,7 +25,7 @@ export default function TrailScreen() {
   return (
     <View style={styles.screen}>
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.xs }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back} accessibilityLabel={t.suggest.close}>
+        <Pressable onPress={() => goBack()} hitSlop={12} style={styles.back} accessibilityLabel={t.suggest.close}>
           <ChevronLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={font.heading} numberOfLines={1}>

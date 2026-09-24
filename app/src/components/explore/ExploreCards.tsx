@@ -14,7 +14,15 @@ export function confirmationLabel(v: VenueSummaryDTO, t: Dictionary) {
 }
 
 /** Alt kart: bana en yakın 3 seyyar */
-export function NearestCartsCard({ carts, onPick }: { carts: VenueSummaryDTO[]; onPick: (id: string) => void }) {
+export function NearestCartsCard({
+  carts,
+  onPick,
+  emptyText,
+}: {
+  carts: VenueSummaryDTO[];
+  onPick: (id: string) => void;
+  emptyText?: string;
+}) {
   const { colors, font, shadow } = useTheme();
   const styles = useStyles();
   const t = useT();
@@ -25,7 +33,7 @@ export function NearestCartsCard({ carts, onPick }: { carts: VenueSummaryDTO[]; 
         <Text style={font.heading}>{t.explore.nearestCarts}</Text>
       </View>
       {carts.length === 0 ? (
-        <Text style={styles.muted}>{t.explore.noCarts}</Text>
+        <Text style={styles.muted}>{emptyText ?? t.explore.noCarts}</Text>
       ) : (
         carts.map((v, i) => (
           <Pressable

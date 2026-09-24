@@ -23,6 +23,8 @@ export interface MapUser extends LatLng {
 
 export interface LeafletHandle {
   focus: (target: LatLng, zoom?: number) => void;
+  /** Haritayı mesafe dairesine sığdır; daire yoksa verilen yakınlığa geç */
+  fitRadius: (fallbackZoom?: number) => void;
 }
 
 interface Props {
@@ -38,6 +40,8 @@ interface Props {
   onPinPress?: (id: string) => void;
   onMapPress?: () => void;
   onMoveEnd?: (center: LatLng, info: { isGesture: boolean; zoom: number }) => void;
+  /** Kesikli mesafe dairesi; meters null ise çizilmez */
+  radius?: (LatLng & { meters: number | null }) | null;
   /** Konum seçici modu: sürüklenebilir pin bu noktada başlar */
   picker?: LatLng | null;
   onPick?: (point: LatLng) => void;
@@ -75,6 +79,7 @@ export function LeafletView({
   onPinPress,
   onMapPress,
   onMoveEnd,
+  radius = null,
   picker = null,
   onPick,
   style,
@@ -101,6 +106,7 @@ export function LeafletView({
 
   useImperativeHandle(ref, () => ({
     focus: (target, zoom) => send({ type: 'focus', latitude: target.latitude, longitude: target.longitude, zoom }),
+    fitRadius: (zoom) => send({ type: 'fitRadius', zoom }),
   }));
 
   // Değer bazlı karşılaştırma için JSON; aynı içerikte yeniden gönderme yapılmaz
@@ -121,6 +127,11 @@ export function LeafletView({
   useEffect(() => {
     if (ready) send({ type: 'padding', padding: { top: padding.top, bottom: padding.bottom } });
   }, [ready, padding.top, padding.bottom, send]);
+
+  const radiusJson = radius ? JSON.stringify({ latitude: radius.latitude, longitude: radius.longitude, meters: radius.meters }) : null;
+  useEffect(() => {
+    if (ready) send({ type: 'radius', ...(radiusJson ? JSON.parse(radiusJson) : { meters: null }) });
+  }, [ready, radiusJson, send]);
 
   const pickerLat = picker?.latitude;
   const pickerLng = picker?.longitude;
