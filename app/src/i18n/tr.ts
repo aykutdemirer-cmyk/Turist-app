@@ -235,6 +235,11 @@ export const tr: Dictionary = {
     recommended: 'Tavsiye edildi',
     vegetarian: 'Vejetaryen',
     loadError: 'Mekan yüklenemedi.',
+    perPerson: (min: string, max: string) => `Kişi başı ortalama: ${min} – ${max}`,
+    portion: (price: string) => `Porsiyon: ~${price}`,
+    pronounce: (name: string) => `"${name}" sesli oku`,
+    sayIt: 'Okunuşu',
+    photoCredit: (credit: string) => `Temsili fotoğraf: ${credit}`,
   },
   report: {
     needLocation: 'Mekanda olduğunuzu doğrulamak için konum izni gerekiyor.',

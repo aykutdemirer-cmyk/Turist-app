@@ -252,6 +252,10 @@ export async function getVenueDetail(idOrSlug: string, locale: Locale, now = new
     upvoteCount: venue.upvoteCount,
     rating: ratings.get(venue.id) ?? NO_RATING,
     coverImageUrl: venue.coverImageUrl,
+    pricePerPerson:
+      venue.avgPriceMinTry !== null && venue.avgPriceMaxTry !== null
+        ? { min: venue.avgPriceMinTry, max: venue.avgPriceMaxTry }
+        : null,
     reviews: reviews.map((r): ReviewDTO => {
       const text = reviewText(r, locale);
       return {
@@ -278,6 +282,8 @@ export async function getVenueDetail(idOrSlug: string, locale: Locale, now = new
         isVegetarian: d.isVegetarian,
         priceTry: d.priceTry ? Number(d.priceTry) : null,
         imageUrl: d.imageUrl,
+        imageCredit: d.imageCredit,
+        imageSourceUrl: d.imageSourceUrl,
       };
     }),
     schedules: venue.schedules.map((s) => ({

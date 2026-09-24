@@ -235,6 +235,11 @@ export const de: Dictionary = {
     recommended: 'Empfohlen',
     vegetarian: 'Vegetarisch',
     loadError: 'Dieser Ort konnte nicht geladen werden.',
+    perPerson: (min: string, max: string) => `Ø pro Person: ${min} – ${max}`,
+    portion: (price: string) => `Portion: ~${price}`,
+    pronounce: (name: string) => `„${name}“ auf Türkisch anhören`,
+    sayIt: 'Aussprache',
+    photoCredit: (credit: string) => `Beispielfoto: ${credit}`,
   },
   report: {
     needLocation: 'Wir brauchen deinen Standort, um zu bestätigen, dass du vor Ort bist.',

@@ -235,6 +235,11 @@ export const en = {
     recommended: 'Recommended',
     vegetarian: 'Vegetarian',
     loadError: "Couldn't load this spot.",
+    perPerson: (min: string, max: string) => `Avg. per person: ${min} – ${max}`,
+    portion: (price: string) => `Portion: ~${price}`,
+    pronounce: (name: string) => `Hear "${name}" in Turkish`,
+    sayIt: 'Say it like',
+    photoCredit: (credit: string) => `Representative photo: ${credit}`,
   },
   report: {
     needLocation: 'We need your location to confirm you are at the spot.',

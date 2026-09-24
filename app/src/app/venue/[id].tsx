@@ -10,7 +10,6 @@ import {
   Footprints,
   Hourglass,
   Info,
-  Leaf,
   MapPin,
   Navigation,
   Pointer,
@@ -19,6 +18,7 @@ import {
   Sun,
   Users,
   Utensils,
+  Wallet,
   X,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -28,12 +28,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../../api/client';
 import { useReportVenue, useVenue } from '../../api/venues';
 import { FoodImage } from '../../components/ui/FoodImage';
+import { DishRow } from '../../components/venue/DishRow';
 import { ReviewsSection } from '../../components/venue/ReviewsSection';
 import { SpottedLine } from '../../components/venue/SpottedLine';
 import { getPreciseLocation } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
 import { openDirections } from '../../lib/directions';
-import { priceSymbol } from '../../lib/format';
+import { formatTry, priceSymbol } from '../../lib/format';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
 const TIP_ICONS: Record<LocalTip, LucideIcon> = {
@@ -126,6 +127,14 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
               <Text style={font.small}>({t.reviews.count(venue.rating.count)})</Text>
             </View>
           )}
+          {venue.pricePerPerson && (
+            <View style={styles.perPerson} accessibilityRole="text">
+              <Wallet size={15} color={colors.open} />
+              <Text style={styles.perPersonText}>
+                {t.detail.perPerson(formatTry(venue.pricePerPerson.min), formatTry(venue.pricePerPerson.max))}
+              </Text>
+            </View>
+          )}
           {venue.tagline && <Text style={styles.tagline}>{venue.tagline}</Text>}
         </View>
 
@@ -146,24 +155,7 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
         {venue.dishes.length > 0 && (
           <Section title={t.detail.mustTry} note={t.detail.menuNote}>
             {venue.dishes.map((dish) => (
-              <View key={dish.id} style={styles.dish}>
-                <FoodImage
-                  uri={dish.imageUrl}
-                  subject={dish.localName}
-                  type={venue.type}
-                  isMobile={venue.isMobile}
-                  style={styles.dishImage}
-                  emojiSize={36}
-                />
-                <View style={styles.flex}>
-                  <View style={styles.dishTitleRow}>
-                    <Text style={styles.dishName}>{dish.localName}</Text>
-                    {dish.isVegetarian && <Leaf size={14} color={colors.open} accessibilityLabel={t.detail.vegetarian} />}
-                  </View>
-                  {dish.name !== dish.localName && <Text style={styles.dishTranslated}>{dish.name}</Text>}
-                  {dish.description && <Text style={styles.dishDescription}>{dish.description}</Text>}
-                </View>
-              </View>
+              <DishRow key={dish.id} dish={dish} venueType={venue.type} isMobile={venue.isMobile} />
             ))}
           </Section>
         )}
@@ -361,6 +353,17 @@ const useStyles = makeStyles(({ colors, font }) => ({
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   ratingValue: { fontSize: 15, fontWeight: '800', color: colors.text },
   tagline: { fontSize: 15, color: colors.text, lineHeight: 21 },
+  perPerson: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    backgroundColor: colors.openSoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+  },
+  perPersonText: { fontSize: 13, fontWeight: '800', color: colors.open },
   description: { lineHeight: 22, color: colors.textMuted },
 
   directions: {
@@ -399,20 +402,6 @@ const useStyles = makeStyles(({ colors, font }) => ({
   section: { gap: spacing.md },
   sectionNote: { ...font.small, fontWeight: '400', marginTop: 2 },
 
-  dish: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    padding: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dishImage: { width: 84, height: 84, borderRadius: radius.sm },
-  dishTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dishName: { fontSize: 16, fontWeight: '800', color: colors.text },
-  dishTranslated: { fontSize: 14, color: colors.text, marginTop: 1 },
-  dishDescription: { fontSize: 13, color: colors.textMuted, marginTop: 3, lineHeight: 18 },
 
   tipCard: {
     flexDirection: 'row',

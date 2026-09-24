@@ -27,3 +27,7 @@ export const API_BASE = `${API_URL}/api/v1`;
  * Üretimde bir karo sağlayıcısına yönlendirilebilir: EXPO_PUBLIC_TILE_URL=https://.../{z}/{x}/{y}.png
  */
 export const TILE_URL = process.env.EXPO_PUBLIC_TILE_URL || `${API_URL}/tiles/{z}/{x}/{y}.png`;
+
+/** Sunucunun verdiği göreli medya yollarını (/media/...) tam adrese çevirir */
+export const resolveMediaUrl = (url: string | null | undefined): string | null =>
+  !url ? null : url.startsWith('/') ? `${API_URL}${url}` : url;

@@ -242,6 +242,11 @@ export const ar: Dictionary = {
     recommended: 'موصى به',
     vegetarian: 'نباتي',
     loadError: 'تعذّر تحميل هذا المكان.',
+    perPerson: (min: string, max: string) => `متوسط الشخص: ${min} – ${max}`,
+    portion: (price: string) => `الحصة: ~${price}`,
+    pronounce: (name: string) => `استمع إلى «${name}» بالتركية`,
+    sayIt: 'يُنطق',
+    photoCredit: (credit: string) => `صورة توضيحية: ${credit}`,
   },
   report: {
     needLocation: 'نحتاج موقعك لتأكيد أنك في المكان.',

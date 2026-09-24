@@ -235,6 +235,11 @@ export const es: Dictionary = {
     recommended: 'Recomendado',
     vegetarian: 'Vegetariano',
     loadError: 'No se pudo cargar este lugar.',
+    perPerson: (min: string, max: string) => `Promedio por persona: ${min} – ${max}`,
+    portion: (price: string) => `Ración: ~${price}`,
+    pronounce: (name: string) => `Escuchar «${name}» en turco`,
+    sayIt: 'Se pronuncia',
+    photoCredit: (credit: string) => `Foto ilustrativa: ${credit}`,
   },
   report: {
     needLocation: 'Necesitamos tu ubicación para confirmar que estás en el lugar.',

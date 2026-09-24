@@ -12,6 +12,7 @@ import { HttpError } from './lib/errors';
 import { authRoutes } from './routes/auth';
 import { communityRoutes } from './routes/community';
 import { mapRoutes } from './routes/map';
+import { mediaRoutes } from './routes/media';
 import { venueRoutes } from './routes/venues';
 
 export interface AppOptions {
@@ -62,6 +63,7 @@ export async function buildApp({ corsOrigin = '*', logger = true }: AppOptions =
   await app.register(authRoutes, { prefix: '/api/v1' });
   await app.register(communityRoutes, { prefix: '/api/v1' });
   await app.register(mapRoutes);
+  await app.register(mediaRoutes);
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect();

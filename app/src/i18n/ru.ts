@@ -244,6 +244,11 @@ export const ru: Dictionary = {
     recommended: 'Рекомендовано',
     vegetarian: 'Вегетарианское',
     loadError: 'Не удалось загрузить это место.',
+    perPerson: (min: string, max: string) => `В среднем на человека: ${min} – ${max}`,
+    portion: (price: string) => `Порция: ~${price}`,
+    pronounce: (name: string) => `Послушать «${name}» по-турецки`,
+    sayIt: 'Произносится',
+    photoCredit: (credit: string) => `Фото для примера: ${credit}`,
   },
   report: {
     needLocation: 'Нужна ваша геолокация, чтобы подтвердить, что вы на месте.',

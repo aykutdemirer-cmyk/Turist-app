@@ -16,9 +16,10 @@ import {
   Wheat,
   type LucideIcon,
 } from 'lucide-react-native';
-import { createElement, useId } from 'react';
+import { createElement, useId, useState } from 'react';
 import { Image, View, type ImageStyle, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { resolveMediaUrl } from '../../api/config';
 import { makeStyles, venueTypeMeta } from '../../theme';
 
 /** Yemek adındaki anahtar kelimeye göre ikon (ilk eşleşen kazanır) */
@@ -62,13 +63,17 @@ interface Props {
 export function FoodImage({ uri, subject, type, isMobile = false, style, emojiSize = 56 }: Props) {
   const styles = useStyles();
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const src = resolveMediaUrl(uri);
+  // Yüklenemeyen fotoğraf (ağ/404) sessizce illüstrasyona düşer
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
-  if (uri) {
+  if (src && src !== failedSrc) {
     return (
       <Image
-        source={{ uri }}
+        source={{ uri: src }}
         style={[styles.base, style as StyleProp<ImageStyle>]}
         resizeMode="cover"
+        onError={() => setFailedSrc(src)}
         accessibilityIgnoresInvertColors
       />
     );

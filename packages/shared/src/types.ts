@@ -28,8 +28,19 @@ export interface DishDTO {
   description: string | null;
   isMustTry: boolean;
   isVegetarian: boolean;
+  /** Yaklaşık porsiyon fiyatı (TL) */
   priceTry: number | null;
+  /** Mutlak URL ya da API'ye göre göreli yol (/media/...) */
   imageUrl: string | null;
+  /** Lisanslı fotoğrafın görünür atfı: "Yazar · CC BY-SA 4.0" */
+  imageCredit: string | null;
+  imageSourceUrl: string | null;
+}
+
+/** Kişi başı yaklaşık harcama (TL) */
+export interface PriceBandDTO {
+  min: number;
+  max: number;
 }
 
 /** Haritadaki "Social Lezzet Report" balonu ve kartlar için en yeni yorumun kısa hali */
@@ -86,6 +97,8 @@ export interface NearbyResponseDTO {
 }
 
 export interface VenueDetailDTO extends Omit<VenueSummaryDTO, 'distanceMeters' | 'mustTry' | 'topReview'> {
+  /** Kişi başı ortalama; veri yoksa null */
+  pricePerPerson: PriceBandDTO | null;
   address: string | null;
   phone: string | null;
   description: string | null;

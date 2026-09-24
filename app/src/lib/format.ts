@@ -8,6 +8,9 @@ export function formatDistance(meters: number): string {
 
 export const priceSymbol = (p: PriceLevel) => (p === 'BUDGET' ? '$' : '$$');
 
+/** Türk lirası tutarı: 1500 → "₺1.500" (binlik ayırıcı dilden bağımsız, Türkiye'deki gibi nokta) */
+export const formatTry = (amount: number) => `₺${Math.round(amount).toLocaleString('tr-TR')}`;
+
 /** Render sırasında çağrılır; bileşen useT() ile dile abone olduğu için dil değişince güncellenir. */
 export function formatRelative(iso: string, now = Date.now()): string {
   const t = getT();

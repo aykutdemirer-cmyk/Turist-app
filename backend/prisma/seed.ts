@@ -8,6 +8,7 @@
  * kullanıcı önerilerine dokunmaz.
  */
 import { PrismaClient, type LocalTip, type PriceLevel, type VenueType } from '@prisma/client';
+import { readFileSync } from 'node:fs';
 import { toMinutes } from '@localbite/shared';
 
 const prisma = new PrismaClient();
@@ -540,6 +541,88 @@ const venues: SeedVenue[] = [
   },
 ];
 
+// ───────────── Fiyatlar (TL, yaklaşık) ─────────────
+// Kurgusal mekanlar için İstanbul 2026 sokak/esnaf fiyatlarına göre tahmini değerler; rehber amaçlıdır.
+
+/** Kişi başı ortalama harcama bandı */
+const pricePerPerson: Record<string, [number, number]> = {
+  'rihtim-gece-pilavcisi': [120, 200],
+  'kadikoy-seyyar-kofteci': [200, 320],
+  'sirkeci-kestane-misir': [70, 180],
+  'eminonu-balik-ekmek-arabasi': [250, 400],
+  'hocapasa-sulu-yemek-evi': [250, 400],
+  'tahtakale-esnaf-lokantasi': [250, 420],
+  'kadikoy-carsi-ev-yemekleri': [300, 500],
+  'yeldegirmeni-anne-mutfagi': [250, 400],
+  'moda-mahalle-burger': [350, 550],
+  'vezneciler-adana-durum': [300, 450],
+};
+
+/** Porsiyon fiyatı, yemeğin yerel adına göre */
+const dishPrice: Record<string, number> = {
+  'Nohutlu Pilav': 120,
+  'Tavuklu Nohutlu Pilav': 160,
+  Turşu: 40,
+  'Köfte Ekmek': 220,
+  'Közlenmiş Biber': 30,
+  Ayran: 40,
+  Kokoreç: 250,
+  'Közde Kestane': 150,
+  'Haşlanmış Mısır': 70,
+  'Közde Mısır': 70,
+  'Balık Ekmek': 250,
+  'Midye Tava': 300,
+  'Şalgam Suyu': 50,
+  'Turşu Suyu': 40,
+  'Kuru Fasulye': 200,
+  'Etli Nohut': 220,
+  'Fırın Sütlaç': 130,
+  'Mercimek Çorbası': 110,
+  Karnıyarık: 240,
+  'İzmir Köfte': 260,
+  'İmam Bayıldı': 200,
+  'Hünkar Beğendi': 380,
+  'Zeytinyağlı Enginar': 180,
+  Mantı: 280,
+  'Kuru Dolma': 180,
+  'Yayla Çorbası': 110,
+  'Islak Burger': 120,
+  'Smash Burger': 360,
+  'Kızarmış Patates': 110,
+  'Adana Dürüm': 320,
+  'Ciğer Dürüm': 280,
+};
+
+// ───────────── Ek yemekler ─────────────
+const extraDishes: Record<string, SeedDish[]> = {
+  'kadikoy-seyyar-kofteci': [
+    {
+      localName: 'Kokoreç',
+      en: { name: 'Kokoreç (grilled lamb intestines)', description: 'Spit-roasted, chopped on the griddle with tomato, pepper and oregano, served in bread.' },
+      tr: { name: 'Kokoreç', description: 'Şişte pişip sacda domates, biber ve kekikle doğranır; yarım ekmek arası.' },
+    },
+  ],
+  'eminonu-balik-ekmek-arabasi': [
+    {
+      localName: 'Midye Tava',
+      en: { name: 'Fried mussels', description: 'Beer-battered mussels on skewers with tarator (walnut-garlic) sauce.' },
+      tr: { name: 'Midye Tava', description: 'Şişe dizili, bira hamurlu kızarmış midye; tarator sosla.' },
+    },
+  ],
+};
+for (const v of venues) v.dishes.push(...(extraDishes[v.slug] ?? []));
+
+// ───────────── Yemek fotoğrafları ─────────────
+// Wikimedia Commons, CC BY / CC BY-SA. Dosyalar backend/media/dishes altında; atıf zorunlu (credits.json).
+interface DishPhoto {
+  file: string;
+  credit: string;
+  sourceUrl: string;
+}
+const dishPhotos: Record<string, DishPhoto> = JSON.parse(
+  readFileSync(new URL('../media/dishes/credits.json', import.meta.url), 'utf-8'),
+);
+
 // ───────────── Örnek yorumlar ─────────────
 // SAMPLE kaynaklıdır: geliştirme/demo için yazılmıştır, gerçek kişilere veya Google'a ait DEĞİLDİR.
 // Uygulama bunları "örnek" etiketiyle gösterir.
@@ -818,6 +901,8 @@ async function main() {
         lastSpottedAt: v.spottedMinutesAgo !== undefined ? new Date(now - v.spottedMinutesAgo * 60_000) : null,
         spottedCount: v.spottedCount ?? 0,
         upvoteCount: v.upvoteCount ?? 0,
+        avgPriceMinTry: pricePerPerson[v.slug]?.[0],
+        avgPriceMaxTry: pricePerPerson[v.slug]?.[1],
         translations: {
           create: [
             { locale: 'en', ...v.en },
@@ -830,6 +915,10 @@ async function main() {
             isMustTry: true,
             sortOrder: i + 1,
             isVegetarian: d.isVegetarian ?? false,
+            priceTry: dishPrice[d.localName],
+            imageUrl: dishPhotos[d.localName] ? `/media/dishes/${dishPhotos[d.localName]!.file}` : undefined,
+            imageCredit: dishPhotos[d.localName]?.credit,
+            imageSourceUrl: dishPhotos[d.localName]?.sourceUrl,
             translations: {
               create: [
                 { locale: 'en', ...d.en },
