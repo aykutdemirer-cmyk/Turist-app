@@ -21,6 +21,12 @@ const config: ExpoConfig = {
       monochromeImage: './assets/android-icon-monochrome.png',
     },
     predictiveBackGestureEnabled: false,
+    // Yalnızca ön plan konumu (FINE/COARSE, expo-location ekler). Arka plan konumu mağaza politikası gereği
+    // hiçbir bağımlılık tarafından eklenemesin diye açıkça engellenir.
+    blockedPermissions: [
+      'android.permission.ACCESS_BACKGROUND_LOCATION',
+      'android.permission.FOREGROUND_SERVICE_LOCATION',
+    ],
   },
   web: {
     favicon: './assets/favicon.png',
@@ -33,8 +39,16 @@ const config: ExpoConfig = {
     [
       'expo-location',
       {
+        // Uygulama içi açıklamayla aynı ifade; "Always" izni hiç istenmez
         locationWhenInUsePermission:
-          'LocalBite uses your location to show nearby local eateries and to confirm street vendors you spot.',
+          'LocalBite uses your location only while the app is open, to show the nearest street food and mobile vendors on the map.',
+        // false: Info.plist'e hiç yazılmaz (yalnızca "uygulama kullanılırken" izni)
+        locationAlwaysAndWhenInUsePermission: false,
+        locationAlwaysPermission: false,
+        motionUsagePermission: false,
+        isIosBackgroundLocationEnabled: false,
+        isAndroidBackgroundLocationEnabled: false,
+        isAndroidForegroundServiceEnabled: false,
       },
     ],
   ],

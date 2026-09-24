@@ -12,7 +12,9 @@ import type {
 } from '@localbite/shared';
 import { prisma } from '../db';
 import { publicName, unauthorized } from '../lib/auth';
+import { assertAcceptableContent } from '../lib/contentFilter';
 import { notFound } from '../lib/errors';
+import { blockedIdsFor } from './moderation.service';
 
 const MAX_DETAIL_COMMENTS = 200;
 
@@ -56,7 +58,10 @@ async function assertMember(userId: string) {
 
 /** En yeniden eskiye; id imleciyle sayfalama (eşit createdAt'ta id kırar) */
 export async function listFeed(query: FeedQuery, viewerId: string | null): Promise<FeedResponseDTO> {
+  const blocked = await blockedIdsFor(viewerId);
   const rows = await prisma.post.findMany({
+    // Kaldırılan gönderiler ve izleyicinin engellediği üyeler görünmez
+    where: { removedAt: null, ...(blocked.length && { userId: { notIn: blocked } }) },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: query.limit + 1,
     ...(query.cursor && { cursor: { id: query.cursor }, skip: 1 }),
@@ -68,19 +73,26 @@ export async function listFeed(query: FeedQuery, viewerId: string | null): Promi
 }
 
 export async function getPost(postId: string, viewerId: string | null): Promise<PostDetailDTO> {
+  const blocked = await blockedIdsFor(viewerId);
   const post = await prisma.post.findUnique({
     where: { id: postId },
     include: {
       ...postInclude(viewerId),
-      comments: { orderBy: { createdAt: 'asc' }, take: MAX_DETAIL_COMMENTS, include: { user: authorSelect } },
+      comments: {
+        where: { removedAt: null, ...(blocked.length && { userId: { notIn: blocked } }) },
+        orderBy: { createdAt: 'asc' },
+        take: MAX_DETAIL_COMMENTS,
+        include: { user: authorSelect },
+      },
     },
   });
-  if (!post) throw notFound('Post');
+  if (!post || post.removedAt || blocked.includes(post.userId)) throw notFound('Post');
   return { ...toPost(post), comments: post.comments.map(toComment) };
 }
 
 export async function createPost(userId: string, input: CreatePostInput): Promise<PostDTO> {
   await assertMember(userId);
+  assertAcceptableContent(input.title, input.content);
   if (input.venueId) {
     const venue = await prisma.venue.findFirst({ where: { id: input.venueId, status: 'APPROVED' }, select: { id: true } });
     if (!venue) throw notFound('Venue');
@@ -98,6 +110,9 @@ function toComment(c: Prisma.CommentGetPayload<{ include: { user: typeof authorS
 
 export async function addComment(postId: string, userId: string, input: CreateCommentInput): Promise<CommentDTO> {
   await assertMember(userId);
+  assertAcceptableContent(input.content);
+  const post = await prisma.post.findUnique({ where: { id: postId }, select: { removedAt: true } });
+  if (!post || post.removedAt) throw notFound('Post');
   try {
     const [comment] = await prisma.$transaction([
       prisma.comment.create({ data: { postId, userId, content: input.content }, include: { user: authorSelect } }),

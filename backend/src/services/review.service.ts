@@ -1,6 +1,7 @@
 import type { ReviewDTO, ReviewInput } from '@localbite/shared';
 import { prisma } from '../db';
 import { publicName, unauthorized } from '../lib/auth';
+import { assertAcceptableContent } from '../lib/contentFilter';
 import { notFound } from '../lib/errors';
 
 /**
@@ -14,6 +15,7 @@ export async function upsertReview(venueId: string, userId: string, input: Revie
   ]);
   if (!venue) throw notFound('Venue');
   if (!user?.authProvider) throw unauthorized('Account not found');
+  assertAcceptableContent(input.text);
 
   const authorName = publicName(user.fullName);
   const review = await prisma.$transaction(async (tx) => {

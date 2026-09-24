@@ -29,7 +29,16 @@ function GitHubLogo({ size = 20, color }: { size?: number; color: string }) {
 }
 
 /** Google ve GitHub ile giriş düğmeleri. Sunucuda yapılandırılmamış sağlayıcı pasif gösterilir. */
-export function SocialButtons({ disabled = false }: { disabled?: boolean }) {
+export function SocialButtons({
+  disabled = false,
+  termsAccepted,
+  onNeedTerms,
+}: {
+  disabled?: boolean;
+  /** Yeni hesap açılabileceği için şart onayı olmadan sağlayıcıya gidilmez */
+  termsAccepted: boolean;
+  onNeedTerms: () => void;
+}) {
   const { colors } = useTheme();
   const styles = useStyles();
   const t = useT();
@@ -43,10 +52,15 @@ export function SocialButtons({ disabled = false }: { disabled?: boolean }) {
   ];
 
   const press = async (provider: OAuthProvider) => {
+    if (!termsAccepted) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      onNeedTerms();
+      return;
+    }
     Haptics.selectionAsync();
     setPending(provider);
     try {
-      await start(provider);
+      await start(provider, termsAccepted);
     } finally {
       setPending(null);
     }

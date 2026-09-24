@@ -29,12 +29,54 @@ interface LocationState {
 const useLocationStore = create<LocationState>(() => ({ status: 'pending', coords: null }));
 const setCoords = (coords: LatLng) => useLocationStore.setState({ coords });
 
+// ─────────────────────────────────────────────
+// Ön plan izni + uygulama içi açıklama (Google Play / App Store konum politikası)
+// Sistem penceresinden hemen önce neden ve nasıl kullanıldığı anlatılır; arka plan izni hiç istenmez.
+// ─────────────────────────────────────────────
+
+interface DisclosureState {
+  visible: boolean;
+  resolve: ((accepted: boolean) => void) | null;
+}
+
+export const useLocationDisclosureStore = create<DisclosureState>(() => ({ visible: false, resolve: null }));
+
+/** Açıklama ekranı kararını bildirir (Devam Et / Şimdi değil) */
+export function answerLocationDisclosure(accepted: boolean) {
+  const { resolve } = useLocationDisclosureStore.getState();
+  useLocationDisclosureStore.setState({ visible: false, resolve: null });
+  resolve?.(accepted);
+}
+
+let pendingDisclosure: Promise<boolean> | null = null;
+
+/**
+ * İzin verilmişse hemen true. Sistem penceresi açılabilecekse önce açıklamayı gösterir;
+ * kullanıcı "Devam Et" derse sistem iznini ister. Kalıcı reddedilmişse pencere açılmaz.
+ */
+async function ensureForegroundPermission(): Promise<boolean> {
+  const current = await Location.getForegroundPermissionsAsync();
+  if (current.granted) return true;
+  if (!current.canAskAgain) return false;
+
+  // Aynı anda birden çok çağrı (harita + detay) tek açıklama gösterir
+  pendingDisclosure ??= new Promise<boolean>((resolve) =>
+    useLocationDisclosureStore.setState({ visible: true, resolve }),
+  ).finally(() => {
+    pendingDisclosure = null;
+  });
+  if (!(await pendingDisclosure)) return false;
+
+  const { granted } = await Location.requestForegroundPermissionsAsync();
+  return granted;
+}
+
 /**
  * İzin ister; son bilinen konumu hemen, güncel konumu en geç 10 sn içinde yazar.
  * Taze konum gelmezse (kapalı alan, emülatör) eski de olsa son bilinen konum kullanılır.
  */
 async function locate(): Promise<LatLng | null> {
-  const { granted } = await Location.requestForegroundPermissionsAsync();
+  const granted = await ensureForegroundPermission();
   if (!granted) {
     useLocationStore.setState({ status: 'denied' });
     return null;
@@ -88,8 +130,7 @@ export function useUserLocation() {
 
 /** "Bugün buradaydı" için anlık, yüksek doğruluklu konum. İzin yoksa ya da alınamazsa null. */
 export async function getPreciseLocation(): Promise<LatLng | null> {
-  const { granted } = await Location.requestForegroundPermissionsAsync();
-  if (!granted) return null;
+  if (!(await ensureForegroundPermission())) return null;
   const position = await withTimeout(
     Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
     CURRENT_POSITION_TIMEOUT_MS,

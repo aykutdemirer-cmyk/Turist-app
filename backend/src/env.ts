@@ -26,7 +26,28 @@ const envSchema = z.object({
   PUBLIC_API_URL: z.string().url().optional(),
   /** Girişten sonra dönülebilecek uygulama şemaları (açık yönlendirmeyi önler) */
   OAUTH_APP_SCHEMES: z.string().default('exp,exps,localbite'),
+  /** Kullanım şartları, gizlilik ve silme talepleri için iletişim adresi (yayından önce gerçek adresle değiştirin) */
+  LEGAL_CONTACT_EMAIL: z.string().email().default('privacy@localbite.example'),
+  /** İş ortaklığı kimlikleri (boşsa bağlantı kimliksiz gider) */
+  GETYOURGUIDE_PARTNER_ID: z.string().optional(),
+  VIATOR_PID: z.string().optional(),
+  AIRALO_REF: z.string().optional(),
+  /**
+   * Mağaza ödemesi bağlanana kadar test satın alması. Üretimde AÇILMAZ (bkz. aşağıdaki kontrol):
+   * aksi hâlde herkes Premium'u bedava alabilirdi.
+   */
+  ALLOW_MOCK_PURCHASES: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
 });
 
-export const env = envSchema.parse(process.env);
+const parsed = envSchema.parse(process.env);
+
+export const env = {
+  ...parsed,
+  // Belirtilmemişse yalnızca geliştirmede açık; üretimde açıkça true verilse bile kapalı
+  ALLOW_MOCK_PURCHASES:
+    parsed.NODE_ENV !== 'production' && (process.env.ALLOW_MOCK_PURCHASES === undefined || parsed.ALLOW_MOCK_PURCHASES),
+};
 export type Env = typeof env;

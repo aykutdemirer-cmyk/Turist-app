@@ -13,6 +13,9 @@ import { authRoutes } from './routes/auth';
 import { communityRoutes } from './routes/community';
 import { mapRoutes } from './routes/map';
 import { mediaRoutes } from './routes/media';
+import { monetizationRoutes } from './routes/monetization';
+import { adminRoutes, moderationRoutes } from './routes/moderation';
+import { privacyRoutes } from './routes/privacy';
 import { venueRoutes } from './routes/venues';
 
 export interface AppOptions {
@@ -62,8 +65,12 @@ export async function buildApp({ corsOrigin = '*', logger = true }: AppOptions =
   await app.register(venueRoutes, { prefix: '/api/v1' });
   await app.register(authRoutes, { prefix: '/api/v1' });
   await app.register(communityRoutes, { prefix: '/api/v1' });
+  await app.register(moderationRoutes, { prefix: '/api/v1' });
+  await app.register(adminRoutes, { prefix: '/api/v1' });
+  await app.register(monetizationRoutes, { prefix: '/api/v1' });
   await app.register(mapRoutes);
   await app.register(mediaRoutes);
+  await app.register(privacyRoutes);
 
   app.addHook('onClose', async () => {
     await prisma.$disconnect();

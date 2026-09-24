@@ -14,6 +14,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNearbyVenues } from '../../api/venues';
 import { VenueFeedCard } from '../../components/home/VenueFeedCard';
+import { ExperienceSection } from '../../components/monetization/ExperienceSection';
+import { TrailsSection } from '../../components/monetization/TrailsSection';
 import { DEFAULT_CENTER, useUserLocation } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
 import { makeStyles, radius, spacing, useTheme, venueTypeMeta } from '../../theme';
@@ -117,6 +119,9 @@ export default function HomeScreen() {
           })}
         </View>
 
+        {/* Küratörlü rotalar: ücretsiz örnek + Explorer Pass */}
+        <TrailsSection />
+
         {/* En yakın gizli lezzetler */}
         <View style={styles.sectionHeader}>
           <Text style={font.title}>{t.home.nearestTitle}</Text>
@@ -137,6 +142,8 @@ export default function HomeScreen() {
         ) : (
           venues.map((v) => <VenueFeedCard key={v.id} venue={v} onPress={openVenue} />)
         )}
+
+        <ExperienceSection />
       </ScrollView>
     </View>
   );

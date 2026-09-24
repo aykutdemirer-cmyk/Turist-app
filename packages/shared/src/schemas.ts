@@ -1,9 +1,12 @@
 import { z } from 'zod';
 import {
+  CONTENT_REPORT_REASONS,
   LOCALES,
   LOCAL_TIPS,
   LOCATION_REQUIRED_REPORTS,
+  MODERATION_STATUSES,
   PRICE_LEVELS,
+  REPORTABLE_CONTENT,
   REPORT_TYPES,
   VENUE_TYPES,
 } from './enums';
@@ -117,6 +120,8 @@ export const registerSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   locale: localeSchema.optional(),
+  /** Kullanım Şartları ve Topluluk Kuralları onayı zorunlu */
+  acceptTerms: z.literal(true),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 
@@ -136,6 +141,8 @@ export const oauthStartQuerySchema = z.object({
   /** Girişten sonra dönülecek uygulama bağlantısı (ör. exp://…/--/oauth-callback) */
   redirect: z.string().min(1).max(500),
   deviceId: deviceIdSchema.optional(),
+  /** "1": kullanıcı şartları uygulamada onayladı (yeni hesap açmak için zorunlu) */
+  terms: z.literal('1').optional(),
 });
 export const oauthCallbackQuerySchema = z.object({
   code: z.string().max(2000).optional(),
@@ -177,3 +184,28 @@ export const feedQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 export type FeedQuery = z.infer<typeof feedQuerySchema>;
+
+// ─────────────────────────────────────────────
+// Moderasyon
+// ─────────────────────────────────────────────
+
+export const reportContentSchema = z.object({
+  contentType: z.enum(REPORTABLE_CONTENT),
+  contentId: z.string().min(1).max(100),
+  reason: z.enum(CONTENT_REPORT_REASONS),
+  note: z.string().trim().max(500).optional(),
+});
+export type ReportContentInput = z.infer<typeof reportContentSchema>;
+
+export const blockUserSchema = z.object({ userId: z.string().min(1).max(100) });
+
+export const adminReportsQuerySchema = z.object({
+  status: z.enum(MODERATION_STATUSES).default('PENDING'),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+/** Web formu: uygulamaya erişemeyen kullanıcının silme talebi */
+export const deletionRequestSchema = z.object({
+  email: emailSchema,
+  note: z.string().trim().max(1000).optional(),
+});

@@ -4,7 +4,9 @@ import { CircleCheck, FlaskConical, Languages, PencilLine } from 'lucide-react-n
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native';
 import { ApiError } from '../../api/client';
+import { useIsBlocked } from '../../api/moderation';
 import { useSubmitReview } from '../../api/venues';
+import { ContentMenu } from '../moderation/ContentMenu';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useLocale, useT } from '../../i18n';
 import { formatRelative } from '../../lib/format';
@@ -27,7 +29,9 @@ export function ReviewsSection({ venueId, rating, reviews }: Props) {
   const requireAuth = useRequireAuth();
   const [composing, setComposing] = useState(false);
   const [saved, setSaved] = useState(false);
-  const hasSample = reviews.some((r) => r.source === 'SAMPLE');
+  const isBlocked = useIsBlocked();
+  const visible = reviews.filter((r) => !isBlocked(r.userId));
+  const hasSample = visible.some((r) => r.source === 'SAMPLE');
   const mine = user ? reviews.find((r) => r.userId === user.id) : undefined;
 
   return (
@@ -86,10 +90,10 @@ export function ReviewsSection({ venueId, rating, reviews }: Props) {
         </View>
       )}
 
-      {reviews.length === 0 ? (
+      {visible.length === 0 ? (
         <Text style={font.small}>{t.reviews.empty}</Text>
       ) : (
-        reviews.map((r) => <ReviewCard key={r.id} review={r} isMine={r.userId !== null && r.userId === user?.id} />)
+        visible.map((r) => <ReviewCard key={r.id} review={r} isMine={r.userId !== null && r.userId === user?.id} />)
       )}
     </View>
   );
@@ -129,7 +133,13 @@ function ReviewComposer({
           onSaved();
         },
         onError: (err) =>
-          setError(err instanceof ApiError && err.code === 'NETWORK_ERROR' ? t.suggest.errors.network : t.suggest.errors.failed),
+          setError(
+            err instanceof ApiError && err.code === 'CONTENT_REJECTED'
+              ? t.moderation.contentRejected
+              : err instanceof ApiError && err.code === 'NETWORK_ERROR'
+                ? t.suggest.errors.network
+                : t.suggest.errors.failed,
+          ),
       },
     );
   };
@@ -189,6 +199,7 @@ function ReviewCard({ review, isMine }: { review: ReviewDTO; isMine: boolean }) 
             <Text style={styles.date}>{formatRelative(review.publishedAt)}</Text>
           </View>
         </View>
+        <ContentMenu contentType="REVIEW" contentId={review.id} authorId={review.userId} authorName={review.authorName} />
       </View>
 
       <Text style={styles.text}>{review.text}</Text>

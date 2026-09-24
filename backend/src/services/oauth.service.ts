@@ -58,6 +58,8 @@ interface StatePayload {
   provider: OAuthProvider;
   redirect: string;
   deviceId?: string;
+  /** Kullanıcı uygulamada şartları onayladı */
+  terms?: boolean;
 }
 
 async function signState(payload: StatePayload) {
@@ -77,6 +79,7 @@ async function verifyState(state: string, provider: OAuthProvider): Promise<Stat
       provider,
       redirect: payload.redirect,
       deviceId: typeof payload.deviceId === 'string' ? payload.deviceId : undefined,
+      terms: payload.terms === true,
     };
   } catch {
     throw new HttpError(400, 'INVALID_STATE', 'Sign-in link expired or invalid. Please try again.');
@@ -84,10 +87,15 @@ async function verifyState(state: string, provider: OAuthProvider): Promise<Stat
 }
 
 /** 1. adım: sağlayıcının yetkilendirme sayfasının adresi */
-export async function authorizeUrl(provider: OAuthProvider, redirect: string, deviceId?: string): Promise<string> {
+export async function authorizeUrl(
+  provider: OAuthProvider,
+  redirect: string,
+  deviceId?: string,
+  terms = false,
+): Promise<string> {
   assertEnabled(provider);
   assertAppRedirect(redirect);
-  const state = await signState({ provider, redirect, deviceId });
+  const state = await signState({ provider, redirect, deviceId, terms });
 
   if (provider === 'google') {
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -204,7 +212,7 @@ export async function handleCallback(
       return back.toString();
     }
     const profile = provider === 'google' ? await googleProfile(query.code) : await githubProfile(query.code);
-    const user = await upsertOAuthUser(profile, state.deviceId);
+    const user = await upsertOAuthUser(profile, state.deviceId, state.terms);
     back.searchParams.set('code', issueAppCode(user.id));
   } catch (err) {
     back.searchParams.set('error', err instanceof HttpError ? err.code : 'OAUTH_FAILED');

@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { errors as joseErrors, jwtVerify, SignJWT } from 'jose';
+import { prisma } from '../db';
 import { env } from '../env';
 import { HttpError } from './errors';
 
@@ -52,4 +53,12 @@ export function publicName(fullName: string | null | undefined, fallback = 'Gues
   if (parts.length === 0) return fallback;
   if (parts.length === 1) return parts[0]!;
   return `${parts.slice(0, -1).join(' ')} ${parts.at(-1)!.charAt(0).toLocaleUpperCase('tr')}.`;
+}
+
+/** Yalnızca ADMIN rolündeki üyeler (moderasyon uç noktaları) */
+export async function requireAdminId(req: FastifyRequest): Promise<string> {
+  const id = await requireUserId(req);
+  const user = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+  if (user?.role !== 'ADMIN') throw new HttpError(403, 'FORBIDDEN', 'Admins only');
+  return id;
 }

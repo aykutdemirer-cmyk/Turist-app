@@ -95,6 +95,10 @@ model User {
   lastLoginAt     DateTime?
   /// Kullanım Şartları ve Topluluk Kuralları'nın kabul edildiği an (mağaza UGC politikası)
   termsAcceptedAt DateTime?
+  /// Explorer Pass: null = ücretsiz. Tek seferlik satın almada uzak bir tarih yazılır.
+  premiumUntil    DateTime?
+  /// "mock" (geliştirme) | "app_store" | "google_play"
+  premiumSource   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -149,6 +153,9 @@ model Venue {
   coverImageUrl String?
 
   status VenueStatus @default(APPROVED)
+
+  /// Esnaf sponsorlu öne çıkarma (ücretli); arayüzde "Sponsorlu" olarak etiketlenir
+  isPromoted Boolean @default(false)
 
   // Topluluk sinyali (denormalize, SpotReport yazılırken güncellenir)
   lastSpottedAt DateTime?

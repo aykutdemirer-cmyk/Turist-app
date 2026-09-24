@@ -133,10 +133,12 @@ export function useCompleteOAuth() {
 export function useStartOAuth() {
   const complete = useCompleteOAuth();
   return useCallback(
-    async (provider: OAuthProvider) => {
+    async (provider: OAuthProvider, termsAccepted: boolean) => {
       useAuthStore.getState().setOAuthError(null);
       const redirect = Linking.createURL(OAUTH_CALLBACK_PATH);
       const params = new URLSearchParams({ redirect, deviceId: await getDeviceId() });
+      // Yeni hesap açılacaksa sunucu şart onayını ister
+      if (termsAccepted) params.set('terms', '1');
       const result = await WebBrowser.openAuthSessionAsync(
         `${API_BASE}/auth/oauth/${provider}/start?${params.toString()}`,
         redirect,
@@ -145,4 +147,19 @@ export function useStartOAuth() {
     },
     [complete],
   );
+}
+
+/**
+ * Hesabı ve tüm verileri kalıcı olarak siler; ardından yerel oturum ve önbellek temizlenir.
+ */
+export function useDeleteAccount() {
+  const queryClient = useQueryClient();
+  const signOut = useAuthStore((s) => s.signOut);
+  return useMutation({
+    mutationFn: () => api<void>('/auth/me', { method: 'DELETE' }),
+    onSuccess: () => {
+      signOut();
+      queryClient.clear();
+    },
+  });
 }

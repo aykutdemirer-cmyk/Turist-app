@@ -39,3 +39,13 @@ export const DEFAULT_LOCALE: Locale = 'en';
 
 export const USER_ROLES = ['USER', 'LOCAL_GUIDE', 'ADMIN'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** Şikayet edilebilir içerik türleri ve nedenleri (moderasyon) */
+export const REPORTABLE_CONTENT = ['POST', 'COMMENT', 'REVIEW'] as const;
+export type ReportableContent = (typeof REPORTABLE_CONTENT)[number];
+
+export const CONTENT_REPORT_REASONS = ['SPAM', 'ABUSE', 'MISLEADING', 'OTHER'] as const;
+export type ContentReportReason = (typeof CONTENT_REPORT_REASONS)[number];
+
+export const MODERATION_STATUSES = ['PENDING', 'REMOVED', 'DISMISSED'] as const;
+export type ModerationStatus = (typeof MODERATION_STATUSES)[number];

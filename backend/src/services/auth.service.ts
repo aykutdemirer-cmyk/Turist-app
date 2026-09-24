@@ -16,6 +16,7 @@ export function toAuthUser(u: User): AuthUserDTO {
     role: u.role,
     locale: u.locale,
     createdAt: u.createdAt.toISOString(),
+    isPremium: !!u.premiumUntil && u.premiumUntil > new Date(),
   };
 }
 
@@ -38,6 +39,7 @@ export async function register(input: RegisterInput, deviceId: string | undefine
     passwordHash,
     authProvider: 'email',
     lastLoginAt: new Date(),
+    termsAcceptedAt: new Date(),
     ...(input.locale && { locale: input.locale }),
   };
 
@@ -94,7 +96,11 @@ export interface OAuthProfile {
  * E-posta ile açılmış hesaba sosyal giriş bağlanır (şifre korunur). Cihazın misafir kaydı
  * henüz bir üyeye bağlı değilse yeni hesap o satırın üzerine açılır.
  */
-export async function upsertOAuthUser(profile: OAuthProfile, deviceId?: string): Promise<User> {
+export async function upsertOAuthUser(
+  profile: OAuthProfile,
+  deviceId?: string,
+  termsAccepted = false,
+): Promise<User> {
   const now = new Date();
   const existing = await prisma.user.findFirst({
     where: { OR: [{ authProvider: profile.provider, authProviderId: profile.providerId }, { email: profile.email }] },
@@ -106,11 +112,17 @@ export async function upsertOAuthUser(profile: OAuthProfile, deviceId?: string):
         lastLoginAt: now,
         fullName: existing.fullName ?? profile.fullName,
         avatarUrl: existing.avatarUrl ?? profile.avatarUrl,
+        ...(termsAccepted && !existing.termsAcceptedAt && { termsAcceptedAt: now }),
       },
     });
   }
 
+  // Yeni hesap açmak Kullanım Şartları onayı gerektirir
+  if (!termsAccepted) {
+    throw new HttpError(403, 'OAUTH_TERMS_REQUIRED', 'Accept the Terms of Use to create an account');
+  }
   const data = {
+    termsAcceptedAt: now,
     email: profile.email,
     fullName: profile.fullName,
     avatarUrl: profile.avatarUrl,
@@ -172,4 +184,40 @@ export async function verifyGoogleIdToken(idToken: string): Promise<OAuthProfile
 /** Yerel Google girişi (development build'de istemcinin aldığı ID token ile) */
 export async function loginWithGoogle(input: GoogleLoginInput): Promise<AuthResponseDTO> {
   return session(await upsertOAuthUser(await verifyGoogleIdToken(input.idToken)));
+}
+
+// ─────────────────────────────────────────────
+// Hesap silme (KVKK/GDPR, App Store 5.1.1(v), Google Play hesap silme politikası)
+// ─────────────────────────────────────────────
+
+/**
+ * Üyeyi ve kişisel verilerini kalıcı olarak siler:
+ *  - yorumları (Review.userId SetNull olduğu için açıkça), gönderileri, yanıtları, beğenileri, teyitleri,
+ *    şikayetleri ve engelleme kayıtları (cascade)
+ *  - başkalarının gönderilerindeki sayaçlar düzeltilir
+ * Oturum token'ları durumsuz JWT'dir; kullanıcı satırı silinince her istekte "Account not found" ile reddedilir.
+ * Önerilen mekanlar anonimleşir (submittedById → null); mekan bilgisi kişisel veri değildir.
+ */
+export async function deleteAccount(userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!user) throw unauthorized('Account not found');
+
+  await prisma.$transaction(async (tx) => {
+    // Başkalarının gönderilerindeki yanıt/beğeni sayaçları
+    const comments = await tx.comment.groupBy({
+      by: ['postId'],
+      where: { userId, removedAt: null, post: { userId: { not: userId } } },
+      _count: { _all: true },
+    });
+    for (const c of comments) {
+      await tx.post.update({ where: { id: c.postId }, data: { commentCount: { decrement: c._count._all } } });
+    }
+    const likes = await tx.postLike.findMany({ where: { userId, post: { userId: { not: userId } } }, select: { postId: true } });
+    if (likes.length) {
+      await tx.post.updateMany({ where: { id: { in: likes.map((l) => l.postId) } }, data: { likeCount: { decrement: 1 } } });
+    }
+
+    await tx.review.deleteMany({ where: { userId } });
+    await tx.user.delete({ where: { id: userId } });
+  });
 }

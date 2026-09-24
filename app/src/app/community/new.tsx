@@ -43,8 +43,10 @@ export default function NewPostScreen() {
         onError: (err) =>
           setErrors({
             form:
-              err instanceof ApiError && err.status === 429
-                ? t.suggest.errors.rateLimit
+              err instanceof ApiError && err.code === 'CONTENT_REJECTED'
+                ? t.moderation.contentRejected
+                : err instanceof ApiError && err.status === 429
+                  ? t.suggest.errors.rateLimit
                 : err instanceof ApiError && err.code === 'NETWORK_ERROR'
                   ? t.suggest.errors.network
                   : t.suggest.errors.failed,

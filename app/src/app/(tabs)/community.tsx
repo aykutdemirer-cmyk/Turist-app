@@ -3,6 +3,7 @@ import { PenSquare } from 'lucide-react-native';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCommunityFeed } from '../../api/community';
+import { useIsBlocked } from '../../api/moderation';
 import { PostCard } from '../../components/community/PostCard';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useT } from '../../i18n';
@@ -16,7 +17,8 @@ export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
   const requireAuth = useRequireAuth();
   const feed = useCommunityFeed();
-  const posts = feed.data?.pages.flatMap((p) => p.items) ?? [];
+  const isBlocked = useIsBlocked();
+  const posts = (feed.data?.pages.flatMap((p) => p.items) ?? []).filter((p) => !isBlocked(p.author.id));
 
   const compose = () => requireAuth('post', () => router.push('/community/new'));
 

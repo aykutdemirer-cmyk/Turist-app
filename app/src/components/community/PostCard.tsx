@@ -1,14 +1,27 @@
 import type { PostDTO, PublicAuthorDTO } from '@localbite/shared';
+import type { ReactNode } from 'react';
 import * as Haptics from 'expo-haptics';
 import { BadgeCheck, MapPin, MessageCircle, ThumbsUp } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import { useToggleLike } from '../../api/community';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
+import { ContentMenu } from '../moderation/ContentMenu';
 import { useT } from '../../i18n';
 import { formatRelative } from '../../lib/format';
 import { authorColor, makeStyles, radius, spacing, useTheme } from '../../theme';
 
-export function AuthorLine({ author, createdAt, size = 36 }: { author: PublicAuthorDTO; createdAt: string; size?: number }) {
+export function AuthorLine({
+  author,
+  createdAt,
+  size = 36,
+  menu,
+}: {
+  author: PublicAuthorDTO;
+  createdAt: string;
+  size?: number;
+  /** Sağ üstteki "…" menüsü */
+  menu?: ReactNode;
+}) {
   const { colors } = useTheme();
   const styles = useStyles();
   const t = useT();
@@ -31,6 +44,7 @@ export function AuthorLine({ author, createdAt, size = 36 }: { author: PublicAut
         </View>
         <Text style={styles.date}>{formatRelative(createdAt)}</Text>
       </View>
+      {menu}
     </View>
   );
 }
@@ -56,7 +70,11 @@ export function PostCard({ post, onPress, full = false }: { post: PostDTO; onPre
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       accessibilityRole={onPress ? 'button' : undefined}
     >
-      <AuthorLine author={post.author} createdAt={post.createdAt} />
+      <AuthorLine
+        author={post.author}
+        createdAt={post.createdAt}
+        menu={<ContentMenu contentType="POST" contentId={post.id} authorId={post.author.id} authorName={post.author.name} />}
+      />
 
       <Text style={styles.title}>{post.title}</Text>
       <Text style={styles.content} numberOfLines={full ? undefined : 4}>

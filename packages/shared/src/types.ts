@@ -1,4 +1,15 @@
-import type { Locale, LocalTip, PriceLevel, ReportType, ReviewSource, UserRole, VenueType } from './enums';
+import type {
+  ContentReportReason,
+  Locale,
+  LocalTip,
+  ModerationStatus,
+  PriceLevel,
+  ReportableContent,
+  ReportType,
+  ReviewSource,
+  UserRole,
+  VenueType,
+} from './enums';
 
 export interface ReviewDTO {
   id: string;
@@ -83,6 +94,8 @@ export interface VenueSummaryDTO {
   upvoteCount: number;
   rating: RatingSummary;
   coverImageUrl: string | null;
+  /** Esnaf sponsorlu öne çıkarma (ücretli yerleşim; "Sponsorlu" olarak etiketlenmeli) */
+  isPromoted: boolean;
   topReview: ReviewSnippetDTO | null;
   mustTry: Pick<DishDTO, 'id' | 'localName' | 'name'>[];
 }
@@ -139,6 +152,8 @@ export interface AuthUserDTO {
   role: UserRole;
   locale: Locale;
   createdAt: string;
+  /** Explorer Pass sahibi */
+  isPremium: boolean;
 }
 
 /** Sunucuda yapılandırılmış sosyal giriş sağlayıcıları */
@@ -198,4 +213,71 @@ export interface PostDetailDTO extends PostDTO {
 export interface LikeResultDTO {
   liked: boolean;
   likeCount: number;
+}
+
+// ─────────────────────────────────────────────
+// Moderasyon
+// ─────────────────────────────────────────────
+
+export interface BlockedUserDTO {
+  id: string;
+  name: string;
+  blockedAt: string;
+}
+
+/** Yönetici paneli: şikayet edilen içerik, şikayet sayısıyla gruplanmış */
+export interface AdminReportDTO {
+  /** İlk şikayetin kimliği (kaldır/yoksay işlemleri bununla yapılır) */
+  id: string;
+  contentType: ReportableContent;
+  contentId: string;
+  status: ModerationStatus;
+  reasons: Partial<Record<ContentReportReason, number>>;
+  reportCount: number;
+  notes: string[];
+  firstReportedAt: string;
+  /** İçerik silinmişse null */
+  content: { text: string; authorId: string | null; authorName: string; removed: boolean } | null;
+}
+
+// ─────────────────────────────────────────────
+// Gelir modeli: iş ortaklığı deneyimleri, lezzet rotaları
+// ─────────────────────────────────────────────
+
+export type ExperiencePartner = 'GetYourGuide' | 'Viator' | 'Airalo';
+
+/** Harici iş ortağı hizmeti (affiliate). Arayüzde "İş Ortaklığı" olarak etiketlenir. */
+export interface ExperienceDTO {
+  id: string;
+  partner: ExperiencePartner;
+  kind: 'tour' | 'connectivity';
+  title: string;
+  description: string;
+  /** Harici tarayıcıda açılır; ortaklık kimliği sunucuda eklenir */
+  url: string;
+}
+
+export interface TrailSummaryDTO {
+  slug: string;
+  title: string;
+  subtitle: string;
+  area: string;
+  stopCount: number;
+  durationMinutes: number;
+  isPremium: boolean;
+  /** Premium rota ve izleyici Pass sahibi değil */
+  locked: boolean;
+}
+
+export interface TrailStopDTO {
+  position: number;
+  note: string;
+  venue: Pick<VenueSummaryDTO, 'id' | 'name' | 'type' | 'isMobile' | 'neighborhood' | 'coverImageUrl' | 'latitude' | 'longitude'> & {
+    mustTry: string[];
+  };
+}
+
+export interface TrailDetailDTO extends TrailSummaryDTO {
+  description: string;
+  stops: TrailStopDTO[];
 }

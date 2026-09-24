@@ -17,6 +17,7 @@ import {
 } from '@localbite/shared';
 import { prisma } from '../db';
 import { notFound } from '../lib/errors';
+import { blockedIdsFor } from './moderation.service';
 import { localesFor, pickTranslation } from '../lib/locale';
 
 /**
@@ -57,7 +58,7 @@ export async function ratingSummaries(venueIds: string[]): Promise<Map<string, R
   if (venueIds.length === 0) return new Map();
   const rows = await prisma.review.groupBy({
     by: ['venueId'],
-    where: { venueId: { in: venueIds } },
+    where: { venueId: { in: venueIds }, removedAt: null },
     _avg: { rating: true },
     _count: { _all: true },
   });
@@ -86,7 +87,7 @@ function reviewText(r: ReviewWithTranslations, locale: Locale) {
 export async function latestReviews(venueIds: string[], locale: Locale): Promise<Map<string, ReviewSnippetDTO>> {
   if (venueIds.length === 0) return new Map();
   const rows = await prisma.review.findMany({
-    where: { venueId: { in: venueIds } },
+    where: { venueId: { in: venueIds }, removedAt: null },
     orderBy: { publishedAt: 'desc' },
     include: { translations: true },
   });
@@ -162,6 +163,7 @@ function toSummary(
     upvoteCount: venue.upvoteCount,
     rating: ratings.get(venue.id) ?? NO_RATING,
     coverImageUrl: venue.coverImageUrl,
+    isPromoted: venue.isPromoted,
     topReview: latest.get(venue.id) ?? null,
     mustTry: venue.dishes.map((d) => ({
       id: d.id,
@@ -206,7 +208,12 @@ export async function findNearbyVenues(query: NearbyQuery, locale: Locale, now =
   return { items, count: items.length, center: origin, radius: query.radius, locale, generatedAt: now.toISOString() };
 }
 
-export async function getVenueDetail(idOrSlug: string, locale: Locale, now = new Date()): Promise<VenueDetailDTO> {
+export async function getVenueDetail(
+  idOrSlug: string,
+  locale: Locale,
+  viewerId: string | null = null,
+  now = new Date(),
+): Promise<VenueDetailDTO> {
   const venue = await prisma.venue.findFirst({
     where: { status: 'APPROVED', OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
     include: includeFor(locale, false),
@@ -218,12 +225,19 @@ export async function getVenueDetail(idOrSlug: string, locale: Locale, now = new
   const [spottedToday, ratings, reviews] = await Promise.all([
     spottedTodayCounts([venue.id], now),
     ratingSummaries([venue.id]),
-    prisma.review.findMany({
-      where: { venueId: venue.id },
-      orderBy: { publishedAt: 'desc' },
-      take: MAX_DETAIL_REVIEWS,
-      include: { translations: true },
-    }),
+    blockedIdsFor(viewerId).then((blocked) =>
+      prisma.review.findMany({
+        // Kaldırılan yorumlar ve izleyicinin engellediği üyelerin yorumları görünmez (örnek yorumların userId'si null)
+        where: {
+          venueId: venue.id,
+          removedAt: null,
+          ...(blocked.length && { OR: [{ userId: null }, { userId: { notIn: blocked } }] }),
+        },
+        orderBy: { publishedAt: 'desc' },
+        take: MAX_DETAIL_REVIEWS,
+        include: { translations: true },
+      }),
+    ),
   ]);
 
   return {
@@ -252,6 +266,7 @@ export async function getVenueDetail(idOrSlug: string, locale: Locale, now = new
     upvoteCount: venue.upvoteCount,
     rating: ratings.get(venue.id) ?? NO_RATING,
     coverImageUrl: venue.coverImageUrl,
+    isPromoted: venue.isPromoted,
     pricePerPerson:
       venue.avgPriceMinTry !== null && venue.avgPriceMaxTry !== null
         ? { min: venue.avgPriceMinTry, max: venue.avgPriceMaxTry }

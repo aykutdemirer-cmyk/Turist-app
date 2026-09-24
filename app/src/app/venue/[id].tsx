@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../../api/client';
 import { useReportVenue, useVenue } from '../../api/venues';
 import { FoodImage } from '../../components/ui/FoodImage';
+import { ExperienceSection } from '../../components/monetization/ExperienceSection';
 import { DishRow } from '../../components/venue/DishRow';
 import { ReviewsSection } from '../../components/venue/ReviewsSection';
 import { SpottedLine } from '../../components/venue/SpottedLine';
@@ -161,6 +162,8 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
         )}
 
         <ReviewsSection venueId={venue.id} rating={venue.rating} reviews={venue.reviews} />
+
+        <ExperienceSection venueId={venue.id} />
 
         {/* Kültürel ipuçları — rehber kartları */}
         {(venue.localTips.length > 0 || venue.customTip) && (

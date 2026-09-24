@@ -3,6 +3,9 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { useSessionRefresh } from '../api/auth';
+import { useBlockSync } from '../api/moderation';
+import { LocationDisclosure } from '../components/LocationDisclosure';
+import { Paywall } from '../components/monetization/Paywall';
 import { useTheme, useThemeStore } from '../theme';
 
 export default function RootLayout() {
@@ -31,7 +34,12 @@ export default function RootLayout() {
         <Stack.Screen name="community/new" options={{ presentation: 'modal' }} />
         {/* Misafir bir yazma eylemi denediğinde açılan giriş / kayıt modalı */}
         <Stack.Screen name="auth" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="legal/[doc]" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="trail/[slug]" />
       </Stack>
+      <Paywall />
+      {/* Sistem konum izni penceresinden önce gösterilen açıklama (mağaza politikası) */}
+      <LocationDisclosure />
     </QueryClientProvider>
   );
 }
@@ -39,5 +47,6 @@ export default function RootLayout() {
 /** Saklı oturumu açılışta doğrular (QueryClientProvider içinde olmalı) */
 function SessionRefresh() {
   useSessionRefresh();
+  useBlockSync();
   return null;
 }

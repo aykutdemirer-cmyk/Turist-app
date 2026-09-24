@@ -1,11 +1,12 @@
 import * as Haptics from 'expo-haptics';
-import { BadgeCheck, Info, LogIn, LogOut, MapPinPlus } from 'lucide-react-native';
+import { BadgeCheck, Info, LogIn, LogOut, MapPinPlus, Sparkles } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSignOut } from '../../api/auth';
 import { AvatarBadge } from '../../components/ui/Avatar';
 import { LanguagePicker } from '../../components/settings/LanguagePicker';
+import { SecurityPrivacyCard } from '../../components/settings/SecurityPrivacyCard';
 import { ThemePicker } from '../../components/settings/ThemePicker';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useT } from '../../i18n';
@@ -66,6 +67,8 @@ export default function ProfileScreen() {
         </Pressable>
       </Card>
 
+      <SecurityPrivacyCard />
+
       <View style={styles.about}>
         <Info size={16} color={colors.textMuted} />
         <View style={styles.flex}>
@@ -113,9 +116,17 @@ function AccountCard() {
               {user.email}
             </Text>
           )}
-          <View style={styles.roleBadge}>
-            <BadgeCheck size={12} color={colors.open} />
-            <Text style={styles.roleText}>{t.account.roles[user.role]}</Text>
+          <View style={styles.badges}>
+            <View style={styles.roleBadge}>
+              <BadgeCheck size={12} color={colors.open} />
+              <Text style={styles.roleText}>{t.account.roles[user.role]}</Text>
+            </View>
+            {user.isPremium && (
+              <View style={[styles.roleBadge, styles.premiumBadge]}>
+                <Sparkles size={12} color="#422006" />
+                <Text style={[styles.roleText, { color: '#422006' }]}>{t.paywall.member}</Text>
+              </View>
+            )}
           </View>
         </View>
       </View>
@@ -194,6 +205,8 @@ const useStyles = makeStyles(({ colors }) => ({
     borderRadius: radius.pill,
   },
   roleText: { fontSize: 11, fontWeight: '700', color: colors.open },
+  badges: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
+  premiumBadge: { backgroundColor: '#FACC15' },
   signOut: {
     flexDirection: 'row',
     alignItems: 'center',

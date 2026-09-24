@@ -1,7 +1,7 @@
 import type { CommentDTO } from '@localbite/shared';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, SendHorizontal } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -13,7 +13,10 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ApiError } from '../../api/client';
 import { useAddComment, usePost } from '../../api/community';
+import { useIsBlocked } from '../../api/moderation';
+import { ContentMenu } from '../../components/moderation/ContentMenu';
 import { AuthorLine, PostCard } from '../../components/community/PostCard';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useT } from '../../i18n';
@@ -28,6 +31,13 @@ export default function PostDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: post, isPending, isError, refetch } = usePost(id);
+  const isBlocked = useIsBlocked();
+  const authorBlocked = !!post && isBlocked(post.author.id);
+
+  // Yazarı buradan engellendiyse gönderi artık gösterilmez
+  useEffect(() => {
+    if (authorBlocked && router.canGoBack()) router.back();
+  }, [authorBlocked, router]);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -48,7 +58,7 @@ export default function PostDetailScreen() {
       ) : (
         <>
           <FlatList
-            data={post.comments}
+            data={post.comments.filter((c) => !isBlocked(c.author.id))}
             keyExtractor={(c) => c.id}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
@@ -75,7 +85,14 @@ function CommentRow({ comment }: { comment: CommentDTO }) {
   const styles = useStyles();
   return (
     <View style={styles.comment}>
-      <AuthorLine author={comment.author} createdAt={comment.createdAt} size={30} />
+      <AuthorLine
+        author={comment.author}
+        createdAt={comment.createdAt}
+        size={30}
+        menu={
+          <ContentMenu contentType="COMMENT" contentId={comment.id} authorId={comment.author.id} authorName={comment.author.name} />
+        }
+      />
       <Text style={styles.commentText}>{comment.content}</Text>
     </View>
   );
@@ -128,7 +145,13 @@ function ReplyBar({ postId, bottomInset }: { postId: string; bottomInset: number
           <Text style={styles.guestReplyText}>{t.community.replyAsGuest}</Text>
         </Pressable>
       )}
-      {addComment.isError && <Text style={styles.error}>{t.suggest.errors.failed}</Text>}
+      {addComment.isError && (
+        <Text style={styles.error}>
+          {addComment.error instanceof ApiError && addComment.error.code === 'CONTENT_REJECTED'
+            ? t.moderation.contentRejected
+            : t.suggest.errors.failed}
+        </Text>
+      )}
     </View>
   );
 }

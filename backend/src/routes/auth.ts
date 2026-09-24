@@ -11,7 +11,7 @@ import {
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { requireUserId } from '../lib/auth';
-import { login, loginWithGoogle, me, register } from '../services/auth.service';
+import { deleteAccount, login, loginWithGoogle, me, register } from '../services/auth.service';
 import { authorizeUrl, enabledProviders, exchangeAppCode, handleCallback } from '../services/oauth.service';
 
 // Kayıtta cihaz kimliği opsiyonel: varsa misafir geçmişi yeni hesaba taşınır
@@ -37,6 +37,12 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.get('/auth/me', async (req) => ({ user: await me(await requireUserId(req)) }));
 
+  /** Hesabı ve tüm kişisel verileri kalıcı olarak siler (geri alınamaz) */
+  app.delete('/auth/me', { config: authRateLimit }, async (req, reply) => {
+    await deleteAccount(await requireUserId(req));
+    return reply.code(204).send();
+  });
+
   // ─── Tarayıcı tabanlı sosyal giriş (bkz. services/oauth.service.ts) ───
 
   app.get('/auth/oauth/providers', async () => enabledProviders());
@@ -44,7 +50,10 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/auth/oauth/:provider/start',
     { schema: { params: providerParams, querystring: oauthStartQuerySchema }, config: authRateLimit },
-    async (req, reply) => reply.redirect(await authorizeUrl(req.params.provider, req.query.redirect, req.query.deviceId)),
+    async (req, reply) =>
+      reply.redirect(
+        await authorizeUrl(req.params.provider, req.query.redirect, req.query.deviceId, req.query.terms === '1'),
+      ),
   );
 
   app.get(

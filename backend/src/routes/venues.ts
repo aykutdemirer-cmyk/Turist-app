@@ -9,7 +9,7 @@ import {
 } from '@localbite/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { requireUserId } from '../lib/auth';
+import { optionalUserId, requireUserId } from '../lib/auth';
 import { resolveLocale } from '../lib/locale';
 import { recentConfirmations, submitReport } from '../services/report.service';
 import { upsertReview } from '../services/review.service';
@@ -40,7 +40,12 @@ export const venueRoutes: FastifyPluginAsyncZod = async (app) => {
         querystring: z.object({ locale: localeSchema.optional() }),
       },
     },
-    async (req) => getVenueDetail(req.params.id, resolveLocale(req.query.locale, req.headers['accept-language'])),
+    async (req) =>
+      getVenueDetail(
+        req.params.id,
+        resolveLocale(req.query.locale, req.headers['accept-language']),
+        await optionalUserId(req),
+      ),
   );
 
   app.post(

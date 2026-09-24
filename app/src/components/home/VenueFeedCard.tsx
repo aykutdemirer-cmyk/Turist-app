@@ -1,6 +1,6 @@
 import type { VenueSummaryDTO } from '@localbite/shared';
 import * as Haptics from 'expo-haptics';
-import { MapPin, Navigation2, Star } from 'lucide-react-native';
+import { Award, MapPin, Navigation2, Star } from 'lucide-react-native';
 import { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useT } from '../../i18n';
@@ -30,7 +30,7 @@ export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Pro
       onPress={() => onPress(venue.id)}
       accessibilityRole="button"
       accessibilityLabel={`${venue.name}, ${formatDistance(venue.distanceMeters)}, ${statusLabel}`}
-      style={({ pressed }) => [styles.card, shadow.card, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.card, shadow.card, venue.isPromoted && styles.promotedCard, pressed && styles.pressed]}
     >
       <View style={styles.cover}>
         <FoodImage
@@ -47,8 +47,18 @@ export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Pro
           <Text style={styles.pillText}>{formatDistance(venue.distanceMeters)}</Text>
         </View>
 
+        {/* Ücretli öne çıkarma: "Sponsorlu" ibaresi reklam bildirimi olarak zorunlu */}
+        {venue.isPromoted && (
+          <View style={[styles.pill, styles.topRight, styles.promoPill]} accessibilityLabel={`${t.promoted.badge}, ${t.promoted.sponsored}`}>
+            <Award size={12} color="#422006" />
+            <Text style={styles.promoText}>
+              {t.promoted.badge} · {t.promoted.sponsored}
+            </Text>
+          </View>
+        )}
+
         {venue.rating.average !== null && (
-          <View style={[styles.pill, styles.topRight]}>
+          <View style={[styles.pill, venue.isPromoted ? styles.bottomRight : styles.topRight]}>
             <Text style={styles.ratingText}>{venue.rating.average.toFixed(1)}</Text>
             <Star size={12} color={colors.gold} fill={colors.gold} />
           </View>
@@ -115,6 +125,10 @@ const useStyles = makeStyles(({ colors }) => ({
   topLeft: { top: spacing.sm + 2, left: spacing.sm + 2 },
   topRight: { top: spacing.sm + 2, right: spacing.sm + 2 },
   bottomLeft: { bottom: spacing.sm + 2, left: spacing.sm + 2 },
+  bottomRight: { bottom: spacing.sm + 2, right: spacing.sm + 2 },
+  promotedCard: { borderColor: colors.gold, borderWidth: 2 },
+  promoPill: { backgroundColor: '#FACC15', borderColor: '#EAB308' },
+  promoText: { color: '#422006', fontSize: 11, fontWeight: '800' },
   pillText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
   ratingText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
   dot: { width: 7, height: 7, borderRadius: 4 },

@@ -1,7 +1,7 @@
 import { emailSchema } from '@localbite/shared';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Lock, X } from 'lucide-react-native';
+import { Check, Lock, X } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -23,9 +23,9 @@ import { useAuthStore, type AuthReason } from '../store/auth';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 
 type Mode = 'login' | 'register';
-type Errors = Partial<Record<'fullName' | 'email' | 'password' | 'form', string>>;
+type Errors = Partial<Record<'fullName' | 'email' | 'password' | 'terms' | 'form', string>>;
 
-const REASONS: AuthReason[] = ['review', 'post', 'comment', 'like', 'profile'];
+const REASONS: AuthReason[] = ['review', 'post', 'comment', 'like', 'profile', 'moderate'];
 
 function errorMessage(err: unknown, t: Dictionary): string {
   if (err instanceof ApiError) {
@@ -52,6 +52,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<Errors>({});
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
 
@@ -93,13 +94,16 @@ export default function AuthScreen() {
       ? null
       : oauthError === 'OAUTH_NO_VERIFIED_EMAIL'
         ? t.auth.errors.oauthNoEmail
-        : t.auth.errors.oauthFailed;
+        : oauthError === 'OAUTH_TERMS_REQUIRED'
+          ? t.auth.errors.oauthTermsRequired
+          : t.auth.errors.oauthFailed;
 
   const validate = (): Errors => {
     const next: Errors = {};
     if (mode === 'register' && fullName.trim().length < 2) next.fullName = t.auth.errors.fullName;
     if (!emailSchema.safeParse(email).success) next.email = t.auth.errors.email;
     if (mode === 'register' ? password.length < 8 : password.length === 0) next.password = t.auth.errors.password;
+    if (mode === 'register' && !acceptedTerms) next.terms = t.auth.termsRequired;
     return next;
   };
 
@@ -111,7 +115,10 @@ export default function AuthScreen() {
     if (mode === 'login') {
       login.mutate({ email: email.trim(), password }, { onError });
     } else {
-      register.mutate({ fullName: fullName.trim(), email: email.trim(), password, locale }, { onError });
+      register.mutate(
+        { fullName: fullName.trim(), email: email.trim(), password, locale, acceptTerms: true },
+        { onError },
+      );
     }
   };
 
@@ -132,7 +139,36 @@ export default function AuthScreen() {
         <Text style={font.title}>{mode === 'login' ? t.auth.loginTitle : t.auth.registerTitle}</Text>
         <Text style={[font.small, styles.reason]}>{t.auth.reasons[reason]}</Text>
 
-        <SocialButtons disabled={busy} />
+        {/* Kayıt ve sosyal giriş için Kullanım Şartları onayı (mağaza UGC politikası) */}
+        <View style={styles.termsRow}>
+          <Pressable
+            onPress={() => {
+              setAcceptedTerms((v) => !v);
+              setErrors((e) => ({ ...e, terms: undefined }));
+            }}
+            hitSlop={8}
+            style={[styles.checkbox, acceptedTerms && styles.checkboxOn, !!errors.terms && styles.checkboxError]}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: acceptedTerms }}
+            accessibilityLabel={`${t.auth.acceptTermsPrefix}${t.auth.termsLink}${t.auth.acceptTermsSuffix}`}
+          >
+            {acceptedTerms && <Check size={14} color={colors.textInverse} strokeWidth={3} />}
+          </Pressable>
+          <Text style={styles.termsText}>
+            {t.auth.acceptTermsPrefix}
+            <Text style={styles.termsLink} onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'terms' } })}>
+              {t.auth.termsLink}
+            </Text>
+            {t.auth.acceptTermsSuffix}
+          </Text>
+        </View>
+        {errors.terms && <Text style={styles.formError}>{errors.terms}</Text>}
+
+        <SocialButtons
+          disabled={busy}
+          termsAccepted={acceptedTerms}
+          onNeedTerms={() => setErrors((e) => ({ ...e, terms: t.auth.termsRequired }))}
+        />
         {oauthMessage && <Text style={styles.formError}>{oauthMessage}</Text>}
 
         <View style={styles.orRow}>
@@ -242,6 +278,21 @@ const useStyles = makeStyles(({ colors, font }) => ({
   orRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   line: { flex: 1, height: 1, backgroundColor: colors.border },
   formError: { color: colors.danger, fontSize: 13, fontWeight: '600' },
+  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginTop: spacing.xs },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkboxError: { borderColor: colors.danger },
+  termsText: { flex: 1, fontSize: 13, lineHeight: 19, color: colors.text },
+  termsLink: { color: colors.primary, fontWeight: '700', textDecorationLine: 'underline' },
   submit: {
     height: 50,
     borderRadius: radius.md,

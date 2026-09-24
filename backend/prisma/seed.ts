@@ -1,5 +1,5 @@
 /**
- * İstanbul örnek verisi — 10 mekan (4 seyyar, 4 esnaf lokantası, 2 burger/dürüm).
+ * İstanbul örnek verisi — 11 mekan (4 seyyar, 4 esnaf lokantası, 2 burger/dürüm, 1 tatlıcı).
  *
  * Konumlar gerçek semtlerde (Kadıköy, Sirkeci, Eminönü, Vezneciler), ancak işletme adları,
  * saatleri ve puanları geliştirme için KURGUSALDIR; gerçek bir işletmeyi temsil etmez.
@@ -539,6 +539,53 @@ const venues: SeedVenue[] = [
       { days: [SUN], open: '12:00', close: '22:00' },
     ],
   },
+  // ───────────── Tatlı & çay ─────────────
+  {
+    slug: 'moda-sutlu-tatlici',
+    name: 'Moda Sütlü Tatlıcı Nuri',
+    type: 'DESSERT_TEA',
+    isMobile: false,
+    priceLevel: 'BUDGET',
+    authenticityScore: 90,
+    latitude: 40.9861,
+    longitude: 29.0268,
+    address: 'Moda Cd., Caferağa Mah., Kadıköy',
+    neighborhood: 'Moda',
+    district: 'Kadıköy',
+    localTips: ['PAY_AT_COUNTER', 'CLOSES_WHEN_SOLD_OUT'],
+    upvoteCount: 58,
+    en: {
+      tagline: 'Late-night milk puddings and tea, a Moda institution',
+      description:
+        'A tiny muhallebici with marble tables. Baked rice pudding with a burnt top, kazandibi and strong tea in tulip glasses until well past midnight.',
+      customTip: 'Ask for the rice pudding "soğuk" (cold) in summer.',
+    },
+    tr: {
+      tagline: "Gece yarısından sonra da açık Moda'nın muhallebicisi",
+      description: 'Mermer masalı küçük bir muhallebici. Üstü yanık fırın sütlaç, kazandibi ve ince belli bardakta demli çay.',
+    },
+    dishes: [
+      {
+        localName: 'Fırın Sütlaç',
+        isVegetarian: true,
+        en: { name: 'Baked rice pudding', description: 'Creamy rice pudding with a caramelised, oven-browned top.' },
+        tr: { name: 'Fırın Sütlaç', description: 'Üstü fırında kızarmış, kıvamlı sütlaç.' },
+      },
+      {
+        localName: 'Kazandibi',
+        isVegetarian: true,
+        en: { name: 'Caramelised milk pudding', description: 'Milk pudding with a burnt caramel bottom, dusted with cinnamon.' },
+        tr: { name: 'Kazandibi', description: 'Altı yanık, tarçınlı muhallebi.' },
+      },
+      {
+        localName: 'Çay',
+        isVegetarian: true,
+        en: { name: 'Turkish tea', description: 'Strong black tea in a tulip glass.' },
+        tr: { name: 'Çay', description: 'İnce belli bardakta demli çay.' },
+      },
+    ],
+    schedules: [{ days: EVERY_DAY, open: '10:00', close: '01:30' }],
+  },
 ];
 
 // ───────────── Fiyatlar (TL, yaklaşık) ─────────────
@@ -556,6 +603,7 @@ const pricePerPerson: Record<string, [number, number]> = {
   'yeldegirmeni-anne-mutfagi': [250, 400],
   'moda-mahalle-burger': [350, 550],
   'vezneciler-adana-durum': [300, 450],
+  'moda-sutlu-tatlici': [150, 260],
 };
 
 /** Porsiyon fiyatı, yemeğin yerel adına göre */
@@ -591,7 +639,13 @@ const dishPrice: Record<string, number> = {
   'Kızarmış Patates': 110,
   'Adana Dürüm': 320,
   'Ciğer Dürüm': 280,
+  Kazandibi: 140,
+  Çay: 30,
 };
+
+// ───────────── Sponsorlu öne çıkarma (örnek) ─────────────
+// Ücretli yerleşim: uygulamada "Seçilmiş Lezzet · Sponsorlu" olarak etiketlenir.
+const promotedSlugs = new Set(['kadikoy-carsi-ev-yemekleri', 'moda-sutlu-tatlici']);
 
 // ───────────── Ek yemekler ─────────────
 const extraDishes: Record<string, SeedDish[]> = {
@@ -901,6 +955,7 @@ async function main() {
         lastSpottedAt: v.spottedMinutesAgo !== undefined ? new Date(now - v.spottedMinutesAgo * 60_000) : null,
         spottedCount: v.spottedCount ?? 0,
         upvoteCount: v.upvoteCount ?? 0,
+        isPromoted: promotedSlugs.has(v.slug),
         avgPriceMinTry: pricePerPerson[v.slug]?.[0],
         avgPriceMaxTry: pricePerPerson[v.slug]?.[1],
         translations: {
