@@ -441,6 +441,16 @@ export const tr: Dictionary = {
     directions: "Yol Tarifi Al",
     dismiss: "Kapat",
   },
+  reviewSource: {
+    all: "Tümü",
+    app: "Uygulama İncelemeleri",
+    google: "Google",
+    member: "LocalBite Üyesi",
+    viaGoogle: "Google Haritalar üzerinden",
+    other: "Diğer kaynak",
+    emptyFiltered: "Bu kaynaktan henüz yorum yok.",
+    filterLabel: "Yorum kaynağı",
+  },
   guideTips: {
     CASH_ONLY: 'Kart çoğu zaman geçmez; yanında nakit ve bozuk para bulundur.',
     PAY_AT_COUNTER: 'Masaya hesap gelmez; çıkarken kasaya ne yediğini söyle.',

@@ -450,6 +450,16 @@ export const ru: Dictionary = {
     directions: "Маршрут",
     dismiss: "Закрыть",
   },
+  reviewSource: {
+    all: "Все",
+    app: "Отзывы в приложении",
+    google: "Google",
+    member: "Участник LocalBite",
+    viaGoogle: "из Google Карт",
+    other: "Другой источник",
+    emptyFiltered: "Из этого источника отзывов пока нет.",
+    filterLabel: "Источник",
+  },
   guideTips: {
     CASH_ONLY: 'Карты часто не принимают — возьмите наличные и мелкие купюры.',
     PAY_AT_COUNTER: 'Счёт к столу не приносят: на выходе скажите кассиру, что вы ели.',

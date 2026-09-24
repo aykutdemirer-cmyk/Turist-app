@@ -441,6 +441,16 @@ export const es: Dictionary = {
     directions: "Cómo llegar",
     dismiss: "Cerrar",
   },
+  reviewSource: {
+    all: "Todas",
+    app: "Reseñas de la app",
+    google: "Google",
+    member: "Miembro de LocalBite",
+    viaGoogle: "vía Google Maps",
+    other: "Otra fuente",
+    emptyFiltered: "Aún no hay reseñas de esta fuente.",
+    filterLabel: "Fuente",
+  },
   guideTips: {
     CASH_ONLY: 'A menudo no aceptan tarjeta: lleva efectivo y billetes pequeños.',
     PAY_AT_COUNTER: 'No traen la cuenta a la mesa: al salir, di en caja lo que comiste.',

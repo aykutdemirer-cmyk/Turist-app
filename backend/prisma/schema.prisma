@@ -87,11 +87,13 @@ enum Locale {
   tr
 }
 
-/// Yorumun nereden geldiği; arayüzde kaynak etiketi olarak gösterilir.
+/// Yorumun nereden geldiği; arayüzde kaynak rozeti olarak gösterilir ve yorumlar buna göre süzülür.
+/// Varsayılanı yoktur: her yazma yolu kaynağı açıkça belirtmeli (dış kaynaktan gelen yorum yanlışlıkla APP sayılmasın).
 enum ReviewSource {
+  APP // Uygulama içinden "Yorum yaz" ile yazan üye
+  GOOGLE // Google Haritalar'dan (atıf ve önbellek kurallarına uyularak) alınan yorum
+  OTHER // Diğer dış kaynaklar
   SAMPLE // Geliştirme/demo için yazılmış örnek yorum — gerçek bir kişiye ait değildir
-  COMMUNITY // Uygulama kullanıcısının yorumu
-  GOOGLE // Google Places API'den (atıf kurallarına uyularak) alınan yorum
 }
 
 enum UserRole {
@@ -335,14 +337,14 @@ model Review {
   authorName     String // "Elif K." — soyadı kısaltılmış
   /// 1–5, migration'da CHECK constraint ile
   rating         Int
-  source         ReviewSource @default(COMMUNITY)
+  source         ReviewSource
   /// GOOGLE için zorunlu atıf bağlantısı
   sourceUrl      String?
   originalLocale Locale
   publishedAt    DateTime
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-  /// COMMUNITY yorumlarında yazan üye; SAMPLE/GOOGLE'da null
+  /// APP yorumlarında yazan üye; dış kaynak ve örnek yorumlarda null
   userId         String?
   /// Moderasyonla kaldırıldı; listelerde görünmez
   removedAt      DateTime?

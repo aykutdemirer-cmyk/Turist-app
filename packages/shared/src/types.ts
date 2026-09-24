@@ -28,7 +28,7 @@ export interface ReviewDTO {
   originalLocale: Locale;
   /** Metin özgün dilinden farklı bir dilde mi gösteriliyor */
   isTranslated: boolean;
-  /** COMMUNITY yorumlarında yazan üye */
+  /** APP yorumlarında yazan üye */
   userId: string | null;
 }
 
@@ -132,7 +132,7 @@ export interface VenueDetailDTO extends Omit<VenueSummaryDTO, 'distanceMeters' |
   customTip: string | null;
   dishes: DishDTO[];
   schedules: ScheduleDTO[];
-  /** En yeni yorumlar (en fazla 10) */
+  /** En yeni yorumlar (en fazla 30) */
   reviews: ReviewDTO[];
   /** Onaylı, yayın süresi dolmamış satıcı duyuruları */
   announcements: PublicAnnouncementDTO[];

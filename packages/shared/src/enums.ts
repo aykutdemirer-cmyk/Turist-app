@@ -44,8 +44,8 @@ export type ReportType = (typeof REPORT_TYPES)[number];
 /** Raporlayanın mekanın yakınında olmasını gerektiren bildirimler. */
 export const LOCATION_REQUIRED_REPORTS: readonly ReportType[] = ['SPOTTED_TODAY', 'NOT_HERE'];
 
-/** SAMPLE: demo için yazılmış örnek yorum; arayüzde mutlaka "örnek" diye etiketlenir. */
-export const REVIEW_SOURCES = ['SAMPLE', 'COMMUNITY', 'GOOGLE'] as const;
+/** APP: uygulama üyesi · GOOGLE: Google Haritalar · OTHER: diğer dış kaynak · SAMPLE: demo için örnek yorum (arayüzde mutlaka "örnek" diye etiketlenir) */
+export const REVIEW_SOURCES = ['APP', 'GOOGLE', 'OTHER', 'SAMPLE'] as const;
 export type ReviewSource = (typeof REVIEW_SOURCES)[number];
 
 export const LOCALES = ['en', 'tr'] as const;

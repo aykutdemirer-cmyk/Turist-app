@@ -448,6 +448,16 @@ export const ar: Dictionary = {
     directions: "الاتجاهات",
     dismiss: "إغلاق",
   },
+  reviewSource: {
+    all: "الكل",
+    app: "تقييمات التطبيق",
+    google: "Google",
+    member: "عضو LocalBite",
+    viaGoogle: "عبر خرائط Google",
+    other: "مصدر آخر",
+    emptyFiltered: "لا توجد تقييمات من هذا المصدر بعد.",
+    filterLabel: "مصدر التقييم",
+  },
   guideTips: {
     CASH_ONLY: 'غالبًا لا تُقبل البطاقات — احمل نقودًا وفئات صغيرة.',
     PAY_AT_COUNTER: 'لا تأتي الفاتورة إلى الطاولة: أخبر المحاسب بما أكلت عند الخروج.',

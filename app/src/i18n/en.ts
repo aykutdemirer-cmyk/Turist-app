@@ -441,6 +441,16 @@ export const en = {
     directions: "Get directions",
     dismiss: "Close",
   },
+  reviewSource: {
+    all: "All",
+    app: "App reviews",
+    google: "Google",
+    member: "LocalBite member",
+    viaGoogle: "via Google Maps",
+    other: "Other source",
+    emptyFiltered: "No reviews from this source yet.",
+    filterLabel: "Review source",
+  },
   guideTips: {
     CASH_ONLY: 'Cards are often not accepted — carry cash and small notes.',
     PAY_AT_COUNTER: 'No bill comes to the table: tell the cashier what you ate on your way out.',

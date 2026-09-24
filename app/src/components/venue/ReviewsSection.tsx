@@ -1,8 +1,8 @@
 import type { RatingSummary, ReviewDTO } from '@localbite/shared';
 import * as Haptics from 'expo-haptics';
-import { CircleCheck, FlaskConical, Languages, PencilLine } from 'lucide-react-native';
+import { BadgeCheck, CircleCheck, ExternalLink, FlaskConical, Languages, PencilLine } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { ApiError } from '../../api/client';
 import { useIsBlocked } from '../../api/moderation';
 import { useSubmitReview } from '../../api/venues';
@@ -14,6 +14,10 @@ import { useCurrentUser } from '../../store/auth';
 import { authorColor, makeStyles, radius, spacing, useTheme } from '../../theme';
 import { Input } from '../suggest/FormControls';
 import { StarPicker, Stars } from '../ui/Stars';
+
+/** Kaynak filtresi: Tümü · Uygulama İncelemeleri · Google */
+type SourceFilter = 'ALL' | 'APP' | 'GOOGLE';
+const SOURCE_FILTERS: SourceFilter[] = ['ALL', 'APP', 'GOOGLE'];
 
 interface Props {
   venueId: string;
@@ -29,9 +33,14 @@ export function ReviewsSection({ venueId, rating, reviews }: Props) {
   const requireAuth = useRequireAuth();
   const [composing, setComposing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [filter, setFilter] = useState<SourceFilter>('ALL');
   const isBlocked = useIsBlocked();
   const visible = reviews.filter((r) => !isBlocked(r.userId));
-  const hasSample = visible.some((r) => r.source === 'SAMPLE');
+  const shown = filter === 'ALL' ? visible : visible.filter((r) => r.source === filter);
+  const countFor = (f: SourceFilter) => (f === 'ALL' ? visible.length : visible.filter((r) => r.source === f).length);
+  const filterLabel = { ALL: t.reviewSource.all, APP: t.reviewSource.app, GOOGLE: t.reviewSource.google };
+  // Uyarı yalnızca listede örnek yorum görünüyorsa
+  const hasSample = shown.some((r) => r.source === 'SAMPLE');
   const mine = user ? reviews.find((r) => r.userId === user.id) : undefined;
 
   return (
@@ -49,6 +58,36 @@ export function ReviewsSection({ venueId, rating, reviews }: Props) {
         )}
       </View>
 
+      {visible.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filters}
+          accessibilityRole="tablist"
+          accessibilityLabel={t.reviewSource.filterLabel}
+        >
+          {SOURCE_FILTERS.map((f) => {
+            const active = filter === f;
+            return (
+              <Pressable
+                key={f}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setFilter(f);
+                }}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                style={({ pressed }) => [styles.filterChip, active && styles.filterChipActive, pressed && styles.pressed]}
+              >
+                <Text style={[styles.filterText, active && styles.filterTextActive]}>
+                  {filterLabel[f]} · {countFor(f)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+
       {/* Örnek veri gerçek yorum gibi sunulmaz */}
       {hasSample && (
         <View style={styles.notice}>
@@ -65,6 +104,8 @@ export function ReviewsSection({ venueId, rating, reviews }: Props) {
           onSaved={() => {
             setComposing(false);
             setSaved(true);
+            // Yeni yorum başka bir kaynak filtresinin arkasında kalmasın
+            setFilter('ALL');
           }}
         />
       ) : (
@@ -92,8 +133,10 @@ export function ReviewsSection({ venueId, rating, reviews }: Props) {
 
       {visible.length === 0 ? (
         <Text style={font.small}>{t.reviews.empty}</Text>
+      ) : shown.length === 0 ? (
+        <Text style={font.small}>{t.reviewSource.emptyFiltered}</Text>
       ) : (
-        visible.map((r) => <ReviewCard key={r.id} review={r} isMine={r.userId !== null && r.userId === user?.id} />)
+        shown.map((r) => <ReviewCard key={r.id} review={r} isMine={r.userId !== null && r.userId === user?.id} />)
       )}
     </View>
   );
@@ -190,10 +233,20 @@ function ReviewCard({ review, isMine }: { review: ReviewDTO; isMine: boolean }) 
           <Text style={styles.initialText}>{review.authorName.charAt(0)}</Text>
         </View>
         <View style={styles.flex}>
-          <Text style={styles.author}>
-            {review.authorName}
-            {isMine && <Text style={styles.you}>{`  · ${t.reviews.you}`}</Text>}
-          </Text>
+          <View style={styles.authorRow}>
+            <Text style={styles.author} numberOfLines={1}>
+              {review.authorName}
+              {isMine && <Text style={styles.you}>{`  · ${t.reviews.you}`}</Text>}
+            </Text>
+            {/* Uygulama üyesi: dikkat çekici yeşil rozet */}
+            {review.source === 'APP' && (
+              <View style={styles.memberBadge}>
+                <BadgeCheck size={12} color="#FFFFFF" strokeWidth={2.6} />
+                <Text style={styles.memberText}>{t.reviewSource.member}</Text>
+              </View>
+            )}
+          </View>
+          <SourceLine review={review} />
           <View style={styles.metaRow}>
             <Stars rating={review.rating} size={12} />
             <Text style={styles.date}>{formatRelative(review.publishedAt)}</Text>
@@ -211,13 +264,32 @@ function ReviewCard({ review, isMine }: { review: ReviewDTO; isMine: boolean }) 
             <Text style={styles.tagText}>{t.reviews.translated}</Text>
           </View>
         )}
-        {review.source === 'GOOGLE' && review.sourceUrl && (
-          <Pressable onPress={() => Linking.openURL(review.sourceUrl!)} hitSlop={6}>
-            <Text style={styles.attribution}>Google</Text>
-          </Pressable>
-        )}
       </View>
     </View>
+  );
+}
+
+/** Dış kaynak ve örnek yorumlar: yazarın altında nötr satır (Google'da kaynağa bağlantı, atıf kuralı) */
+function SourceLine({ review }: { review: ReviewDTO }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const t = useT();
+  if (review.source === 'APP') return null;
+  const label =
+    review.source === 'GOOGLE' ? t.reviewSource.viaGoogle : review.source === 'SAMPLE' ? t.reviews.sampleTag : t.reviewSource.other;
+  const link = review.source === 'GOOGLE' && review.sourceUrl;
+  return (
+    <Pressable
+      onPress={link ? () => Linking.openURL(review.sourceUrl!) : undefined}
+      disabled={!link}
+      hitSlop={6}
+      accessibilityRole={link ? 'link' : 'text'}
+      style={styles.sourceLine}
+    >
+      {review.source === 'SAMPLE' ? <FlaskConical size={11} color={colors.textMuted} /> : null}
+      <Text style={[styles.sourceText, link && styles.sourceLink]}>{label}</Text>
+      {link ? <ExternalLink size={11} color={colors.textMuted} /> : null}
+    </Pressable>
   );
 }
 
@@ -251,7 +323,7 @@ const useStyles = makeStyles(({ colors }) => ({
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   initial: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   initialText: { color: colors.textInverse, fontWeight: '800', fontSize: 15 },
-  author: { fontSize: 14, fontWeight: '700', color: colors.text },
+  author: { fontSize: 14, fontWeight: '700', color: colors.text, flexShrink: 1 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 2 },
   date: { fontSize: 12, color: colors.textMuted },
   text: { fontSize: 14, lineHeight: 21, color: colors.text },
@@ -266,7 +338,33 @@ const useStyles = makeStyles(({ colors }) => ({
     borderRadius: radius.pill,
   },
   tagText: { fontSize: 11, color: colors.textMuted, fontWeight: '600' },
-  attribution: { fontSize: 11, color: colors.textMuted, textDecorationLine: 'underline' },
+  authorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  memberBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.open,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+  },
+  memberText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.2 },
+  sourceLine: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 1 },
+  sourceText: { fontSize: 11, fontWeight: '600', color: colors.textMuted },
+  sourceLink: { textDecorationLine: 'underline' },
+  filters: { gap: spacing.sm },
+  filterChip: {
+    paddingHorizontal: spacing.md,
+    height: 32,
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  filterChipActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  filterText: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+  filterTextActive: { color: colors.primary, fontWeight: '800' },
   you: { fontSize: 12, fontWeight: '700', color: colors.primary },
 
   pressed: { opacity: 0.85 },

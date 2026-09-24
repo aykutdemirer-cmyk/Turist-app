@@ -29,7 +29,8 @@ import { localesFor, pickTranslation } from '../lib/locale';
  */
 const MOBILE_VENDOR_MARGIN_M = 1_500;
 
-const MAX_DETAIL_REVIEWS = 10;
+// Kaynak filtresi (Tümü / Uygulama / Google) istemcide uygulanır; her kaynaktan yeterince yorum gelsin
+const MAX_DETAIL_REVIEWS = 30;
 
 const includeFor = (locale: Locale, mustTryOnly: boolean) =>
   ({

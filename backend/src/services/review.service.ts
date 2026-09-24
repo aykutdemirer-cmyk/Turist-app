@@ -26,7 +26,7 @@ export async function upsertReview(venueId: string, userId: string, input: Revie
         userId,
         authorName,
         rating: input.rating,
-        source: 'COMMUNITY',
+        source: 'APP',
         originalLocale: input.locale,
         publishedAt: now,
       },
