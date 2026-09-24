@@ -31,6 +31,8 @@ export async function buildApp({ corsOrigin = '*', logger = true }: AppOptions =
 
   await app.register(cors, {
     origin: corsOrigin === '*' ? true : corsOrigin.split(',').map((o) => o.trim()),
+    // Varsayılan yalnızca GET/HEAD/POST; PUT (yorum) ve DELETE (hesap, beğeni, engel) web'den de çalışsın
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
   // Sadece route'ta config.rateLimit tanımlıysa devreye girer; anahtar önce cihaz kimliği.
   await app.register(rateLimit, {
