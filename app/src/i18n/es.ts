@@ -108,7 +108,9 @@ export const es: Dictionary = {
     switchToRegister: '¿No tienes cuenta? Regístrate',
     switchToLogin: '¿Ya tienes cuenta? Inicia sesión',
     google: 'Continuar con Google',
-    googleSoon: 'Próximamente',
+    github: 'Continuar con GitHub',
+    notConfigured: 'No configurado',
+    signingIn: 'Iniciando sesión…',
     or: 'o',
     privacy: 'Solo se muestran tu nombre y la inicial de tu apellido. Tu correo nunca se comparte.',
     errors: {
@@ -120,6 +122,8 @@ export const es: Dictionary = {
       rateLimit: 'Demasiados intentos. Espera unos minutos.',
       network: 'No se puede conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.',
       failed: 'Algo salió mal. Inténtalo de nuevo.',
+      oauthFailed: 'No se pudo iniciar sesión. Inténtalo de nuevo o usa el correo.',
+      oauthNoEmail: 'Esa cuenta no tiene un correo verificado. Verifícalo con el proveedor o regístrate con correo.',
     },
   },
   account: {

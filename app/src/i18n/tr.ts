@@ -108,7 +108,9 @@ export const tr: Dictionary = {
     switchToRegister: 'Hesabın yok mu? Kayıt ol',
     switchToLogin: 'Zaten hesabın var mı? Giriş yap',
     google: 'Google ile devam et',
-    googleSoon: 'Yakında',
+    github: 'GitHub ile devam et',
+    notConfigured: 'Yapılandırılmadı',
+    signingIn: 'Giriş yapılıyor…',
     or: 'veya',
     privacy: 'Herkese yalnızca adın ve soyadının baş harfi görünür. E-postan asla paylaşılmaz.',
     errors: {
@@ -120,6 +122,8 @@ export const tr: Dictionary = {
       rateLimit: 'Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar dene.',
       network: 'Sunucuya ulaşılamıyor. Bağlantını kontrol edip tekrar dene.',
       failed: 'Bir şeyler ters gitti. Lütfen tekrar dene.',
+      oauthFailed: 'Sosyal giriş başarısız oldu. Tekrar dene ya da e-postayla giriş yap.',
+      oauthNoEmail: 'Bu hesapta doğrulanmış bir e-posta yok. Sağlayıcıda e-postanı doğrula ya da e-postayla kayıt ol.',
     },
   },
   account: {

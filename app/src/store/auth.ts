@@ -34,6 +34,10 @@ interface AuthState {
   /** Giriş gerektiren eylem: giriş başarılı olunca çalıştırılır */
   pendingAction: (() => void) | null;
   setPendingAction: (action: (() => void) | null) => void;
+
+  /** Sosyal girişten dönen hata kodu; giriş ekranı gösterir */
+  oauthError: string | null;
+  setOAuthError: (code: string | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -57,6 +61,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   pendingAction: null,
   setPendingAction: (pendingAction) => set({ pendingAction }),
+
+  oauthError: null,
+  setOAuthError: (oauthError) => set({ oauthError }),
 }));
 
 export const useCurrentUser = () => useAuthStore((s) => s.session?.user ?? null);

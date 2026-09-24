@@ -130,6 +130,20 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export const googleLoginSchema = z.object({ idToken: z.string().min(20).max(4096) });
 export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;
 
+/** Tarayıcı tabanlı sosyal giriş */
+export const OAUTH_PROVIDERS = ['google', 'github'] as const;
+export const oauthStartQuerySchema = z.object({
+  /** Girişten sonra dönülecek uygulama bağlantısı (ör. exp://…/--/oauth-callback) */
+  redirect: z.string().min(1).max(500),
+  deviceId: deviceIdSchema.optional(),
+});
+export const oauthCallbackQuerySchema = z.object({
+  code: z.string().max(2000).optional(),
+  state: z.string().max(4000).optional(),
+  error: z.string().max(200).optional(),
+});
+export const oauthExchangeSchema = z.object({ code: z.string().min(16).max(200) });
+
 // ─────────────────────────────────────────────
 // Mekan yorumu (üye başına mekan başına bir tane; tekrar gönderince güncellenir)
 // ─────────────────────────────────────────────

@@ -108,7 +108,9 @@ export const de: Dictionary = {
     switchToRegister: 'Noch kein Konto? Registrieren',
     switchToLogin: 'Schon ein Konto? Anmelden',
     google: 'Weiter mit Google',
-    googleSoon: 'Demnächst',
+    github: 'Weiter mit GitHub',
+    notConfigured: 'Nicht eingerichtet',
+    signingIn: 'Anmeldung läuft…',
     or: 'oder',
     privacy: 'Öffentlich sind nur dein Vorname und der erste Buchstabe deines Nachnamens sichtbar. Deine E-Mail wird nie geteilt.',
     errors: {
@@ -120,6 +122,8 @@ export const de: Dictionary = {
       rateLimit: 'Zu viele Versuche. Bitte warte ein paar Minuten.',
       network: 'Server nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.',
       failed: 'Etwas ist schiefgelaufen. Bitte versuche es erneut.',
+      oauthFailed: 'Die Anmeldung ist fehlgeschlagen. Versuche es erneut oder nutze E-Mail.',
+      oauthNoEmail: 'Dieses Konto hat keine bestätigte E-Mail-Adresse. Bestätige eine beim Anbieter oder registriere dich per E-Mail.',
     },
   },
   account: {

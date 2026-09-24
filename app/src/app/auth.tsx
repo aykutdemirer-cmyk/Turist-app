@@ -2,7 +2,7 @@ import { emailSchema } from '@localbite/shared';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Lock, X } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLogin, useRegister } from '../api/auth';
 import { ApiError } from '../api/client';
+import { SocialButtons } from '../components/auth/SocialButtons';
 import { Field, Input } from '../components/suggest/FormControls';
 import { useLocale, useT, type Dictionary } from '../i18n';
 import { useAuthStore, type AuthReason } from '../store/auth';
@@ -67,14 +68,32 @@ export default function AuthScreen() {
     [],
   );
 
-  const finish = () => {
+  const finish = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const { pendingAction, setPendingAction } = useAuthStore.getState();
     setPendingAction(null);
     router.back();
     // Modal kapandıktan sonra (ör. yeni gönderi ekranını açmak için)
     if (pendingAction) setTimeout(pendingAction, 350);
-  };
+  }, [router]);
+
+  // Oturum hangi yoldan açılırsa açılsın (e-posta, Google, GitHub) ekran bir kez kapanır
+  const session = useAuthStore((s) => s.session);
+  const finished = useRef(false);
+  useEffect(() => {
+    if (session && !finished.current) {
+      finished.current = true;
+      finish();
+    }
+  }, [session, finish]);
+
+  const oauthError = useAuthStore((s) => s.oauthError);
+  const oauthMessage =
+    oauthError === null
+      ? null
+      : oauthError === 'OAUTH_NO_VERIFIED_EMAIL'
+        ? t.auth.errors.oauthNoEmail
+        : t.auth.errors.oauthFailed;
 
   const validate = (): Errors => {
     const next: Errors = {};
@@ -90,9 +109,9 @@ export default function AuthScreen() {
     if (Object.keys(next).length > 0) return;
     const onError = (err: unknown) => setErrors({ form: errorMessage(err, t) });
     if (mode === 'login') {
-      login.mutate({ email: email.trim(), password }, { onSuccess: finish, onError });
+      login.mutate({ email: email.trim(), password }, { onError });
     } else {
-      register.mutate({ fullName: fullName.trim(), email: email.trim(), password, locale }, { onSuccess: finish, onError });
+      register.mutate({ fullName: fullName.trim(), email: email.trim(), password, locale }, { onError });
     }
   };
 
@@ -113,14 +132,8 @@ export default function AuthScreen() {
         <Text style={font.title}>{mode === 'login' ? t.auth.loginTitle : t.auth.registerTitle}</Text>
         <Text style={[font.small, styles.reason]}>{t.auth.reasons[reason]}</Text>
 
-        {/* Google: Expo Go'da yerel oturum açma modülü olmadığı için development build ile gelecek */}
-        <View style={[styles.google, styles.disabled]} accessibilityState={{ disabled: true }}>
-          <Text style={styles.googleG}>G</Text>
-          <Text style={styles.googleText}>{t.auth.google}</Text>
-          <View style={styles.soon}>
-            <Text style={styles.soonText}>{t.auth.googleSoon}</Text>
-          </View>
-        </View>
+        <SocialButtons disabled={busy} />
+        {oauthMessage && <Text style={styles.formError}>{oauthMessage}</Text>}
 
         <View style={styles.orRow}>
           <View style={styles.line} />
@@ -226,23 +239,6 @@ const useStyles = makeStyles(({ colors, font }) => ({
     marginBottom: spacing.xs,
   },
   reason: { fontWeight: '400', lineHeight: 19, marginTop: -spacing.xs },
-  google: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    height: 48,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    marginTop: spacing.sm,
-  },
-  disabled: { opacity: 0.6 },
-  googleG: { fontSize: 18, fontWeight: '800', color: '#4285F4' },
-  googleText: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },
-  soon: { backgroundColor: colors.surfaceMuted, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill },
-  soonText: { fontSize: 11, fontWeight: '700', color: colors.textMuted },
   orRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   line: { flex: 1, height: 1, backgroundColor: colors.border },
   formError: { color: colors.danger, fontSize: 13, fontWeight: '600' },

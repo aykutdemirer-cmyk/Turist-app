@@ -75,21 +75,80 @@ export async function me(userId: string): Promise<AuthUserDTO> {
 }
 
 // ─────────────────────────────────────────────
-// Google ile giriş — backend hazır, mobil taraf development build gerektirdiği için henüz bağlı değil.
-// İstemci Google'dan aldığı ID token'ı gönderir; imza Google'ın JWKS'i ile doğrulanır.
+// Sosyal giriş (Google, GitHub) — ortak hesap eşleştirme
 // ─────────────────────────────────────────────
+
+export type OAuthProvider = 'google' | 'github';
+
+export interface OAuthProfile {
+  provider: OAuthProvider;
+  providerId: string;
+  /** Sağlayıcının doğruladığı e-posta (küçük harf) */
+  email: string;
+  fullName?: string;
+  avatarUrl?: string;
+}
+
+/**
+ * Sağlayıcı kimliğiyle ya da doğrulanmış e-postayla eşleşen üyeyi bulur; yoksa oluşturur.
+ * E-posta ile açılmış hesaba sosyal giriş bağlanır (şifre korunur). Cihazın misafir kaydı
+ * henüz bir üyeye bağlı değilse yeni hesap o satırın üzerine açılır.
+ */
+export async function upsertOAuthUser(profile: OAuthProfile, deviceId?: string): Promise<User> {
+  const now = new Date();
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ authProvider: profile.provider, authProviderId: profile.providerId }, { email: profile.email }] },
+  });
+  if (existing) {
+    return prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        lastLoginAt: now,
+        fullName: existing.fullName ?? profile.fullName,
+        avatarUrl: existing.avatarUrl ?? profile.avatarUrl,
+      },
+    });
+  }
+
+  const data = {
+    email: profile.email,
+    fullName: profile.fullName,
+    avatarUrl: profile.avatarUrl,
+    authProvider: profile.provider,
+    authProviderId: profile.providerId,
+    lastLoginAt: now,
+  };
+  const guest = deviceId ? await prisma.user.findUnique({ where: { deviceId } }) : null;
+  try {
+    return guest && !guest.email && !guest.authProvider
+      ? await prisma.user.update({ where: { id: guest.id }, data })
+      : await prisma.user.create({ data });
+  } catch (err) {
+    // Aynı anda iki giriş denemesi: ikinci istek diğerinin açtığı hesabı kullanır
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      const user = await prisma.user.findUnique({ where: { email: profile.email } });
+      if (user) return user;
+    }
+    throw err;
+  }
+}
+
+export const createSession = session;
 
 const googleJwks = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 
-export async function loginWithGoogle(input: GoogleLoginInput): Promise<AuthResponseDTO> {
-  const audience = env.GOOGLE_CLIENT_ID.split(',').map((s) => s.trim()).filter(Boolean);
+export const googleClientIds = () => env.GOOGLE_CLIENT_ID.split(',').map((s) => s.trim()).filter(Boolean);
+
+/** Google ID token'ını imza, yayıncı ve hedef kitleye göre doğrular */
+export async function verifyGoogleIdToken(idToken: string): Promise<OAuthProfile> {
+  const audience = googleClientIds();
   if (audience.length === 0) {
     throw new HttpError(501, 'GOOGLE_AUTH_DISABLED', 'Google sign-in is not configured on this server');
   }
 
   let payload;
   try {
-    ({ payload } = await jwtVerify(input.idToken, googleJwks, {
+    ({ payload } = await jwtVerify(idToken, googleJwks, {
       issuer: ['https://accounts.google.com', 'accounts.google.com'],
       audience,
     }));
@@ -97,25 +156,20 @@ export async function loginWithGoogle(input: GoogleLoginInput): Promise<AuthResp
     throw unauthorized('Invalid Google token');
   }
 
-  const sub = payload.sub;
   const email = typeof payload.email === 'string' ? payload.email.toLowerCase() : undefined;
-  if (!sub || !email || payload.email_verified !== true) throw unauthorized('Google account email is not verified');
-
-  const profile = {
+  if (!payload.sub || !email || payload.email_verified !== true) {
+    throw unauthorized('Google account email is not verified');
+  }
+  return {
+    provider: 'google',
+    providerId: payload.sub,
+    email,
     fullName: typeof payload.name === 'string' ? payload.name : undefined,
     avatarUrl: typeof payload.picture === 'string' ? payload.picture : undefined,
-    lastLoginAt: new Date(),
   };
+}
 
-  const existing = await prisma.user.findFirst({
-    where: { OR: [{ authProvider: 'google', authProviderId: sub }, { email }] },
-  });
-  const user = existing
-    ? await prisma.user.update({
-        where: { id: existing.id },
-        // E-posta ile açılmış hesaba Google bağlanır; şifre korunur
-        data: { lastLoginAt: profile.lastLoginAt, avatarUrl: existing.avatarUrl ?? profile.avatarUrl },
-      })
-    : await prisma.user.create({ data: { ...profile, email, authProvider: 'google', authProviderId: sub } });
-  return session(user);
+/** Yerel Google girişi (development build'de istemcinin aldığı ID token ile) */
+export async function loginWithGoogle(input: GoogleLoginInput): Promise<AuthResponseDTO> {
+  return session(await upsertOAuthUser(await verifyGoogleIdToken(input.idToken)));
 }

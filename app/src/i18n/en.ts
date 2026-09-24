@@ -108,7 +108,9 @@ export const en = {
     switchToRegister: "Don't have an account? Sign up",
     switchToLogin: 'Already have an account? Sign in',
     google: 'Continue with Google',
-    googleSoon: 'Coming soon',
+    github: 'Continue with GitHub',
+    notConfigured: 'Not set up',
+    signingIn: 'Signing you in…',
     or: 'or',
     privacy: 'Only your first name and last initial are shown publicly. Your email is never shared.',
     errors: {
@@ -120,6 +122,8 @@ export const en = {
       rateLimit: 'Too many attempts. Please wait a few minutes.',
       network: "Can't reach the server. Check your connection and try again.",
       failed: 'Something went wrong. Please try again.',
+      oauthFailed: 'Social sign-in failed. Please try again or use email.',
+      oauthNoEmail: 'That account has no verified email address. Verify one with the provider or sign up with email.',
     },
   },
   account: {

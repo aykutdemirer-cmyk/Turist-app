@@ -17,6 +17,15 @@ const envSchema = z.object({
   JWT_TTL_DAYS: z.coerce.number().int().positive().default(30),
   /** Virgülle ayrılmış Google OAuth client ID'leri; boşsa Google ile giriş kapalı */
   GOOGLE_CLIENT_ID: z.string().default(''),
+  /** Tarayıcı tabanlı OAuth akışı için (web uygulaması istemcisi); boşsa Google girişi kapalı */
+  GOOGLE_CLIENT_SECRET: z.string().default(''),
+  /** GitHub OAuth App; ikisi de boşsa GitHub girişi kapalı */
+  GITHUB_CLIENT_ID: z.string().default(''),
+  GITHUB_CLIENT_SECRET: z.string().default(''),
+  /** Sağlayıcıların geri döneceği adres; sağlayıcı panelinde callback olarak kayıtlı olmalı */
+  PUBLIC_API_URL: z.string().url().optional(),
+  /** Girişten sonra dönülebilecek uygulama şemaları (açık yönlendirmeyi önler) */
+  OAUTH_APP_SCHEMES: z.string().default('exp,exps,localbite'),
 });
 
 export const env = envSchema.parse(process.env);

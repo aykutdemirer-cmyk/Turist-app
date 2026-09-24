@@ -128,6 +128,12 @@ export interface AuthUserDTO {
   createdAt: string;
 }
 
+/** Sunucuda yapılandırılmış sosyal giriş sağlayıcıları */
+export interface OAuthProvidersDTO {
+  google: boolean;
+  github: boolean;
+}
+
 export interface AuthResponseDTO {
   /** Authorization: Bearer <token> */
   token: string;
