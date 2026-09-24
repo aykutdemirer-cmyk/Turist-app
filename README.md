@@ -62,6 +62,20 @@ Ortak tipler ve doğrulama şemaları `packages/shared` içindedir.
 
 ---
 
+## Teknoloji yığını
+
+- **Mobil:** Expo SDK 57, React Native, Expo Router (dosya tabanlı rotalar, typed routes), TanStack Query, Zustand.
+- **Harita:** `react-native-webview` içinde Leaflet + OpenStreetMap. Leaflet dosyaları ve karolar API'den
+  sunulur (`/map/leaflet.js`, `/tiles/{z}/{x}/{y}.png` önbellekli proxy), bu yüzden Google Maps anahtarı ya da
+  Play Services gerekmez; RN ile harita arasında `postMessage` köprüsü vardır.
+- **Sesli telaffuz:** `expo-speech` yemek adlarını okur; Türkçe ses yoksa telaffuz rehberini İngilizce sesle okur.
+- **Konum ve cihaz:** `expo-location` (yalnızca ön plan), `expo-secure-store` (oturum ve cihaz kimliği), `expo-haptics`.
+- **API:** Fastify 5 + `fastify-type-provider-zod`, Prisma 6, PostgreSQL, `jose` (JWT, HS256), scrypt şifreleme.
+- **Web paneli:** Vite, React 19, React Router 7, Tailwind CSS v4, TanStack Query.
+- **Ortak:** `packages/shared` içinde zod şemaları ve DTO tipleri; istemci ve sunucu aynı doğrulamayı kullanır.
+
+---
+
 ## Proje yapısı
 
 ```
@@ -117,30 +131,36 @@ npm run db:seed         # 13 örnek İstanbul mekanı, 1 bekleyen başvuru, test
 ### Çalıştırma
 
 ```bash
-npm run dev:api         # API          → http://localhost:3000 (PORT ile değişir)
+npm run dev:api         # API          → http://localhost:3001
 npm run dev:admin       # Web paneli   → http://localhost:5173
 cd app && npx expo start
 ```
 
+Tüm servisleri tek komutla başlatan bir betik (`dev:all`) yok; API, web paneli ve Metro ayrı terminallerde çalışır.
+
 Android emülatörde API ve Metro'ya erişim için:
 
 ```bash
-adb reverse tcp:3001 tcp:3001   # API portu (backend/.env içindeki PORT)
+adb reverse tcp:3001 tcp:3001   # API
 adb reverse tcp:8081 tcp:8081   # Metro
 ```
 
-`app/.env` içindeki `EXPO_PUBLIC_API_URL` API portuyla aynı olmalı (emülatörden host makine: `http://10.0.2.2:<PORT>`).
+`app/.env` içinde `EXPO_PUBLIC_API_URL=http://10.0.2.2:3001` (emülatörden host makine) ya da `adb reverse` ile
+`http://localhost:3001` kullanın. Port değişirse `backend/.env`, `app/.env` ve `admin/.env` birlikte güncellenmeli.
 
 > Emülatörü `-no-snapshot-save` ile başlatmayın: bir sonraki açılışta uygulama ayarları (tema, dil) sıfırlanır.
 
 ### Test hesapları (yalnızca yerel geliştirme)
 
-Seed şu hesapları oluşturur. Üretimde `SEED_ADMIN_PASSWORD` ve `SEED_VENDOR_PASSWORD` verilmezse oluşturulmaz.
+Seed aşağıdaki hesapları oluşturur.
 
 | E-posta | Şifre | Rol |
 |---|---|---|
-| `admin@localbite.app` | `LocalBite-Admin-2026` | `SUPER_ADMIN` |
-| `pilavci@localbite.app` | `LocalBite-Pilav-2026` | `VENDOR` (Rıhtım Gece Pilavcısı) |
+| `admin@localbite.app` | (seed.ts dosyasındaki varsayılan geliştirme parolası) | `SUPER_ADMIN` |
+| `pilavci@localbite.app` | (seed.ts dosyasındaki varsayılan geliştirme parolası) | `VENDOR` (Rıhtım Gece Pilavcısı) |
+
+> Parolalar `SEED_ADMIN_PASSWORD` ve `SEED_VENDOR_PASSWORD` ortam değişkenleriyle ezilebilir. Üretimde
+> (`NODE_ENV=production`) bu iki değişken verilmezse hesaplar hiç oluşturulmaz.
 
 Mevcut bir üyeye yetki vermek için:
 
@@ -158,7 +178,7 @@ npm run vendor:grant -w @localbite/backend -- kisi@ornek.com mekan-slug  # VENDO
 | Değişken | Açıklama |
 |---|---|
 | `DATABASE_URL` | PostgreSQL bağlantısı |
-| `PORT`, `HOST` | Dinleme adresi (varsayılan `3000`, `0.0.0.0`) |
+| `PORT`, `HOST` | Dinleme adresi: `3001` (`.env.example`), `0.0.0.0`. Değişken hiç verilmezse kod `3000` kullanır |
 | `CORS_ORIGIN` | Virgülle ayrılmış origin listesi ya da `*` |
 | `JWT_SECRET` | En az 32 karakter; `JWT_TTL_DAYS` oturum süresi (varsayılan 30) |
 | `PUBLIC_API_URL` | OAuth callback'lerinin kök adresi |
@@ -169,6 +189,7 @@ npm run vendor:grant -w @localbite/backend -- kisi@ornek.com mekan-slug  # VENDO
 | `LEGAL_CONTACT_EMAIL` | Yasal sayfalar ve silme talepleri iletişim adresi |
 | `GETYOURGUIDE_PARTNER_ID`, `VIATOR_PID`, `AIRALO_REF` | İş ortaklığı kimlikleri |
 | `ALLOW_MOCK_PURCHASES` | Test satın alması; üretimde her zaman kapalı |
+| `SEED_ADMIN_PASSWORD`, `SEED_VENDOR_PASSWORD` | Yalnızca seed: test hesabı parolalarını ezer (üretimde zorunlu) |
 
 OAuth callback adresleri: `{PUBLIC_API_URL}/api/v1/auth/oauth/{google|github}/callback`.
 
@@ -176,9 +197,15 @@ OAuth callback adresleri: `{PUBLIC_API_URL}/api/v1/auth/oauth/{google|github}/ca
 
 | Değişken | Açıklama |
 |---|---|
-| `EXPO_PUBLIC_API_URL` | API adresi (yoksa Expo dev sunucusunun IP'si denenir) |
+| `EXPO_PUBLIC_API_URL` | API adresi, ör. `http://10.0.2.2:3001`. Verilmezse Expo dev sunucusunun IP'si + `:3000` denenir, bu yüzden 3001 ile çalışırken verilmelidir |
 | `EXPO_PUBLIC_TILE_URL` | Harita karo adresi (varsayılan: API'nin önbellekli OSM proxy'si) |
 | `EXPO_PUBLIC_SHARE_BASE_URL` | Paylaşılan mekan bağlantılarının alanı (varsayılan `https://uygulama-linki.com`) |
+
+### `admin/.env`
+
+| Değişken | Açıklama |
+|---|---|
+| `VITE_API_URL` | API kök adresi, varsayılan `http://localhost:3001`. `/api/v1` panel tarafından eklenir; adrese yazılmamalı |
 
 ---
 
@@ -191,7 +218,12 @@ OAuth callback adresleri: `{PUBLIC_API_URL}/api/v1/auth/oauth/{google|github}/ca
 | `npm test -w @localbite/app` / `npm test -w @localbite/shared` | Birim testleri (`node --test`) |
 | `npm run db:migrate` / `npm run db:seed` | Migration / örnek veri |
 | `npm run db:migrate:dev -w @localbite/backend` | Yeni migration üretir (yalnızca geliştirme) |
-| `npm run build -w @localbite/admin` | Web panelinin üretim derlemesi |
+| `npm run dev:api` / `npm run dev:admin` | API (izleme modunda) / web paneli geliştirme sunucusu |
+| `npm run typecheck -w @localbite/admin` | Web paneli TypeScript kontrolü |
+| `npm run build -w @localbite/admin` | Web panelinin üretim derlemesi (önce typecheck) |
+| `npm run preview -w @localbite/admin` | Derlenmiş paneli yerelde sunar |
+
+Web panelinde henüz lint ve birim testi betiği yok; kontrol `typecheck` ve `build` ile yapılır.
 
 ---
 

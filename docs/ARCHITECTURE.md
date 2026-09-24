@@ -23,7 +23,7 @@
 │   ├── .env.example              # DATABASE_URL, PORT
 │   ├── prisma/
 │   │   ├── schema.prisma
-│   │   ├── seed.ts               # İstanbul örnek verisi (10 mekan)
+│   │   ├── seed.ts               # İstanbul örnek verisi (13 mekan + 1 bekleyen başvuru)
 │   │   └── migrations/
 │   └── src/
 │       ├── server.ts             # listen + graceful shutdown
@@ -59,7 +59,7 @@
 | Backend | Fastify + zod | Hafif, TS dostu, şema doğrulama yerleşik |
 | Sunucu durumu | TanStack Query | Önbellek, yeniden deneme, optimistic "Spotted" butonu |
 | İstemci durumu | Zustand | Filtre çipleri ve seçili mekan için yeterince basit |
-| Harita | react-native-maps | İstendiği gibi; iOS'ta Apple Maps, Android'de Google Maps |
+| Harita | Leaflet + OpenStreetMap (`react-native-webview`) | Google Maps anahtarı ve Play Services gerekmez; Expo Go dahil her ortamda çalışır |
 | Stil | StyleSheet + `src/theme` token'ları | NativeWind kurulum yükü olmadan tutarlı tema; ileride eklenebilir |
 | Detay ekranı | Expo Router modal | Ek bağımlılık yok; iOS'ta sheet, Android'de tam ekran |
 | Konum sorgusu | lat/lng + bbox index + haversine | MVP için yeterli; ölçeklenince PostGIS'e geçilebilir (şema buna hazır) |
