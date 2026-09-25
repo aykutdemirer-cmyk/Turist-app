@@ -61,6 +61,7 @@ export function VenueMap({
         type: v.type,
         isMobile: v.isMobile,
         isActiveNow: v.isActiveNow,
+        external: v.source !== 'LOCALBITE',
         live: liveLocationFreshness(v.liveLocation?.updatedAt),
       })),
     [venues],

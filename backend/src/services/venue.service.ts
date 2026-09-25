@@ -20,6 +20,14 @@ import {
 } from '@localbite/shared';
 import { prisma } from '../db';
 import { notFound } from '../lib/errors';
+import {
+  findLivePlaces,
+  getLivePlaceDetail,
+  isLivePlaceId,
+  livePlaceSummary,
+  matchesQuery,
+  withoutDuplicates,
+} from './live-places.service';
 import { blockedIdsFor } from './moderation.service';
 import { localesFor, pickTranslation } from '../lib/locale';
 
@@ -169,6 +177,16 @@ export function liveStatus(venue: LiveStatusInput, now: Date) {
   };
 }
 
+/**
+ * Kapak: mekanın kendi fotoğrafı; yoksa öne çıkan ilk yemeğin lisanslı fotoğrafı (atfıyla).
+ * Yemekler sortOrder'a göre gelir, böylece ana lezzet (ör. pilav) yan üründen (ayran) önce seçilir.
+ */
+function coverImage(venue: { coverImageUrl: string | null; dishes: { imageUrl: string | null; imageCredit: string | null }[] }) {
+  if (venue.coverImageUrl) return { coverImageUrl: venue.coverImageUrl, coverImageCredit: null };
+  const dish = venue.dishes.find((d) => d.imageUrl);
+  return { coverImageUrl: dish?.imageUrl ?? null, coverImageCredit: dish?.imageCredit ?? null };
+}
+
 function toSummary(
   venue: VenueWithRelations,
   locale: Locale,
@@ -184,7 +202,10 @@ function toSummary(
     name: venue.name,
     type: venue.type,
     isMobile: isStreetVendor(venue),
+    source: 'LOCALBITE',
+    sourceUrl: null,
     priceLevel: venue.priceLevel,
+    openStatusKnown: true,
     authenticityScore: venue.authenticityScore,
     ...status.position,
     locationNote: status.locationNote,
@@ -201,7 +222,7 @@ function toSummary(
     spottedTodayCount: spottedToday.get(venue.id) ?? 0,
     upvoteCount: venue.upvoteCount,
     rating: ratings.get(venue.id) ?? NO_RATING,
-    coverImageUrl: venue.coverImageUrl,
+    ...coverImage(venue),
     isPromoted: venue.isPromoted,
     liveLocation: status.liveLocation,
     topReview: latest.get(venue.id) ?? null,
@@ -213,8 +234,12 @@ function toSummary(
   };
 }
 
-export async function findNearbyVenues(query: NearbyQuery, locale: Locale, now = new Date()) {
+type Logger = Parameters<typeof findLivePlaces>[2];
+
+export async function findNearbyVenues(query: NearbyQuery, locale: Locale, log: Logger, now = new Date()) {
   const origin: LatLng = { latitude: query.lat, longitude: query.lng };
+  // Dış kaynak sorgusu veritabanıyla paralel başlar
+  const livePromise = findLivePlaces(origin, locale, log);
   const box = boundingBox(origin, query.radius + MOBILE_VENDOR_MARGIN_M);
 
   const venues = await prisma.venue.findMany({
@@ -245,14 +270,33 @@ export async function findNearbyVenues(query: NearbyQuery, locale: Locale, now =
     latestReviews(ids, locale),
   ]);
 
-  const items = venues
+  const own = venues
     .map((v) => toSummary(v, locale, origin, now, { spottedToday, ratings, latest }))
     .filter((v) => v.distanceMeters <= query.radius)
     .filter((v) => !query.openNowOnly || v.isActiveNow)
     .sort((a, b) => a.distanceMeters - b.distanceMeters)
     .slice(0, query.limit);
 
-  return { items, count: items.length, center: origin, radius: query.radius, locale, generatedAt: now.toISOString() };
+  // Kendi mekanlarımız her zaman listede; kalan yer canlı gerçek mekanlarla dolar
+  const { places, pending } = await livePromise;
+  const live = withoutDuplicates(places, own)
+    .filter((p) => matchesQuery(p, query))
+    .map((p) => livePlaceSummary(p, origin))
+    .filter((v) => v.distanceMeters <= query.radius)
+    .sort((a, b) => a.distanceMeters - b.distanceMeters)
+    .slice(0, query.limit - own.length);
+
+  const items = [...own, ...live].sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+  return {
+    items,
+    count: items.length,
+    center: origin,
+    radius: query.radius,
+    locale,
+    generatedAt: now.toISOString(),
+    livePending: pending,
+  };
 }
 
 export async function getVenueDetail(
@@ -261,6 +305,7 @@ export async function getVenueDetail(
   viewerId: string | null = null,
   now = new Date(),
 ): Promise<VenueDetailDTO> {
+  if (isLivePlaceId(idOrSlug)) return getLivePlaceDetail(idOrSlug);
   const venue = await prisma.venue.findFirst({
     where: { status: 'ACTIVE', OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
     include: {
@@ -300,7 +345,10 @@ export async function getVenueDetail(
     name: venue.name,
     type: venue.type,
     isMobile: isStreetVendor(venue),
+    source: 'LOCALBITE',
+    sourceUrl: null,
     priceLevel: venue.priceLevel,
+    openStatusKnown: true,
     authenticityScore: venue.authenticityScore,
     ...status.position,
     locationNote: status.locationNote,
@@ -320,7 +368,7 @@ export async function getVenueDetail(
     spottedTodayCount: spottedToday.get(venue.id) ?? 0,
     upvoteCount: venue.upvoteCount,
     rating: ratings.get(venue.id) ?? NO_RATING,
-    coverImageUrl: venue.coverImageUrl,
+    ...coverImage(venue),
     isPromoted: venue.isPromoted,
     liveLocation: status.liveLocation,
     announcements: venue.announcements.map((a) => ({

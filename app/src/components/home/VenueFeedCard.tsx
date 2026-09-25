@@ -2,28 +2,38 @@ import type { VenueSummaryDTO } from '@localbite/shared';
 import * as Haptics from 'expo-haptics';
 import { Award, MapPin, Navigation2, Star } from 'lucide-react-native';
 import { memo } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useT } from '../../i18n';
 import { openDirections } from '../../lib/directions';
 import { formatDistance, priceSymbol } from '../../lib/format';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 import { FoodImage } from '../ui/FoodImage';
+import { Scrim } from '../ui/Scrim';
 
 interface Props {
   venue: VenueSummaryDTO;
   onPress: (id: string) => void;
 }
 
+/** Yol tarifi düğmesi + kenar boşluğu: metin bu genişlikte kesilir, düğmenin altına girmez */
+const ACTION_SPACE = 44 + spacing.md;
+
 /**
- * Ana sayfa mekan kartı: 16:9 kapak (mesafe, puan ve durum rozetleriyle),
- * altında ad, kategori/semt satırı, tek satır lezzet özeti ve yol tarifi düğmesi.
+ * Ana sayfa mekan kartı: fotoğraf kartın tamamını kaplar (öne çıkan yemeğin lisanslı fotoğrafı;
+ * yoksa illüstrasyon). Alttaki koyu geçiş üstünde ad, kategori/semt ve tek satır özet; sağ altta yol tarifi.
  */
 export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Props) {
   const { colors, shadow } = useTheme();
   const styles = useStyles();
   const t = useT();
   const open = venue.isActiveNow || venue.isScheduledOpen;
-  const statusLabel = venue.isMobile && venue.isActiveNow ? t.status.activeNow : open ? t.status.openNow : t.status.closed;
+  const statusLabel = !venue.openStatusKnown
+    ? t.status.hoursUnknown
+    : venue.isMobile && venue.isActiveNow
+      ? t.status.activeNow
+      : open
+        ? t.status.openNow
+        : t.status.closed;
 
   return (
     <Pressable
@@ -32,58 +42,70 @@ export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Pro
       accessibilityLabel={`${venue.name}, ${formatDistance(venue.distanceMeters)}, ${statusLabel}`}
       style={({ pressed }) => [styles.card, shadow.card, venue.isPromoted && styles.promotedCard, pressed && styles.pressed]}
     >
-      <View style={styles.cover}>
-        <FoodImage
-          uri={venue.coverImageUrl}
-          subject={venue.mustTry[0]?.localName}
-          type={venue.type}
-          isMobile={venue.isMobile}
-          style={styles.image}
-          emojiSize={40}
-        />
+      <FoodImage
+        uri={venue.coverImageUrl}
+        subject={venue.mustTry[0]?.localName}
+        type={venue.type}
+        isMobile={venue.isMobile}
+        style={StyleSheet.absoluteFill}
+        emojiSize={44}
+      />
+      <Scrim from={0.3} />
 
-        <View style={[styles.pill, styles.topLeft]}>
+      {/* Üst rozetler */}
+      <View style={styles.topRow} pointerEvents="none">
+        <View style={styles.pill}>
           <MapPin size={12} color="#FFFFFF" strokeWidth={2.6} />
           <Text style={styles.pillText}>{formatDistance(venue.distanceMeters)}</Text>
         </View>
-
-        {/* Ücretli öne çıkarma: "Sponsorlu" ibaresi reklam bildirimi olarak zorunlu */}
-        {venue.isPromoted && (
-          <View style={[styles.pill, styles.topRight, styles.promoPill]} accessibilityLabel={`${t.promoted.badge}, ${t.promoted.sponsored}`}>
-            <Award size={12} color="#422006" />
-            <Text style={styles.promoText}>
-              {t.promoted.badge} · {t.promoted.sponsored}
-            </Text>
-          </View>
-        )}
-
-        {venue.rating.average !== null && (
-          <View style={[styles.pill, venue.isPromoted ? styles.bottomRight : styles.topRight]}>
-            <Text style={styles.ratingText}>{venue.rating.average.toFixed(1)}</Text>
-            <Star size={12} color={colors.gold} fill={colors.gold} />
-          </View>
-        )}
-
-        <View style={[styles.pill, styles.bottomLeft, open && { backgroundColor: 'rgba(22,163,74,0.92)' }]}>
-          <View style={[styles.dot, { backgroundColor: open ? '#BBF7D0' : '#D1D5DB' }]} />
-          <Text style={styles.pillText}>{statusLabel}</Text>
+        <View style={styles.topRight}>
+          {/* Ücretli öne çıkarma: "Sponsorlu" ibaresi reklam bildirimi olarak zorunlu */}
+          {venue.isPromoted && (
+            <View style={[styles.pill, styles.promoPill]} accessibilityLabel={`${t.promoted.badge}, ${t.promoted.sponsored}`}>
+              <Award size={12} color="#422006" />
+              <Text style={styles.promoText}>
+                {t.promoted.badge} · {t.promoted.sponsored}
+              </Text>
+            </View>
+          )}
+          {venue.rating.average !== null && (
+            <View style={styles.pill}>
+              <Text style={styles.ratingText}>{venue.rating.average.toFixed(1)}</Text>
+              <Star size={12} color={colors.gold} fill={colors.gold} />
+            </View>
+          )}
         </View>
       </View>
 
-      <View style={styles.body}>
-        <View style={styles.info}>
+      {/* Alt bilgi: sağda yol tarifi düğmesine yer bırakılır */}
+      <View style={styles.bottom}>
+        <View style={[styles.info, { paddingRight: ACTION_SPACE }]}>
+          <View style={[styles.status, open && styles.statusOpen]}>
+            <View style={[styles.dot, { backgroundColor: open ? '#BBF7D0' : '#D1D5DB' }]} />
+            <Text style={styles.statusText}>{statusLabel}</Text>
+          </View>
           <Text style={styles.name} numberOfLines={1}>
             {venue.name}
           </Text>
           <Text style={styles.meta} numberOfLines={1}>
-            <Text style={styles.price}>{priceSymbol(venue.priceLevel)}</Text>
-            {'  ·  '}
+            {venue.priceLevel && <Text style={styles.price}>{`${priceSymbol(venue.priceLevel)}  ·  `}</Text>}
             {t.venueType[venue.type]}
             {venue.neighborhood ? `  ·  ${venue.neighborhood}` : ''}
           </Text>
           {venue.tagline && (
             <Text style={styles.tagline} numberOfLines={1}>
               {venue.tagline}
+            </Text>
+          )}
+          {/* CC lisansı görünür atıf ister; fotoğraf temsilidir (mekanın kendisi değil, yemeği) */}
+          {venue.source !== 'LOCALBITE' && (
+            <Text style={styles.credit} numberOfLines={1}>
+              {t.liveSource[venue.source]}
+            </Text>
+          )}
+          {venue.coverImageCredit && (
+            <Text style={styles.credit} numberOfLines={1}>
+              {t.detail.photoCredit(venue.coverImageCredit)}
             </Text>
           )}
         </View>
@@ -106,39 +128,66 @@ export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Pro
 });
 
 const useStyles = makeStyles(({ colors }) => ({
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg + 2, borderWidth: 1, borderColor: colors.border },
-  pressed: { opacity: 0.9 },
-  cover: { margin: 6, marginBottom: 0, borderRadius: radius.lg - 2, overflow: 'hidden' },
-  image: { width: '100%', aspectRatio: 16 / 9 },
-  pill: {
+  card: {
+    height: 272,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pressed: { opacity: 0.92 },
+  promotedCard: { borderColor: colors.gold, borderWidth: 2 },
+  topRow: {
     position: 'absolute',
+    top: spacing.md,
+    left: spacing.md,
+    right: spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  topRight: { alignItems: 'flex-end', gap: 6 },
+  pill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 10,
     height: 28,
     borderRadius: radius.pill,
-    backgroundColor: colors.overlay,
+    backgroundColor: 'rgba(17,17,17,0.55)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
   },
-  topLeft: { top: spacing.sm + 2, left: spacing.sm + 2 },
-  topRight: { top: spacing.sm + 2, right: spacing.sm + 2 },
-  bottomLeft: { bottom: spacing.sm + 2, left: spacing.sm + 2 },
-  bottomRight: { bottom: spacing.sm + 2, right: spacing.sm + 2 },
-  promotedCard: { borderColor: colors.gold, borderWidth: 2 },
   promoPill: { backgroundColor: '#FACC15', borderColor: '#EAB308' },
   promoText: { color: '#422006', fontSize: 11, fontWeight: '800' },
   pillText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
   ratingText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.lg, paddingTop: 0 },
+  info: { gap: 3 },
+  status: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    paddingHorizontal: 9,
+    height: 24,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(17,17,17,0.55)',
+    marginBottom: 4,
+  },
+  statusOpen: { backgroundColor: 'rgba(22,163,74,0.92)' },
+  statusText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  body: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, paddingHorizontal: spacing.lg - 2 },
-  info: { flex: 1, gap: 3 },
-  name: { fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.2 },
-  meta: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
-  price: { color: colors.open, fontWeight: '800' },
-  tagline: { fontSize: 14, color: colors.text, opacity: 0.85, marginTop: 1 },
+  name: { fontSize: 20, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.2 },
+  meta: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
+  price: { color: '#86EFAC', fontWeight: '800' },
+  tagline: { fontSize: 14, color: 'rgba(255,255,255,0.92)', marginTop: 1 },
+  credit: { fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
   directions: {
+    position: 'absolute',
+    right: spacing.lg,
+    bottom: spacing.lg,
     width: 44,
     height: 44,
     borderRadius: 22,

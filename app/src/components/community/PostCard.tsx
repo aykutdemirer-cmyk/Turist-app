@@ -1,7 +1,7 @@
 import type { PostDTO, PublicAuthorDTO } from '@localbite/shared';
 import type { ReactNode } from 'react';
 import * as Haptics from 'expo-haptics';
-import { BadgeCheck, MapPin, MessageCircle, ThumbsUp } from 'lucide-react-native';
+import { BadgeCheck, MapPin, MessageCircle, Heart } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import { useToggleLike } from '../../api/community';
 import { useRequireAuth } from '../../hooks/useRequireAuth';
@@ -93,23 +93,23 @@ export function PostCard({ post, onPress, full = false }: { post: PostDTO; onPre
       <View style={styles.footer}>
         <Pressable
           onPress={toggleLike}
-          hitSlop={8}
-          style={[styles.action, post.likedByMe && styles.actionActive]}
+          hitSlop={10}
+          style={({ pressed }) => [styles.action, pressed && styles.pressed]}
           accessibilityRole="button"
           accessibilityState={{ selected: post.likedByMe }}
+          accessibilityLabel={`${t.community.agree}, ${post.likeCount}`}
         >
-          <ThumbsUp
-            size={15}
-            color={post.likedByMe ? colors.primary : colors.textMuted}
-            fill={post.likedByMe ? colors.primarySoft : 'transparent'}
+          <Heart
+            size={20}
+            color={post.likedByMe ? colors.danger : colors.textMuted}
+            fill={post.likedByMe ? colors.danger : 'transparent'}
+            strokeWidth={2}
           />
-          <Text style={[styles.actionText, post.likedByMe && styles.actionTextActive]}>
-            {t.community.agree} · {post.likeCount}
-          </Text>
+          <Text style={[styles.actionText, post.likedByMe && { color: colors.danger }]}>{post.likeCount}</Text>
         </Pressable>
-        <View style={styles.action}>
-          <MessageCircle size={15} color={colors.textMuted} />
-          <Text style={styles.actionText}>{t.community.comments(post.commentCount)}</Text>
+        <View style={styles.action} accessibilityLabel={t.community.comments(post.commentCount)}>
+          <MessageCircle size={20} color={colors.textMuted} strokeWidth={2} />
+          <Text style={styles.actionText}>{post.commentCount}</Text>
         </View>
       </View>
     </Pressable>
@@ -121,7 +121,7 @@ const useStyles = makeStyles(({ colors }) => ({
   pressed: { opacity: 0.9 },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: 16,
     padding: spacing.lg,
     gap: spacing.sm,
     borderWidth: 1,
@@ -157,17 +157,14 @@ const useStyles = makeStyles(({ colors }) => ({
     borderRadius: radius.pill,
   },
   venueText: { fontSize: 12, fontWeight: '600', color: colors.primary, flexShrink: 1 },
-  footer: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
-  action: {
+  footer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceMuted,
+    gap: spacing.xl,
+    marginTop: spacing.xs,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
-  actionActive: { backgroundColor: colors.primarySoft },
-  actionText: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
-  actionTextActive: { color: colors.primary },
+  action: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
+  actionText: { fontSize: 14, fontWeight: '700', color: colors.textMuted, fontVariant: ['tabular-nums'] },
 }));

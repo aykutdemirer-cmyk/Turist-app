@@ -17,6 +17,10 @@ Ortak tipler ve doğrulama şemaları `packages/shared` içindedir.
   - SEYYAR / ESNAF katmanları, "Bu bölgede ara"
   - Mesafe filtresi: 500 m · 1 km · 3 km · 5 km · Tümü (Haversine; harita üzerinde kesikli daire)
   - Şu an açık, bütçe dostu `$`, canlı konumlu seyyarlar ve yemek kategorisi filtreleri
+- **Canlı gerçek mekanlar:** `GET /venues/nearby` kendi mekanlarımıza ek olarak yakındaki gerçek yerleri
+  getirir (en fazla 3 km, bellek içinde 1 saat önbellek). `GOOGLE_PLACES_API_KEY` varsa Google Places (New)
+  `searchNearby` (yalnızca uygun/orta fiyatlı), yoksa ya da kota/hata olursa OpenStreetMap (Overpass).
+  Bu yerler salt okunurdur (yorum/teyit yok), küçük gri pinle ve kaynak atfıyla gösterilir.
 - **Canlı seyyar konumu:** satıcının gönderdiği konum haritada gösterilir.
   - ≤ 4 sa: yeşil halka + "Doğrulanmış Canlı Konum"
   - 4–12 sa: "Konum X dk önce satıcı tarafından güncellendi"
@@ -188,6 +192,8 @@ npm run vendor:grant -w @localbite/backend -- kisi@ornek.com mekan-slug  # VENDO
 | `OAUTH_WEB_ORIGINS` | Web paneli için izinli dönüş origin'leri |
 | `LEGAL_CONTACT_EMAIL` | Yasal sayfalar ve silme talepleri iletişim adresi |
 | `GETYOURGUIDE_PARTNER_ID`, `VIATOR_PID`, `AIRALO_REF` | İş ortaklığı kimlikleri |
+| `GOOGLE_PLACES_API_KEY` | Canlı mekanlar için Google Places (New); boşsa OpenStreetMap (Overpass) |
+| `LIVE_PLACES_ENABLED` | `false` ise canlı dış mekanlar kapalı (varsayılan `true`) |
 | `ALLOW_MOCK_PURCHASES` | Test satın alması; üretimde her zaman kapalı |
 | `SEED_ADMIN_PASSWORD`, `SEED_VENDOR_PASSWORD` | Yalnızca seed: test hesabı parolalarını ezer (üretimde zorunlu) |
 
@@ -222,6 +228,10 @@ OAuth callback adresleri: `{PUBLIC_API_URL}/api/v1/auth/oauth/{google|github}/ca
 | `npm run typecheck -w @localbite/admin` | Web paneli TypeScript kontrolü |
 | `npm run build -w @localbite/admin` | Web panelinin üretim derlemesi (önce typecheck) |
 | `npm run preview -w @localbite/admin` | Derlenmiş paneli yerelde sunar |
+
+**EAS ile APK:** `app/eas.json` içinde `preview` profili (APK, Railway API adresi) hazır.
+İlk seferde `cd app && npx eas-cli@latest login` ve `npx eas-cli@latest init`, sonra
+`npx eas-cli@latest build -p android --profile preview`.
 
 Web panelinde henüz lint ve birim testi betiği yok; kontrol `typecheck` ve `build` ile yapılır.
 

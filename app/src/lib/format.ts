@@ -9,7 +9,8 @@ export function formatDistance(meters: number): string {
 /** Mesafe filtresi etiketi: 500 → "500 m", 1000 → "1 km" (formatDistance "1.0 km" yazardı) */
 export const distanceLabel = (meters: number) => (meters < 1_000 ? `${meters} m` : `${meters / 1_000} km`);
 
-export const priceSymbol = (p: PriceLevel) => (p === 'BUDGET' ? '$' : '$$');
+/** Dış kaynaklı yerlerde fiyat bilinmeyebilir → null */
+export const priceSymbol = (p: PriceLevel | null) => (p === null ? null : p === 'BUDGET' ? '$' : '$$');
 
 /** Türk lirası tutarı: 1500 → "₺1.500" (binlik ayırıcı dilden bağımsız, Türkiye'deki gibi nokta) */
 export const formatTry = (amount: number) => `₺${Math.round(amount).toLocaleString('tr-TR')}`;

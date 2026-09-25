@@ -1,5 +1,11 @@
 import type { ExperienceDTO, ExperiencePartner, Locale } from '@localbite/shared';
+import { readFileSync } from 'node:fs';
 import { env } from '../env';
+
+/** Kart fotoğrafları (Wikimedia Commons, CC lisanslı): media/experiences/credits.json */
+const PHOTOS: Record<string, { file: string; credit: string; sourceUrl: string }> = JSON.parse(
+  readFileSync(new URL('../../media/experiences/credits.json', import.meta.url), 'utf-8'),
+);
 
 /**
  * İş ortaklığı (affiliate) deneyim kartları. Katalog sunucuda: uygulama güncellemesi olmadan değiştirilebilir.
@@ -90,5 +96,7 @@ export function listExperiences(locale: Locale, district?: string | null): Exper
     title: c.text[locale].title,
     description: c.text[locale].description,
     url: withAffiliate(c.partner, c.url),
+    imageUrl: PHOTOS[c.id] ? `/media/experiences/${PHOTOS[c.id]!.file}` : null,
+    imageCredit: PHOTOS[c.id]?.credit ?? null,
   }));
 }

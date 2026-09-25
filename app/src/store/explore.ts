@@ -27,6 +27,8 @@ export interface MapLayers {
 interface ExploreState {
   layers: MapLayers;
   toggleLayer: (key: keyof MapLayers) => void;
+  /** Tümü / yalnız seyyar / yalnız esnaf */
+  setLayers: (layers: MapLayers) => void;
 
   /** Haritada seçili mekan ("Social Lezzet Report" balonu) */
   selectedId: string | null;
@@ -52,6 +54,7 @@ interface ExploreState {
 export const useExploreStore = create<ExploreState>((set) => ({
   layers: { carts: true, shops: true },
   toggleLayer: (key) => set((s) => ({ layers: { ...s.layers, [key]: !s.layers[key] } })),
+  setLayers: (layers) => set({ layers }),
 
   selectedId: null,
   select: (selectedId) => set({ selectedId }),

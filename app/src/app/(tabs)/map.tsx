@@ -12,13 +12,13 @@ import { VenueMap, type VenueMapHandle } from '../../components/map/VenueMap';
 import { DEFAULT_CENTER, useLocationOrigin } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
 import { applyExploreFilters } from '../../lib/exploreFilter';
-import { DEFAULT_DISTANCE, useExploreStore, type MapLayers } from '../../store/explore';
+import { DEFAULT_DISTANCE, useExploreStore } from '../../store/explore';
 import { useAvatarFace } from '../../store/profile';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 import { LoadErrorCard } from '../../components/ui/LoadErrorCard';
 
-/** Üst çipler ve filtre satırları ölçülene kadarki tahmini yükseklik */
-const TOP_BAR_ESTIMATE = 140;
+/** Üstteki filtre çubuğu ölçülene kadarki tahmini yükseklik */
+const TOP_BAR_ESTIMATE = 96;
 /** Alt kartın yaklaşık yüksekliği; harita odaklaması bu alanın üstüne yapılır */
 const BOTTOM_CARD_HEIGHT = 230;
 /** Harita bu kadar kaydırılınca "Bu bölgede ara" görünür */
@@ -150,13 +150,7 @@ export default function ExploreScreen() {
       <View style={[styles.top, { paddingTop: insets.top + spacing.sm }]} pointerEvents="box-none">
         {/* Ölçülen yükseklik: harita odaklaması bu alanın altına yapılır */}
         <View pointerEvents="box-none" onLayout={(e) => setTopHeight(insets.top + spacing.sm + e.nativeEvent.layout.height)}>
-          <View style={styles.chips} pointerEvents="box-none">
-            <LayerChip layer="carts" label={t.explore.carts} color={colors.mobile} layers={layers} onToggle={toggleLayer} />
-            <LayerChip layer="shops" label={t.explore.shops} color={colors.shop} layers={layers} onToggle={toggleLayer} />
-          </View>
-          <View style={styles.filters} pointerEvents="box-none">
-            <ExploreFilterBar />
-          </View>
+          <ExploreFilterBar />
         </View>
         <View style={styles.topStatus} pointerEvents="box-none">
           {/* İzin yok ya da GPS kapalı: İstanbul merkezi gösteriliyor; dokununca yeniden dener */}
@@ -217,60 +211,13 @@ export default function ExploreScreen() {
   );
 }
 
-function LayerChip({
-  layer,
-  label,
-  color,
-  layers,
-  onToggle,
-}: {
-  layer: keyof MapLayers;
-  label: string;
-  color: string;
-  layers: MapLayers;
-  onToggle: (layer: keyof MapLayers) => void;
-}) {
-  const { colors } = useTheme();
-  const styles = useStyles();
-  const active = layers[layer];
-  return (
-    <Pressable
-      onPress={() => onToggle(layer)}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: active }}
-      style={({ pressed }) => [
-        styles.chip,
-        { backgroundColor: active ? color : colors.surface, borderColor: color },
-        pressed && styles.pressed,
-      ]}
-    >
-      <View style={[styles.chipDot, { backgroundColor: active ? colors.textInverse : color }]} />
-      <Text style={[styles.chipText, { color: active ? colors.textInverse : color }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const useStyles = makeStyles(({ colors, shadow }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   pressed: { opacity: 0.8 },
 
   top: { position: 'absolute', top: 0, left: 0, right: 0 },
-  chips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg },
-  filters: { marginTop: spacing.sm },
   resetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 4 },
   resetText: { fontSize: 13, fontWeight: '800', color: colors.primary },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    height: 40,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    ...shadow.pin,
-  },
-  chipDot: { width: 10, height: 10, borderRadius: 5 },
-  chipText: { fontSize: 14, fontWeight: '800', letterSpacing: 0.6 },
   topStatus: { alignItems: 'center', marginTop: spacing.sm, gap: spacing.sm },
   notice: {
     backgroundColor: colors.warningSoft,

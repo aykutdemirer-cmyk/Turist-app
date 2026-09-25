@@ -41,6 +41,16 @@ const envSchema = z.object({
    * Mağaza ödemesi bağlanana kadar test satın alması. Üretimde AÇILMAZ (bkz. aşağıdaki kontrol):
    * aksi hâlde herkes Premium'u bedava alabilirdi.
    */
+  /**
+   * Google Places API (New) anahtarı; boşsa canlı mekanlar yalnızca OpenStreetMap'ten (Overpass) gelir.
+   * Kota/hata durumunda da OSM'e düşülür.
+   */
+  GOOGLE_PLACES_API_KEY: z.string().default(''),
+  /** Yakındaki canlı gerçek mekanları (Google/OSM) listeye ekle */
+  LIVE_PLACES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   ALLOW_MOCK_PURCHASES: z
     .enum(['true', 'false'])
     .optional()

@@ -248,13 +248,13 @@ function Card({ title, subtitle, children }: { title: string; subtitle?: string;
 
 const useStyles = makeStyles(({ colors }) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg },
+  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: 16 },
   flex: { flex: 1 },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.sm,
+    borderRadius: 16,
+    padding: 16,
+    gap: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
   },

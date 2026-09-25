@@ -23,10 +23,11 @@ export const API_URL = resolveApiUrl();
 export const API_BASE = `${API_URL}/api/v1`;
 
 /**
- * Harita karoları. Varsayılan: backend'in OSM proxy'si (önbellekli, HTTP; emülatör/kurumsal ağ dostu).
+ * Harita karoları. Varsayılan: backend'in karo proxy'si (OpenStreetMap, önbellekli; emülatör/kurumsal ağ dostu).
  * Üretimde bir karo sağlayıcısına yönlendirilebilir: EXPO_PUBLIC_TILE_URL=https://.../{z}/{x}/{y}.png
  */
-export const TILE_URL = process.env.EXPO_PUBLIC_TILE_URL || `${API_URL}/tiles/{z}/{x}/{y}.png`;
+// ?v: karo kaynağı değişince cihazlardaki (WebView) eski karo önbelleği kullanılmasın
+export const TILE_URL = process.env.EXPO_PUBLIC_TILE_URL || `${API_URL}/tiles/{z}/{x}/{y}.png?v=2`;
 
 /** Sunucunun verdiği göreli medya yollarını (/media/...) tam adrese çevirir */
 export const resolveMediaUrl = (url: string | null | undefined): string | null =>

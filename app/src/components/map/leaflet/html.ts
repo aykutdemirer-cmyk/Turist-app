@@ -28,7 +28,7 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
       primary: colors.primary,
       surface: colors.surface,
       shop: colors.shop,
-      bg: '#EDE8DF',
+      bg: '#F2F2EF',
     },
   };
 
@@ -43,6 +43,8 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
   .leaflet-container { background: ${page.colors.bg}; font-family: -apple-system, Roboto, sans-serif; }
   .leaflet-control-attribution { font-size: 9px; background: rgba(255,255,255,0.75) !important; }
   .lb-icon { background: none; border: none; }
+  /* Sade, açık renkli harita: yalnızca karo katmanı gri tonlanır; pinler ve konum noktası renkli kalır */
+  .leaflet-tile-pane { filter: grayscale(0.92) brightness(1.06) contrast(0.88); }
 
   .pin-box { position: relative; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; }
   .ring { display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 3px solid transparent; }
@@ -130,11 +132,12 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
   }
 
   function venueHtml(v, selected) {
-    var size = selected ? 44 : 34, icon = selected ? 22 : 17;
+    // Dış kaynaklı (OSM/Google) yerler kendi mekanlarımızın önüne geçmesin: küçük, gri pin
+    var size = selected ? 44 : v.external ? 26 : 34, icon = selected ? 22 : v.external ? 13 : 17;
     var bg = v.isMobile ? cfg.colors.mobile : cfg.colors.surface;
     // 🟠 seyyar / 🔵 esnaf; ikon türü gösterir
-    var border = v.isMobile ? cfg.colors.mobileAccent : cfg.colors.shop;
-    var fg = v.isMobile ? '#fff' : cfg.colors.shop;
+    var border = v.isMobile ? cfg.colors.mobileAccent : v.external && !selected ? '#9CA3AF' : cfg.colors.shop;
+    var fg = v.isMobile ? '#fff' : v.external && !selected ? '#6B7280' : cfg.colors.shop;
     var ring = size + 8;
     var live = v.live === 'LIVE';
     var stale = v.live === 'STALE';
@@ -169,7 +172,7 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
     list.forEach(function (v) {
       seen[v.id] = true;
       if (!venues[v.id]) {
-        var marker = L.marker([v.latitude, v.longitude], { icon: venueIcon(v, false), keyboard: false });
+        var marker = L.marker([v.latitude, v.longitude], { icon: venueIcon(v, false), keyboard: false, zIndexOffset: v.external ? 0 : 1000 });
         marker.on('click', function () { post({ type: 'markerPress', id: v.id }); });
         marker.addTo(map);
         venues[v.id] = { data: v, marker: marker, key: null };

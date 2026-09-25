@@ -45,6 +45,10 @@ export type ReportType = (typeof REPORT_TYPES)[number];
 export const LOCATION_REQUIRED_REPORTS: readonly ReportType[] = ['SPOTTED_TODAY', 'NOT_HERE'];
 
 /** APP: uygulama üyesi · GOOGLE: Google Haritalar · OTHER: diğer dış kaynak · SAMPLE: demo için örnek yorum (arayüzde mutlaka "örnek" diye etiketlenir) */
+/** Mekan verisinin kaynağı: kendi veritabanımız ya da canlı dış kaynak (salt okunur) */
+export const VENUE_SOURCES = ['LOCALBITE', 'GOOGLE', 'OSM'] as const;
+export type VenueSource = (typeof VENUE_SOURCES)[number];
+
 export const REVIEW_SOURCES = ['APP', 'GOOGLE', 'OTHER', 'SAMPLE'] as const;
 export type ReviewSource = (typeof REVIEW_SOURCES)[number];
 

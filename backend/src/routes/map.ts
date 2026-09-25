@@ -8,17 +8,29 @@ import { HttpError } from '../lib/errors';
 /**
  * Uygulamadaki Leaflet haritası için:
  *  - Leaflet JS/CSS (CDN'e bağımlı olmadan)
- *  - OpenStreetMap karo proxy'si + bellek içi önbellek
+ *  - Karo proxy'si + bellek içi önbellek (varsayılan: OpenStreetMap; sade görünüm istemcide CSS filtresiyle)
  *
- * OSM karo kullanım politikası: https://operations.osmfoundation.org/policies/tiles/
- * Tanımlayıcı User-Agent zorunlu, yoğun kullanım yasak. Bu proxy geliştirme/küçük ölçek içindir;
- * üretimde TILE_UPSTREAM ile ticari bir karo sağlayıcısına geçilmeli.
+ * OSM karo politikası: https://operations.osmfoundation.org/policies/tiles/ — tanımlayıcı User-Agent zorunlu,
+ * yoğun kullanım yasak. CARTO basemap'leri (Positron) artık API anahtarı istiyor; anahtarsız istekler
+ * "API KEY REQUIRED" filigranlı döner. Anahtar alınırsa TILE_UPSTREAM ile geçilir, ör.
+ *   https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?api_key=...
+ * Şablonda {s} (alt alan a–d), {z}/{x}/{y} ve {r} (retina: "@2x") desteklenir.
  */
 
 const require = createRequire(import.meta.url);
 const leafletDist = dirname(require.resolve('leaflet/dist/leaflet.js'));
 
-const TILE_UPSTREAM = process.env.TILE_UPSTREAM ?? 'https://tile.openstreetmap.org';
+const TILE_UPSTREAM = process.env.TILE_UPSTREAM ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+/** Telefon ekranları yüksek yoğunluklu: 512 px'lik retina karolar 256 px'lik yuvada net görünür */
+const TILE_RETINA = '@2x';
+
+function upstreamUrl(z: number, x: number, y: number): string {
+  return TILE_UPSTREAM.replace('{s}', 'abcd'[(x + y) % 4]!)
+    .replace('{z}', String(z))
+    .replace('{x}', String(x))
+    .replace('{y}', String(y))
+    .replace('{r}', TILE_RETINA);
+}
 const TILE_USER_AGENT = 'LocalBite/0.1 (street-food discovery app; development)';
 const MAX_CACHED_TILES = 2_000;
 const TILE_MAX_ZOOM = 19;
@@ -26,7 +38,8 @@ const TILE_MAX_ZOOM = 19;
 const tileCache = new Map<string, Buffer>(); // ekleme sırası = LRU sırası
 const inflight = new Map<string, Promise<Buffer>>();
 
-async function fetchTile(key: string): Promise<Buffer> {
+async function fetchTile(z: number, x: number, y: number): Promise<Buffer> {
+  const key = `${z}/${x}/${y}`;
   const cached = tileCache.get(key);
   if (cached) {
     tileCache.delete(key);
@@ -37,7 +50,7 @@ async function fetchTile(key: string): Promise<Buffer> {
   let pending = inflight.get(key);
   if (!pending) {
     pending = (async () => {
-      const res = await fetch(`${TILE_UPSTREAM}/${key}.png`, { headers: { 'User-Agent': TILE_USER_AGENT } });
+      const res = await fetch(upstreamUrl(z, x, y), { headers: { 'User-Agent': TILE_USER_AGENT } });
       if (!res.ok) throw new HttpError(502, 'TILE_UPSTREAM_ERROR', `Tile server responded ${res.status}`);
       const buf = Buffer.from(await res.arrayBuffer());
       tileCache.set(key, buf);
@@ -81,7 +94,7 @@ export const mapRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { params: tileParams } },
     async (req, reply) => {
       const { z: zoom, x, y } = req.params;
-      const tile = await fetchTile(`${zoom}/${x}/${y}`);
+      const tile = await fetchTile(zoom, x, y);
       return reply.type('image/png').header('Cache-Control', 'public, max-age=86400').send(tile);
     },
   );

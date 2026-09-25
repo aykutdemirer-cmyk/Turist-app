@@ -49,8 +49,8 @@ export function useNearbyVenues(center: LatLng | null, radius = NEARBY_RADIUS_M)
       }),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
-    // "Şu an açık" durumu zamanla değişir
-    refetchInterval: 60_000,
+    // "Şu an açık" durumu zamanla değişir; canlı dış mekanlar arka planda yükleniyorsa kısa süre sonra tekrar sor
+    refetchInterval: (query) => (query.state.data?.livePending ? 5_000 : 60_000),
   });
 }
 

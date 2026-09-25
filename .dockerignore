@@ -1,0 +1,14 @@
+# Docker derleme bağlamı (repo kökü): yalnızca API imajına girenler kalır
+.git
+**/node_modules
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+
+# Mobil uygulama ve web paneli imaja girmez (yalnızca package.json'ları kopyalanır)
+app/*
+!app/package.json
+admin/*
+!admin/package.json
+docs

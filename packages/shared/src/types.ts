@@ -13,6 +13,7 @@ import type {
   LocationType,
   UserRole,
   VenueStatus,
+  VenueSource,
   VenueType,
 } from './enums';
 
@@ -81,7 +82,14 @@ export interface VenueSummaryDTO {
   name: string;
   type: VenueType;
   isMobile: boolean;
-  priceLevel: PriceLevel;
+  /** LOCALBITE dışındakiler canlı dış kaynaktan gelir: yorum/teyit/ihbar kabul etmez */
+  source: VenueSource;
+  /** Dış kaynaktaki mekanın sayfası (Google Maps / OpenStreetMap); kendi mekanlarımızda null */
+  sourceUrl: string | null;
+  /** Dış kaynakta fiyat bilgisi olmayabilir */
+  priceLevel: PriceLevel | null;
+  /** false → açık/kapalı bilinmiyor (isScheduledOpen/isActiveNow false döner) */
+  openStatusKnown: boolean;
   authenticityScore: number;
   /** Seyyarlarda o anki program diliminin köşesi, yoksa varsayılan konum */
   latitude: number;
@@ -102,7 +110,10 @@ export interface VenueSummaryDTO {
   spottedTodayCount: number;
   upvoteCount: number;
   rating: RatingSummary;
+  /** Mekanın kendi kapağı; yoksa öne çıkan yemeğin fotoğrafı (temsili) */
   coverImageUrl: string | null;
+  /** Kapak lisanslı yemek fotoğrafıysa görünür atıf ("Yazar · CC BY-SA 4.0"); mekanın kendi kapağında null */
+  coverImageCredit: string | null;
   /** Esnaf sponsorlu öne çıkarma (ücretli yerleşim; "Sponsorlu" olarak etiketlenmeli) */
   isPromoted: boolean;
   /**
@@ -121,6 +132,8 @@ export interface NearbyResponseDTO {
   radius: number;
   locale: string;
   generatedAt: string;
+  /** Canlı dış mekanlar henüz gelmedi (arka planda yükleniyor); istemci kısa süre sonra yeniden sormalı */
+  livePending: boolean;
 }
 
 export interface VenueDetailDTO extends Omit<VenueSummaryDTO, 'distanceMeters' | 'mustTry' | 'topReview'> {
@@ -279,6 +292,9 @@ export interface ExperienceDTO {
   description: string;
   /** Harici tarayıcıda açılır; ortaklık kimliği sunucuda eklenir */
   url: string;
+  /** Kart fotoğrafı (göreli /media/... yolu) ve lisans atfı */
+  imageUrl: string | null;
+  imageCredit: string | null;
 }
 
 export interface TrailSummaryDTO {

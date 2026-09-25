@@ -29,7 +29,8 @@ export const venueRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/venues/nearby',
     { schema: { querystring: nearbyQuerySchema } },
-    async (req) => findNearbyVenues(req.query, resolveLocale(req.query.locale, req.headers['accept-language'])),
+    async (req) =>
+      findNearbyVenues(req.query, resolveLocale(req.query.locale, req.headers['accept-language']), req.log),
   );
 
   app.get(

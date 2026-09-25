@@ -13,6 +13,8 @@ export interface MapPin {
   type: VenueType;
   isMobile: boolean;
   isActiveNow: boolean;
+  /** Canlı dış kaynaktan (OSM/Google) gelen yer: küçük ve sade pin */
+  external: boolean;
   /** Satıcının canlı konum tazeliği (seyyarlar); null = canlı konum yok */
   live: LiveLocationFreshness | null;
 }
@@ -194,5 +196,5 @@ export function LeafletView({
 }
 
 const styles = StyleSheet.create({
-  web: { flex: 1, backgroundColor: '#EDE8DF' },
+  web: { flex: 1, backgroundColor: '#F2F2EF' },
 });

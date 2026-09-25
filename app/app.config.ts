@@ -7,6 +7,9 @@ const SHARE_HOST = new URL(process.env.EXPO_PUBLIC_SHARE_BASE_URL || 'https://uy
 const config: ExpoConfig = {
   name: 'LocalBite',
   slug: 'localbite',
+  owner: 'aykutdemirer',
+  // EAS Build projesi (expo.dev/accounts/aykutdemirer/projects/localbite)
+  extra: { eas: { projectId: '00aefeac-6441-483e-b147-403de0841f41' } },
   scheme: 'localbite',
   version: '0.1.0',
   orientation: 'portrait',
@@ -37,7 +40,9 @@ const config: ExpoConfig = {
         category: ['BROWSABLE', 'DEFAULT'],
       },
     ],
-    // Yalnızca ön plan konumu (FINE/COARSE, expo-location ekler). Arka plan konumu mağaza politikası gereği
+    // Gerçek GPS (ön plan): kullanıcı konumuna göre yakındaki mekanlar
+    permissions: ['android.permission.ACCESS_FINE_LOCATION', 'android.permission.ACCESS_COARSE_LOCATION'],
+    // Yalnızca ön plan konumu. Arka plan konumu mağaza politikası gereği
     // hiçbir bağımlılık tarafından eklenemesin diye açıkça engellenir.
     blockedPermissions: [
       'android.permission.ACCESS_BACKGROUND_LOCATION',

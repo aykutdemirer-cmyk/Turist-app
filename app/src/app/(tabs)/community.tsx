@@ -39,9 +39,19 @@ export default function CommunityScreen() {
           <View style={styles.header}>
             <Text style={font.title}>{t.community.title}</Text>
             <Text style={[font.small, styles.subtitle]}>{t.community.subtitle}</Text>
-            <Pressable onPress={compose} style={({ pressed }) => [styles.cta, shadow.card, pressed && styles.pressed]}>
-              <PenSquare size={20} color={colors.textInverse} />
-              <Text style={styles.ctaText}>{t.community.newPost}</Text>
+            {/* Girdi alanı görünümünde: dokununca yazma ekranı açılır (misafire önce giriş) */}
+            <Pressable
+              onPress={compose}
+              style={({ pressed }) => [styles.composer, shadow.pin, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel={t.community.newPost}
+            >
+              <View style={styles.composerIcon}>
+                <PenSquare size={16} color={colors.primary} />
+              </View>
+              <Text style={styles.composerText} numberOfLines={1}>
+                {t.community.composePlaceholder}
+              </Text>
             </Pressable>
           </View>
         }
@@ -73,16 +83,28 @@ const useStyles = makeStyles(({ colors, font }) => ({
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   header: { gap: spacing.xs, marginBottom: spacing.lg },
   subtitle: { fontWeight: '400', lineHeight: 19 },
-  cta: {
+  composer: {
     marginTop: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
+    height: 52,
+    paddingLeft: 8,
+    paddingRight: spacing.lg,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  ctaText: { flex: 1, color: colors.textInverse, fontWeight: '700', fontSize: 14 },
+  composerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  composerText: { flex: 1, fontSize: 15, color: colors.closed },
   loader: { paddingVertical: spacing.xl },
   empty: { padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, gap: spacing.xs },
   emptyText: { ...font.small, fontWeight: '500', lineHeight: 19 },

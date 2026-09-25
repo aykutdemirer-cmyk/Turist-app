@@ -1,87 +1,92 @@
-import { FOOD_CATEGORIES } from '@localbite/shared';
 import * as Haptics from 'expo-haptics';
-import { Clock, Radio, Wallet, type LucideIcon } from 'lucide-react-native';
-import { createElement, type ComponentType } from 'react';
+import { MapPin, SlidersHorizontal } from 'lucide-react-native';
+import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 import { useT } from '../../i18n';
-import { distanceLabel as formatDistanceOption } from '../../lib/format';
-import { DISTANCE_OPTIONS, useExploreStore, type DistanceOption } from '../../store/explore';
-import { foodCategoryMeta, makeStyles, radius, spacing, useTheme } from '../../theme';
+import { DEFAULT_DISTANCE, useExploreStore, type MapLayers } from '../../store/explore';
+import { makeStyles, radius, spacing, useTheme } from '../../theme';
+import { ExploreFilterSheet } from './ExploreFilterSheet';
+
+type LayerMode = 'all' | 'carts' | 'shops';
+
+const modeOf = (l: MapLayers): LayerMode => (l.carts && !l.shops ? 'carts' : !l.carts && l.shops ? 'shops' : 'all');
 
 /**
- * Keşfet filtreleri, iki yatay kaydırılan satır:
- *  1) Mesafe: 500 m · 1 km · 3 km · 5 km · Tümü (varsayılan 3 km)
- *  2) Şu an açık · Bütçe · Canlı konum · yemek kategorileri
+ * Keşfet'in tek satırlık filtre çubuğu:
+ *   [Tümü] [🟠 Seyyar] [🔵 Esnaf] [🟢 Açık] [📍 Canlı] [⚙️ Filtrele]
+ * Mesafe, fiyat ve yemek kategorisi "Filtrele" panelinde; değiştirilmişse sayı rozeti gösterilir.
  */
 export function ExploreFilterBar() {
   const { colors } = useTheme();
   const styles = useStyles();
   const t = useT();
-  const { distance, setDistance, filters, setFilter } = useExploreStore(
-    useShallow((s) => ({ distance: s.distance, setDistance: s.setDistance, filters: s.filters, setFilter: s.setFilter })),
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const { layers, setLayers, filters, setFilter, distance } = useExploreStore(
+    useShallow((s) => ({
+      layers: s.layers,
+      setLayers: s.setLayers,
+      filters: s.filters,
+      setFilter: s.setFilter,
+      distance: s.distance,
+    })),
   );
+  const mode = modeOf(layers);
+  const setMode = (m: LayerMode) => setLayers({ carts: m !== 'shops', shops: m !== 'carts' });
+  // Panelde varsayılandan farklı ayar sayısı
+  const sheetCount = Number(distance !== DEFAULT_DISTANCE) + Number(filters.budget) + Number(filters.category !== null);
 
-  const distanceLabel = (d: DistanceOption) => (d === null ? t.exploreFilters.all : formatDistanceOption(d));
+  const dot = (color: string) => <View style={[styles.dot, { backgroundColor: color }]} />;
 
   return (
-    <View style={styles.wrap}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} accessibilityLabel={t.exploreFilters.distance}>
-        {DISTANCE_OPTIONS.map((d) => {
-          const active = distance === d;
-          return (
-            <Pressable
-              key={String(d)}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setDistance(d);
-              }}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: active }}
-              style={({ pressed }) => [styles.chip, active && styles.distanceActive, pressed && styles.pressed]}
-            >
-              <Text style={[styles.chipText, active && { color: colors.textInverse }]}>{distanceLabel(d)}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
+    <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        <Toggle label={t.exploreFilters.openNow} Icon={Clock} color={colors.open} active={filters.openNow} onPress={() => setFilter('openNow', !filters.openNow)} />
-        <Toggle label={t.exploreFilters.budget} Icon={Wallet} color={colors.primary} active={filters.budget} onPress={() => setFilter('budget', !filters.budget)} />
-        <Toggle label={t.exploreFilters.live} Icon={Radio} color={colors.open} active={filters.liveOnly} onPress={() => setFilter('liveOnly', !filters.liveOnly)} />
+        <Chip label={t.exploreFilters.all} active={mode === 'all'} onPress={() => setMode('all')} role="radio" />
+        <Chip label={t.exploreFilters.carts} icon={dot(colors.mobile)} active={mode === 'carts'} onPress={() => setMode('carts')} role="radio" />
+        <Chip label={t.exploreFilters.shops} icon={dot(colors.shop)} active={mode === 'shops'} onPress={() => setMode('shops')} role="radio" />
         <View style={styles.divider} />
-        {FOOD_CATEGORIES.map((c) => {
-          const meta = foodCategoryMeta[c];
-          const active = filters.category === c;
-          return (
-            <Toggle
-              key={c}
-              label={meta.title}
-              Icon={meta.Icon}
-              color={meta.color}
-              active={active}
-              onPress={() => setFilter('category', active ? null : c)}
-            />
-          );
-        })}
+        <Chip
+          label={t.exploreFilters.openShort}
+          icon={dot(colors.open)}
+          active={filters.openNow}
+          onPress={() => setFilter('openNow', !filters.openNow)}
+          role="switch"
+        />
+        <Chip
+          label={t.exploreFilters.liveShort}
+          icon={<MapPin size={13} color={filters.liveOnly ? colors.textInverse : colors.open} strokeWidth={2.6} />}
+          active={filters.liveOnly}
+          onPress={() => setFilter('liveOnly', !filters.liveOnly)}
+          role="switch"
+        />
+        <Chip
+          label={t.exploreFilters.filter}
+          icon={<SlidersHorizontal size={13} color={sheetCount ? colors.textInverse : colors.text} strokeWidth={2.4} />}
+          active={sheetCount > 0}
+          badge={sheetCount}
+          onPress={() => setSheetOpen(true)}
+          role="button"
+        />
       </ScrollView>
-    </View>
+      {sheetOpen && <ExploreFilterSheet onClose={() => setSheetOpen(false)} />}
+    </>
   );
 }
 
-function Toggle({
+function Chip({
   label,
-  Icon,
-  color,
+  icon,
   active,
   onPress,
+  role,
+  badge = 0,
 }: {
   label: string;
-  Icon: LucideIcon | ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
-  color: string;
+  icon?: ReactNode;
   active: boolean;
   onPress: () => void;
+  role: 'radio' | 'switch' | 'button';
+  badge?: number;
 }) {
   const styles = useStyles();
   return (
@@ -90,33 +95,50 @@ function Toggle({
         Haptics.selectionAsync();
         onPress();
       }}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: active }}
-      style={({ pressed }) => [styles.chip, active && { backgroundColor: color, borderColor: color }, pressed && styles.pressed]}
+      accessibilityRole={role}
+      accessibilityState={role === 'radio' ? { selected: active } : role === 'switch' ? { checked: active } : undefined}
+      accessibilityLabel={badge ? `${label}, ${badge}` : label}
+      style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}
     >
-      {createElement(Icon, { size: 14, color: active ? '#FFFFFF' : color, strokeWidth: 2.4 })}
-      <Text style={[styles.chipText, active && { color: '#FFFFFF' }]}>{label}</Text>
+      {icon}
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+      {badge > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{badge}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }
 
 const useStyles = makeStyles(({ colors, shadow }) => ({
-  wrap: { gap: spacing.xs + 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.lg, paddingVertical: 2 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    height: 34,
-    paddingHorizontal: 12,
+    gap: 6,
+    height: 36,
+    paddingHorizontal: 14,
     borderRadius: radius.pill,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
     ...shadow.pin,
   },
-  distanceActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipActive: { backgroundColor: colors.text, borderColor: colors.text },
   chipText: { fontSize: 13, fontWeight: '700', color: colors.text },
-  divider: { width: 1, height: 22, backgroundColor: colors.border, marginHorizontal: 2 },
+  chipTextActive: { color: colors.textInverse },
+  dot: { width: 9, height: 9, borderRadius: 5 },
+  divider: { width: 1, height: 20, backgroundColor: colors.border, marginHorizontal: 2 },
+  badge: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   pressed: { opacity: 0.8 },
 }));

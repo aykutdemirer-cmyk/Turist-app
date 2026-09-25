@@ -108,5 +108,30 @@
     "file": "adana-durum.jpg",
     "credit": "E4024 · CC BY-SA 4.0",
     "sourceUrl": "https://commons.wikimedia.org/wiki/File:D%C3%BCr%C3%BCm_and_pickled_vegetables.jpg"
+  },
+  "Nohutlu Pilav": {
+    "file": "nohutlu-pilav.jpg",
+    "credit": "E4024 · CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Turkish_pilav.jpg"
+  },
+  "Et Döner Dürüm": {
+    "file": "doner.jpg",
+    "credit": "Matt @ PEK · CC BY-SA 2.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:D%C3%B6ner_Kebab_in_Istanbul.jpg"
+  },
+  "Kıymalı Pide": {
+    "file": "kiymali-pide.jpg",
+    "credit": "E4024 · CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Turkish_pide_with_ground_beef.jpg"
+  },
+  "Lahmacun": {
+    "file": "lahmacun.jpg",
+    "credit": "Rainer Zenz · CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Lahmacun.jpg"
+  },
+  "Lokma": {
+    "file": "lokma.jpg",
+    "credit": "Benreis · CC BY 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Lokma_Galata_Bridge.JPG"
   }
 }

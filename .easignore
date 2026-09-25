@@ -1,0 +1,26 @@
+# EAS Build yükleme arşivi. .gitignore'un YERİNE geçer: git kuralları burada da olmalı.
+node_modules/
+dist/
+.env
+.env*.local
+*.log
+.expo/
+*.tsbuildinfo
+
+# Üretilen yerel native klasörler ve derleme çıktıları (EAS kendisi prebuild yapar)
+app/android/
+app/ios/
+**/build/
+*.apk
+*.aab
+
+# İmza dosyaları bulutta tutulur
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+
+# Yerel araç ayarları
+.claude/

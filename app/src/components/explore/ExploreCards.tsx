@@ -85,7 +85,9 @@ export function SocialReportCallout({
           <TypeIcon size={18} color={colors.textInverse} strokeWidth={2.4} />
         </View>
         <View style={styles.flex}>
-          <Text style={styles.kicker}>{t.explore.socialReport}</Text>
+          <Text style={styles.kicker}>
+            {venue.source === 'LOCALBITE' ? t.explore.socialReport : t.liveSource[venue.source]}
+          </Text>
           <Text style={styles.calloutName} numberOfLines={1}>
             {venue.name}
           </Text>
@@ -94,7 +96,7 @@ export function SocialReportCallout({
             <Text style={styles.rowSub}>{formatDistance(venue.distanceMeters)}</Text>
             <View style={[styles.dot, { backgroundColor: open ? colors.open : colors.closed }]} />
             <Text style={[styles.rowSub, { color: open ? colors.open : colors.textMuted }]}>
-              {open ? t.status.openNow : t.status.closed}
+              {!venue.openStatusKnown ? t.status.hoursUnknown : open ? t.status.openNow : t.status.closed}
             </Text>
           </View>
           {venue.liveLocation && (
@@ -125,7 +127,7 @@ export function SocialReportCallout({
           </View>
         </View>
       ) : (
-        <Text style={styles.muted}>{t.explore.noReviewYet}</Text>
+        <Text style={styles.muted}>{venue.source === 'LOCALBITE' ? t.explore.noReviewYet : t.liveSource.note}</Text>
       )}
 
       <View style={styles.calloutFooter}>
@@ -148,9 +150,12 @@ const useStyles = makeStyles(({ colors, font }) => ({
   card: {
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+    // Haritanın hafifçe görünmesi için yarı saydam yüzey (Android'de WebView üstünde gerçek bulanıklık desteklenmiyor)
+    backgroundColor: colors.surface + 'EB',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.6)',
+    padding: spacing.lg,
     gap: spacing.sm,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

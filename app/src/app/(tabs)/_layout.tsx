@@ -9,6 +9,9 @@ import { useT } from '../../i18n';
 import { useExploreStore } from '../../store/explore';
 import { useTheme } from '../../theme';
 
+/** Güvenli alan hariç sekme çubuğu yüksekliği */
+const TAB_BAR_HEIGHT = 58;
+
 export default function TabsLayout() {
   const { colors } = useTheme();
   const t = useT();
@@ -27,8 +30,16 @@ export default function TabsLayout() {
           headerShown: false,
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textMuted,
-          tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-          tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+          // Sistem gezinme çubuğu/hareket alanı kadar alt boşluk: ikon ve yazılar kırpılmaz
+          tabBarStyle: {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.border,
+            height: TAB_BAR_HEIGHT + insets.bottom,
+            paddingTop: 6,
+            paddingBottom: Math.max(insets.bottom, 8),
+          },
+          tabBarItemStyle: { paddingVertical: 2 },
+          tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 2 },
           sceneStyle: { backgroundColor: colors.bg },
         }}
       >

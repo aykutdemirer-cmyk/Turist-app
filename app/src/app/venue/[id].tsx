@@ -23,26 +23,26 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react-native';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ApiError } from '../../api/client';
 import { placeUrl } from '../../api/config';
-import { useReportVenue, useVenue } from '../../api/venues';
+import { useVenue } from '../../api/venues';
 import { FoodImage } from '../../components/ui/FoodImage';
 import { ExperienceSection } from '../../components/monetization/ExperienceSection';
 import { AnnouncementsSection } from '../../components/venue/AnnouncementsSection';
 import { DishRow } from '../../components/venue/DishRow';
 import { LinkDistanceCard } from '../../components/venue/LinkDistanceCard';
 import { LiveLocationBadge } from '../../components/venue/LiveLocationBadge';
+import { LiveSourceCard } from '../../components/venue/LiveSourceCard';
 import { ReviewsSection } from '../../components/venue/ReviewsSection';
 import { SpottedLine } from '../../components/venue/SpottedLine';
-import { getPreciseLocation } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
 import { openDirections } from '../../lib/directions';
 import { formatTry, priceSymbol } from '../../lib/format';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 import { useGoBack } from '../../hooks/useGoBack';
+import { useSpotConfirm } from '../../hooks/useSpotConfirm';
 
 const TIP_ICONS: Record<LocalTip, LucideIcon> = {
   CASH_ONLY: Banknote,
@@ -113,7 +113,9 @@ async function shareVenue(venue: VenueDetailDTO, t: ReturnType<typeof useT>) {
   Haptics.selectionAsync();
   try {
     // WhatsApp yalnızca "message" alanını okur; bağlantı metnin içinde olmalı
-    await Share.share({ message: t.share.message(venue.name, venue.tagline, placeUrl(venue.id)) });
+    await Share.share({
+      message: t.share.message(venue.name, venue.tagline, placeUrl(venue.id)),
+    });
   } catch {
     // Paylaşım menüsü açılamadı (nadir); sessizce geç
   }
@@ -125,7 +127,14 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
   const t = useT();
   const today = new Date().getDay();
   const open = venue.isActiveNow || venue.isScheduledOpen;
-  const statusLabel = venue.isMobile && venue.isActiveNow ? t.status.activeNow : open ? t.status.openNow : t.status.closed;
+  const external = venue.source !== 'LOCALBITE';
+  const statusLabel = !venue.openStatusKnown
+    ? t.status.hoursUnknown
+    : venue.isMobile && venue.isActiveNow
+      ? t.status.activeNow
+      : open
+        ? t.status.openNow
+        : t.status.closed;
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: bottomInset + spacing.xxl }}>
@@ -150,8 +159,9 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
         <View style={styles.titleBlock}>
           <Text style={font.title}>{venue.name}</Text>
           <Text style={styles.meta}>
-            <Text style={styles.price}>{priceSymbol(venue.priceLevel)}</Text>
-            {`  ·  ${t.venueType[venue.type]}  ·  ${t.status.local(venue.authenticityScore)}`}
+            {venue.priceLevel && <Text style={styles.price}>{`${priceSymbol(venue.priceLevel)}  ·  `}</Text>}
+            {t.venueType[venue.type]}
+            {external ? '' : `  ·  ${t.status.local(venue.authenticityScore)}`}
             {venue.neighborhood ? `  ·  ${venue.neighborhood}` : ''}
           </Text>
           {venue.rating.average !== null && (
@@ -197,7 +207,12 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
           </Section>
         )}
 
-        <ReviewsSection venueId={venue.id} rating={venue.rating} reviews={venue.reviews} />
+        {/* Dış kaynaklı yer: yorum kabul etmez; kaynağa atıf ve bağlantı */}
+        {venue.source !== 'LOCALBITE' ? (
+          <LiveSourceCard source={venue.source} url={venue.sourceUrl} />
+        ) : (
+          <ReviewsSection venueId={venue.id} rating={venue.rating} reviews={venue.reviews} />
+        )}
 
         <ExperienceSection venueId={venue.id} />
 
@@ -229,37 +244,39 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
           </Section>
         )}
 
-        {/* Saatler & konum */}
-        <Section title={t.detail.hours}>
-          {venue.locationNote && (
-            <View style={styles.infoRow}>
-              <MapPin size={16} color={colors.textMuted} />
-              <Text style={[font.body, styles.flex]}>{venue.locationNote}</Text>
-            </View>
-          )}
-          {venue.address && (
-            <View style={styles.infoRow}>
-              <MapPin size={16} color="transparent" />
-              <Text style={[font.small, styles.flex]}>{venue.address}</Text>
-            </View>
-          )}
-          {groupByDay(venue.schedules).map(([day, slots]) => (
-            <View key={day} style={[styles.hoursRow, day === today && styles.hoursToday]}>
-              <Clock size={14} color={day === today ? colors.primary : colors.textMuted} />
-              <Text style={[styles.hoursDay, day === today && { color: colors.primary }]}>
-                {day === today ? t.detail.today : t.days[day]}
-              </Text>
-              <View style={styles.flex}>
-                {slots.map((s) => (
-                  <Text key={`${s.openMinute}-${s.closeMinute}`} style={font.body}>
-                    {s.opensAt}–{s.closesAt}
-                    {s.locationNote ? <Text style={font.small}>{`  ·  ${s.locationNote}`}</Text> : null}
-                  </Text>
-                ))}
+        {/* Saatler & konum (dış kaynaklı yerlerde çoğu zaman boş: o zaman hiç gösterilmez) */}
+        {(venue.locationNote || venue.address || venue.schedules.length > 0) && (
+          <Section title={t.detail.hours}>
+            {venue.locationNote && (
+              <View style={styles.infoRow}>
+                <MapPin size={16} color={colors.textMuted} />
+                <Text style={[font.body, styles.flex]}>{venue.locationNote}</Text>
               </View>
-            </View>
-          ))}
-        </Section>
+            )}
+            {venue.address && (
+              <View style={styles.infoRow}>
+                <MapPin size={16} color="transparent" />
+                <Text style={[font.small, styles.flex]}>{venue.address}</Text>
+              </View>
+            )}
+            {groupByDay(venue.schedules).map(([day, slots]) => (
+              <View key={day} style={[styles.hoursRow, day === today && styles.hoursToday]}>
+                <Clock size={14} color={day === today ? colors.primary : colors.textMuted} />
+                <Text style={[styles.hoursDay, day === today && { color: colors.primary }]}>
+                  {day === today ? t.detail.today : t.days[day]}
+                </Text>
+                <View style={styles.flex}>
+                  {slots.map((s) => (
+                    <Text key={`${s.openMinute}-${s.closeMinute}`} style={font.body}>
+                      {s.opensAt}–{s.closesAt}
+                      {s.locationNote ? <Text style={font.small}>{`  ·  ${s.locationNote}`}</Text> : null}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </Section>
+        )}
       </View>
     </ScrollView>
   );
@@ -270,45 +287,7 @@ function SpottedAction({ venue }: { venue: VenueDetailDTO }) {
   const { colors } = useTheme();
   const styles = useStyles();
   const t = useT();
-  const report = useReportVenue(venue.id);
-  const [done, setDone] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
-
-  const onReport = async () => {
-    setMessage(null);
-    setLocating(true);
-    const coords = await getPreciseLocation().catch(() => null);
-    setLocating(false);
-    if (!coords) {
-      setMessage(t.report.needLocation);
-      return;
-    }
-
-    report.mutate(
-      { type: 'SPOTTED_TODAY', ...coords },
-      {
-        onSuccess: () => {
-          setDone(true);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        },
-        onError: (err) => {
-          if (err instanceof ApiError && err.code === 'ALREADY_REPORTED') {
-            setDone(true);
-            setMessage(t.report.already);
-          } else if (err instanceof ApiError && err.code === 'TOO_FAR') {
-            const distance = (err.details as { distanceMeters?: number } | undefined)?.distanceMeters ?? 0;
-            setMessage(t.report.tooFar(distance));
-          } else {
-            setMessage(t.report.failed);
-          }
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        },
-      },
-    );
-  };
-
-  const busy = locating || report.isPending;
+  const { confirm: onReport, busy, done, message } = useSpotConfirm(venue.id);
 
   return (
     <View style={styles.spotted}>
@@ -452,7 +431,6 @@ const useStyles = makeStyles(({ colors, font }) => ({
 
   section: { gap: spacing.md },
   sectionNote: { ...font.small, fontWeight: '400', marginTop: 2 },
-
 
   tipCard: {
     flexDirection: 'row',

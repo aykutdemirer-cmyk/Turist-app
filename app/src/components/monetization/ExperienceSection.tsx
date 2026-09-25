@@ -1,12 +1,15 @@
 import type { ExperienceDTO } from '@localbite/shared';
 import * as Haptics from 'expo-haptics';
 import { ExternalLink, Handshake, Signal, Ticket } from 'lucide-react-native';
-import { createElement } from 'react';
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { createElement, useState } from 'react';
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { resolveMediaUrl } from '../../api/config';
 import { useExperiences } from '../../api/monetization';
 import { useT } from '../../i18n';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
+import { Scrim } from '../ui/Scrim';
 
+/** Fotoğraf yüklenemezse kullanılan zemin rengi */
 const PARTNER_COLOR: Record<ExperienceDTO['partner'], string> = {
   GetYourGuide: '#FF5533',
   Viator: '#186B6D',
@@ -44,6 +47,8 @@ function ExperienceCard({ item }: { item: ExperienceDTO }) {
   const { colors } = useTheme();
   const styles = useStyles();
   const t = useT();
+  const photo = resolveMediaUrl(item.imageUrl);
+  const [failed, setFailed] = useState(false);
 
   return (
     <Pressable
@@ -55,9 +60,27 @@ function ExperienceCard({ item }: { item: ExperienceDTO }) {
       accessibilityRole="link"
       accessibilityLabel={`${item.title}, ${item.partner}, ${t.experiences.sponsored}`}
     >
+      {/* İstanbul fotoğrafı; ortak adı küçük beyaz rozet (marka logosu kullanılmaz) */}
       <View style={[styles.cardTop, { backgroundColor: PARTNER_COLOR[item.partner] }]}>
-        {createElement(item.kind === 'connectivity' ? Signal : Ticket, { size: 22, color: '#FFFFFF' })}
-        <Text style={styles.partner}>{item.partner}</Text>
+        {photo && !failed && (
+          <Image
+            source={{ uri: photo }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+            onError={() => setFailed(true)}
+            accessibilityIgnoresInvertColors
+          />
+        )}
+        <Scrim from={0.45} opacity={0.6} />
+        <View style={styles.partnerBadge}>
+          {createElement(item.kind === 'connectivity' ? Signal : Ticket, { size: 12, color: '#111111', strokeWidth: 2.4 })}
+          <Text style={styles.partner}>{item.partner}</Text>
+        </View>
+        {item.imageCredit && photo && !failed && (
+          <Text style={styles.credit} numberOfLines={1}>
+            {item.imageCredit}
+          </Text>
+        )}
       </View>
       <View style={styles.cardBody}>
         <View style={styles.badge}>
@@ -86,15 +109,28 @@ const useStyles = makeStyles(({ colors }) => ({
   subtitle: { fontSize: 13, color: colors.textMuted },
   row: { gap: spacing.md, paddingRight: spacing.lg },
   card: {
-    width: 240,
-    borderRadius: radius.lg,
+    width: 248,
+    borderRadius: 16,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
   },
-  cardTop: { height: 64, paddingHorizontal: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  partner: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
+  cardTop: { height: 128, overflow: 'hidden' },
+  partnerBadge: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    height: 24,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+  },
+  partner: { color: '#111111', fontWeight: '800', fontSize: 11, letterSpacing: 0.2 },
+  credit: { position: 'absolute', right: spacing.sm, bottom: 4, left: spacing.sm, textAlign: 'right', fontSize: 9, color: 'rgba(255,255,255,0.75)' },
   cardBody: { padding: spacing.md, gap: 6, flex: 1 },
   badge: {
     flexDirection: 'row',

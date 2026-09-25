@@ -13,7 +13,7 @@ const MEDIA_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'me
 
 // Yalnızca düz dosya adları: dizin geçişi (../) mümkün değil
 const params = z.object({
-  folder: z.enum(['dishes']),
+  folder: z.enum(['dishes', 'experiences']),
   file: z.string().regex(/^[a-z0-9-]+\.jpg$/),
 });
 
