@@ -550,6 +550,7 @@ export const en = {
     openInMaps: "Open in Google Maps",
     noReviews: "No written reviews yet",
     weekHours: "Opening hours (Google)",
+    photoBy: (name: string) => `Photo: ${name}`,
   },
   spotted: {
     todayCount: (n: number) => (n === 1 ? '1 person spotted it today' : `${n} people spotted it today`),

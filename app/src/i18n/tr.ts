@@ -550,6 +550,7 @@ export const tr: Dictionary = {
     openInMaps: "Google Haritalar'da aç",
     noReviews: "Henüz yazılı yorum yok",
     weekHours: "Çalışma saatleri (Google)",
+    photoBy: (name: string) => `Fotoğraf: ${name}`,
   },
   spotted: {
     todayCount: (n: number) => `Bugün ${n} kişi gördü`,

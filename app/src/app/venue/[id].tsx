@@ -155,6 +155,12 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
           style={{ height: COVER_HEIGHT, width: '100%' }}
           emojiSize={96}
         />
+        {/* Google fotoğrafında yazar atfı zorunlu */}
+        {external && venue.coverImageCredit && (
+          <Text style={styles.coverCredit} numberOfLines={1}>
+            {t.google.photoBy(venue.coverImageCredit)}
+          </Text>
+        )}
         <View style={[styles.statusPill, { backgroundColor: open ? colors.open : colors.overlay }]}>
           <View style={styles.statusDot} />
           <Text style={styles.statusText}>{statusLabel}</Text>
@@ -388,6 +394,18 @@ const useStyles = makeStyles(({ colors, font }) => ({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radius.pill,
+  },
+  coverCredit: {
+    position: 'absolute',
+    right: spacing.sm,
+    bottom: spacing.sm,
+    maxWidth: '60%',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    color: '#FFFFFF',
+    fontSize: 11,
   },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.textInverse },
   statusText: { color: colors.textInverse, fontWeight: '800', fontSize: 13 },

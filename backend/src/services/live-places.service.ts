@@ -14,7 +14,7 @@ import {
 } from '@localbite/shared';
 import { env } from '../env';
 import { notFound } from '../lib/errors';
-import { enrichWithGoogle } from './google-places.service';
+import { enrichWithGoogle, PHOTO_NAME_PATTERN, PHOTO_PROXY_PATH } from './google-places.service';
 
 /**
  * Canlı gerçek mekanlar: veritabanımızda olmayan yakın yerleri dış kaynaktan getirir.
@@ -51,8 +51,20 @@ const CELL_DEG = 0.01;
 /** Hücre merkezinden köşesine en fazla ~800 m: sorgu yarıçapı hücredeki her nokta için 3 km'yi kapsar */
 const CELL_PAD_M = 800;
 const GOOGLE_NEARBY_URL = 'https://places.googleapis.com/v1/places:searchNearby';
-const GOOGLE_TYPES = ['restaurant', 'meal_takeaway', 'bakery', 'cafe'];
+/**
+ * Google Nearby Search istek başına en fazla 20 yer döner: türleri gruplara bölüp paralel sorarız
+ * (hücre başına saatte bir). Geçersiz/başarısız grup diğerlerini düşürmez.
+ */
+const GOOGLE_TYPE_GROUPS = [
+  ['restaurant'],
+  ['fast_food_restaurant', 'meal_takeaway', 'sandwich_shop'],
+  ['turkish_restaurant', 'pizza_restaurant', 'hamburger_restaurant'],
+  ['bakery', 'dessert_shop', 'cafe'],
+];
 const GOOGLE_FIELDS = [
+  'rating',
+  'userRatingCount',
+  'photos',
   'id',
   'displayName',
   'location',
@@ -82,6 +94,11 @@ export interface LivePlace {
   phone: string | null;
   district: string | null;
   sourceUrl: string;
+  /** Google puanı (OSM'de yok) */
+  rating: number | null;
+  ratingCount: number;
+  /** Kapak: Google fotoğrafı (API vekili üzerinden) */
+  photo: { url: string; attribution: string | null } | null;
 }
 
 export const isLivePlaceId = (id: string) => id.startsWith('osm:') || id.startsWith('google:');
@@ -235,7 +252,13 @@ interface GooglePlace {
   formattedAddress?: string;
   nationalPhoneNumber?: string;
   googleMapsUri?: string;
+  rating?: number;
+  userRatingCount?: number;
+  photos?: { name: string; authorAttributions?: { displayName?: string }[] }[];
 }
+
+/** Pahalı yerler elenir; fiyatı bilinmeyenler (Türkiye'de çoğunluk) kalır */
+const EXPENSIVE = new Set(['PRICE_LEVEL_EXPENSIVE', 'PRICE_LEVEL_VERY_EXPENSIVE']);
 
 const GOOGLE_PRICE: Record<string, PriceLevel> = {
   PRICE_LEVEL_INEXPENSIVE: 'BUDGET',
@@ -243,9 +266,10 @@ const GOOGLE_PRICE: Record<string, PriceLevel> = {
 };
 
 function fromGoogle(p: GooglePlace): LivePlace | null {
-  const price = p.priceLevel ? GOOGLE_PRICE[p.priceLevel] : undefined;
-  // Yalnızca uygun fiyatlı (INEXPENSIVE / MODERATE) yerler
-  if (!price || !p.location || !p.displayName?.text) return null;
+  if (p.priceLevel && EXPENSIVE.has(p.priceLevel)) return null;
+  if (!p.location || !p.displayName?.text) return null;
+  const price = (p.priceLevel && GOOGLE_PRICE[p.priceLevel]) || null;
+  const photo = p.photos?.find((ph) => PHOTO_NAME_PATTERN.test(ph.name));
   const types = [p.primaryType ?? '', ...(p.types ?? [])];
   if (isExcludedPlace(p.displayName.text, types)) return null;
   return {
@@ -264,10 +288,34 @@ function fromGoogle(p: GooglePlace): LivePlace | null {
     phone: p.nationalPhoneNumber ?? null,
     district: null,
     sourceUrl: p.googleMapsUri ?? `https://www.google.com/maps/place/?q=place_id:${p.id}`,
+    rating: p.rating ?? null,
+    ratingCount: p.userRatingCount ?? 0,
+    photo: photo
+      ? {
+          url: `${PHOTO_PROXY_PATH}?name=${encodeURIComponent(photo.name)}`,
+          attribution: photo.authorAttributions?.[0]?.displayName ?? null,
+        }
+      : null,
   };
 }
 
 async function searchGoogle(key: string, center: LatLng, radius: number, locale: Locale): Promise<LivePlace[]> {
+  const results = await Promise.allSettled(GOOGLE_TYPE_GROUPS.map((types) => searchGoogleGroup(key, types, center, radius, locale)));
+  const ok = results.filter((r): r is PromiseFulfilledResult<LivePlace[]> => r.status === 'fulfilled');
+  // Hiçbir grup yanıt vermediyse (anahtar/kota/ağ) hata: OSM'e düşülür
+  if (!ok.length) throw (results[0] as PromiseRejectedResult).reason;
+  const byId = new Map<string, LivePlace>();
+  for (const place of ok.flatMap((r) => r.value)) byId.set(place.id, place);
+  return [...byId.values()];
+}
+
+async function searchGoogleGroup(
+  key: string,
+  includedTypes: string[],
+  center: LatLng,
+  radius: number,
+  locale: Locale,
+): Promise<LivePlace[]> {
   const data = (await fetchJson(
     GOOGLE_NEARBY_URL,
     {
@@ -278,13 +326,14 @@ async function searchGoogle(key: string, center: LatLng, radius: number, locale:
         'X-Goog-FieldMask': GOOGLE_FIELDS.map((f) => `places.${f}`).join(','),
       },
       body: JSON.stringify({
-        includedTypes: GOOGLE_TYPES,
+        includedTypes,
         // Sokak yemeği / esnaf odağı: içkili eğlence mekanları hiç gelmesin (ayrıca isExcludedPlace)
         excludedTypes: ['bar', 'night_club'],
         maxResultCount: 20,
         rankPreference: 'DISTANCE',
         languageCode: locale,
-        locationRestriction: { circle: { center, radius } },
+        // Nearby Search en fazla 50 km kabul eder
+        locationRestriction: { circle: { center, radius: Math.min(radius, 50_000) } },
       }),
     },
     GOOGLE_TIMEOUT_MS,
@@ -327,6 +376,9 @@ function fromOsm(el: OsmElement): LivePlace | null {
     phone: tags.phone ?? tags['contact:phone'] ?? null,
     district: tags['addr:suburb'] ?? tags['addr:district'] ?? null,
     sourceUrl: `https://www.openstreetmap.org/${el.type}/${el.id}`,
+    rating: null,
+    ratingCount: 0,
+    photo: null,
   };
 }
 
@@ -497,9 +549,9 @@ export function livePlaceSummary(p: LivePlace, origin: LatLng): VenueSummaryDTO 
     spottedCount: 0,
     spottedTodayCount: 0,
     upvoteCount: 0,
-    rating: { average: null, count: 0 },
-    coverImageUrl: null,
-    coverImageCredit: null,
+    rating: { average: p.rating, count: p.ratingCount },
+    coverImageUrl: p.photo?.url ?? null,
+    coverImageCredit: p.photo?.attribution ? `${p.photo.attribution} · Google` : null,
     isPromoted: false,
     liveLocation: null,
     topReview: null,

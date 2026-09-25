@@ -557,6 +557,7 @@ export const ar: Dictionary = {
     openInMaps: "افتح في خرائط Google",
     noReviews: "لا توجد مراجعات مكتوبة بعد",
     weekHours: "ساعات العمل (Google)",
+    photoBy: (name: string) => `صورة: ${name}`,
   },
   spotted: {
     todayCount: (n: number) => `شوهد اليوم ${count(n, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,

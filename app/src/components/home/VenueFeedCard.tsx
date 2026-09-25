@@ -105,7 +105,8 @@ export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Pro
           )}
           {venue.coverImageCredit && (
             <Text style={styles.credit} numberOfLines={1}>
-              {t.detail.photoCredit(venue.coverImageCredit)}
+              {/* Google fotoğrafı mekanın kendisidir; yemek fotoğrafı ise temsilidir */}
+              {venue.source === 'LOCALBITE' ? t.detail.photoCredit(venue.coverImageCredit) : t.google.photoBy(venue.coverImageCredit)}
             </Text>
           )}
         </View>

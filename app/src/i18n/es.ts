@@ -550,6 +550,7 @@ export const es: Dictionary = {
     openInMaps: "Abrir en Google Maps",
     noReviews: "Aún no hay reseñas escritas",
     weekHours: "Horario (Google)",
+    photoBy: (name: string) => `Foto: ${name}`,
   },
   spotted: {
     todayCount: (n: number) => (n === 1 ? '1 persona lo vio hoy' : `${n} personas lo vieron hoy`),

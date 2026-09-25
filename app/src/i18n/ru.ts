@@ -559,6 +559,7 @@ export const ru: Dictionary = {
     openInMaps: "Открыть в Google Картах",
     noReviews: "Письменных отзывов пока нет",
     weekHours: "Часы работы (Google)",
+    photoBy: (name: string) => `Фото: ${name}`,
   },
   spotted: {
     todayCount: (n: number) => `Сегодня видели ${n} ${plural(n, 'раз', 'раза', 'раз')}`,

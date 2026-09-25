@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 import { env } from '../env';
 import { enrichWithGoogle, namesMatch } from './google-places.service';
-import { classify, isExcludedPlace } from './live-places.service';
+import { classify, findLivePlaces, isExcludedPlace } from './live-places.service';
 
 describe('isExcludedPlace', () => {
   it('bar, pub, gece kulübü ve meyhaneleri eler', () => {
@@ -103,5 +103,58 @@ describe('enrichWithGoogle', () => {
   it('namesMatch boşluk ve Türkçe karakterden bağımsızdır', () => {
     assert.ok(namesMatch('Baydöner', 'Bay Döner Kadıköy'));
     assert.ok(!namesMatch('Baydöner', 'Starbucks'));
+  });
+});
+
+describe('findLivePlaces (Google)', () => {
+  const realFetch = globalThis.fetch;
+  const realKey = env.GOOGLE_PLACES_API_KEY;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    env.GOOGLE_PLACES_API_KEY = realKey;
+  });
+
+  it('türleri gruplar halinde sorar; barı ve pahalıyı eler, fiyatı bilinmeyeni foto/puanla tutar', async () => {
+    env.GOOGLE_PLACES_API_KEY = 'test-key';
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response(
+        JSON.stringify({
+          places: [
+            {
+              id: 'p1',
+              displayName: { text: 'Kardeşler Döner' },
+              location: { latitude: 41.0101, longitude: 28.9701 },
+              types: ['restaurant'],
+              rating: 4.6,
+              userRatingCount: 120,
+              photos: [{ name: 'places/p1/photos/x1', authorAttributions: [{ displayName: 'Mehmet' }] }],
+            },
+            { id: 'p2', displayName: { text: 'Gece Bar' }, location: { latitude: 41.0102, longitude: 28.9702 }, types: ['bar'] },
+            {
+              id: 'p3',
+              displayName: { text: 'Lüks Restoran' },
+              location: { latitude: 41.0103, longitude: 28.9703 },
+              priceLevel: 'PRICE_LEVEL_VERY_EXPENSIVE',
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const log = { warn: () => {} };
+    const { places } = await findLivePlaces({ latitude: 41.0105, longitude: 28.9705 }, 'tr', log);
+    assert.equal(calls, 4); // tür grupları
+    assert.deepEqual(
+      places.map((p) => p.id),
+      ['google:p1'],
+    );
+    const [p] = places;
+    assert.equal(p?.priceLevel, null);
+    assert.equal(p?.rating, 4.6);
+    assert.equal(p?.liveCategory, 'KEBAB_WRAP');
+    assert.equal(p?.photo?.url, '/api/v1/places/photo?name=places%2Fp1%2Fphotos%2Fx1');
   });
 });
