@@ -5,6 +5,7 @@ import { createElement, type ComponentType } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 import { useT } from '../../i18n';
+import { distanceLabel as formatDistanceOption } from '../../lib/format';
 import { DISTANCE_OPTIONS, useExploreStore, type DistanceOption } from '../../store/explore';
 import { foodCategoryMeta, makeStyles, radius, spacing, useTheme } from '../../theme';
 
@@ -21,8 +22,7 @@ export function ExploreFilterBar() {
     useShallow((s) => ({ distance: s.distance, setDistance: s.setDistance, filters: s.filters, setFilter: s.setFilter })),
   );
 
-  // "500 m", "1 km", "3 km" (formatDistance 1 km'yi "1.0 km" yazardı)
-  const distanceLabel = (d: DistanceOption) => (d === null ? t.exploreFilters.all : d < 1_000 ? `${d} m` : `${d / 1_000} km`);
+  const distanceLabel = (d: DistanceOption) => (d === null ? t.exploreFilters.all : formatDistanceOption(d));
 
   return (
     <View style={styles.wrap}>

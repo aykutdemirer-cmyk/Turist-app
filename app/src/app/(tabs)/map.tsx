@@ -9,12 +9,13 @@ import { MAX_RADIUS_M, NEARBY_RADIUS_M, useNearbyVenues } from '../../api/venues
 import { NearestCartsCard, SocialReportCallout } from '../../components/explore/ExploreCards';
 import { ExploreFilterBar } from '../../components/explore/ExploreFilterBar';
 import { VenueMap, type VenueMapHandle } from '../../components/map/VenueMap';
-import { DEFAULT_CENTER, useUserLocation } from '../../hooks/useUserLocation';
+import { DEFAULT_CENTER, useLocationOrigin } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
 import { applyExploreFilters } from '../../lib/exploreFilter';
 import { DEFAULT_DISTANCE, useExploreStore, type MapLayers } from '../../store/explore';
 import { useAvatarFace } from '../../store/profile';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
+import { LoadErrorCard } from '../../components/ui/LoadErrorCard';
 
 /** Üst çipler ve filtre satırları ölçülene kadarki tahmini yükseklik */
 const TOP_BAR_ESTIMATE = 140;
@@ -23,6 +24,8 @@ const BOTTOM_CARD_HEIGHT = 230;
 /** Harita bu kadar kaydırılınca "Bu bölgede ara" görünür */
 const SEARCH_HERE_THRESHOLD_M = 800;
 const NEAREST_CARTS = 3;
+/** "Konumuma git" sonrası taze konum bu kadar farklıysa harita yeniden odaklanır */
+const LOCATE_REFOCUS_M = 30;
 
 export default function ExploreScreen() {
   const { colors, shadow } = useTheme();
@@ -33,7 +36,8 @@ export default function ExploreScreen() {
   const mapRef = useRef<VenueMapHandle>(null);
   const avatarFace = useAvatarFace();
 
-  const location = useUserLocation();
+  const location = useLocationOrigin();
+  const { isFallback } = location;
   const { layers, toggleLayer, selectedId, select, searchCenter, setSearchCenter, distance, filters, resetFilters } = useExploreStore(
     useShallow((s) => ({
       layers: s.layers,
@@ -107,11 +111,15 @@ export default function ExploreScreen() {
 
   const openVenue = (id: string) => router.push({ pathname: '/venue/[id]', params: { id } });
 
+  // Bilinen konuma hemen uç; taze GPS okuması (en fazla ~10 sn) gelince belirgin fark varsa düzelt
   const locateMe = async () => {
-    const coords = await location.refresh();
     setSearchCenter(null);
     setMapCenter(null);
-    mapRef.current?.focus(coords ?? DEFAULT_CENTER, true);
+    const known = location.coords;
+    if (known) mapRef.current?.focus(known, true, true);
+    const fresh = await location.refresh();
+    if (fresh && (!known || haversineMeters(known, fresh) > LOCATE_REFOCUS_M)) mapRef.current?.focus(fresh, true, true);
+    else if (!fresh && !known) mapRef.current?.focus(DEFAULT_CENTER, true, true);
   };
 
   const searchHere = () => {
@@ -129,7 +137,7 @@ export default function ExploreScreen() {
         selectedId={selected?.id ?? null}
         onSelectVenue={focusVenue}
         onMapPress={() => select(null)}
-        user={location.coords ? { ...location.coords, face: avatarFace } : null}
+        user={location.coords ? { ...location.coords, face: avatarFace, label: t.map.youAreHere } : null}
         topInset={topHeight}
         bottomInset={BOTTOM_CARD_HEIGHT}
         onRegionChangeComplete={(center, isGesture) => {
@@ -151,10 +159,11 @@ export default function ExploreScreen() {
           </View>
         </View>
         <View style={styles.topStatus} pointerEvents="box-none">
-          {location.status === 'denied' && !searchCenter && (
-            <View style={styles.notice}>
+          {/* İzin yok ya da GPS kapalı: İstanbul merkezi gösteriliyor; dokununca yeniden dener */}
+          {isFallback && !searchCenter && (
+            <Pressable onPress={locateMe} style={styles.notice} accessibilityRole="button">
               <Text style={styles.noticeText}>{t.map.locationDenied}</Text>
-            </View>
+            </Pressable>
           )}
           {nearby.data && all.length === 0 && (
             <View style={styles.notice}>
@@ -188,14 +197,16 @@ export default function ExploreScreen() {
           accessibilityLabel={t.map.locateMe}
           style={({ pressed }) => [styles.locate, pressed && styles.pressed]}
         >
-          <LocateFixed size={22} color={location.status === 'granted' ? colors.primary : colors.textMuted} />
+          <LocateFixed size={22} color={location.coords ? colors.primary : colors.textMuted} />
         </Pressable>
 
         {nearby.isError && !nearby.data ? (
-          <Pressable onPress={() => nearby.refetch()} style={[styles.error, shadow.card]}>
-            <Text style={styles.errorText}>{t.map.loadError}</Text>
-            <Text style={[styles.errorText, { color: colors.primary, fontWeight: '700' }]}>{t.map.retry}</Text>
-          </Pressable>
+          <LoadErrorCard
+            error={nearby.error}
+            onRetry={() => nearby.refetch()}
+            retrying={nearby.isFetching}
+            style={[styles.error, shadow.card]}
+          />
         ) : selected ? (
           <SocialReportCallout venue={selected} onOpen={openVenue} onClose={() => select(null)} />
         ) : (

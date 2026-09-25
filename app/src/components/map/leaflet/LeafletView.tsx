@@ -18,11 +18,15 @@ export interface MapPin {
 }
 
 export interface MapUser extends LatLng {
+  /** Profilde seçilen avatar */
   face: string;
+  /** "Buradasınız" */
+  label: string;
 }
 
 export interface LeafletHandle {
-  focus: (target: LatLng, zoom?: number) => void;
+  /** fly: akıcı uçuş animasyonu ("Konumuma git") */
+  focus: (target: LatLng, zoom?: number, fly?: boolean) => void;
   /** Haritayı mesafe dairesine sığdır; daire yoksa verilen yakınlığa geç */
   fitRadius: (fallbackZoom?: number) => void;
 }
@@ -86,6 +90,13 @@ export function LeafletView({
 }: Props) {
   const webRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
+  // Sayfa kaynağı bir sonraki render'da verilir: yerel WebView "userAgent"ı uygulamadan önce yüklemeye başlarsa
+  // ilk istekler (leaflet.js, karolar) varsayılan tarayıcı kimliğiyle gider ve tünel uyarı sayfasına takılır
+  const [sourceReady, setSourceReady] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setSourceReady(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   // HTML yalnızca ilk render'da üretilir; sonraki güncellemeler köprü üzerinden gider
   const [html] = useState(() =>
@@ -105,7 +116,7 @@ export function LeafletView({
   }, []);
 
   useImperativeHandle(ref, () => ({
-    focus: (target, zoom) => send({ type: 'focus', latitude: target.latitude, longitude: target.longitude, zoom }),
+    focus: (target, zoom, fly) => send({ type: 'focus', latitude: target.latitude, longitude: target.longitude, zoom, fly }),
     fitRadius: (zoom) => send({ type: 'fitRadius', zoom }),
   }));
 
@@ -119,7 +130,9 @@ export function LeafletView({
     if (ready) send({ type: 'select', id: selectedId });
   }, [ready, selectedId, send]);
 
-  const userJson = user ? JSON.stringify({ latitude: user.latitude, longitude: user.longitude, face: user.face }) : null;
+  const userJson = user
+    ? JSON.stringify({ latitude: user.latitude, longitude: user.longitude, face: user.face, label: user.label })
+    : null;
   useEffect(() => {
     if (ready) send({ type: 'user', user: userJson ? JSON.parse(userJson) : null });
   }, [ready, userJson, send]);
@@ -160,8 +173,11 @@ export function LeafletView({
     <WebView
       ref={webRef}
       style={[styles.web, style]}
-      source={{ html, baseUrl: API_URL }}
+      source={sourceReady ? { html, baseUrl: API_URL } : { html: '' }}
       originWhitelist={['*']}
+      // Leaflet dosyaları ve karolar API'den gelir. Tarayıcı kimliğiyle giden istekler tünel servislerinin
+      // (ör. loca.lt) uyarı sayfasına takılır; tarayıcı olmayan bir kimlik doğrudan içeriği alır.
+      userAgent="LocalBite-Map/1.0"
       onMessage={onMessage}
       javaScriptEnabled
       domStorageEnabled

@@ -1,6 +1,6 @@
 import type { FoodCategory, VenueSummaryDTO } from '@localbite/shared';
 import { useRouter } from 'expo-router';
-import { Search, X } from 'lucide-react-native';
+import { LocateOff, Search, X } from 'lucide-react-native';
 import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,14 +12,18 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNearbyVenues } from '../../api/venues';
+import { MAX_RADIUS_M, NEARBY_RADIUS_M, useNearbyVenues } from '../../api/venues';
 import { CategoryRail } from '../../components/home/CategoryRail';
 import { VenueFeedCard } from '../../components/home/VenueFeedCard';
 import { ExperienceSection } from '../../components/monetization/ExperienceSection';
 import { TrailsSection } from '../../components/monetization/TrailsSection';
-import { DEFAULT_CENTER, useUserLocation } from '../../hooks/useUserLocation';
+import { useLocationOrigin } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
+import { applyExploreFilters } from '../../lib/exploreFilter';
+import { distanceLabel } from '../../lib/format';
+import { useExploreStore } from '../../store/explore';
 import { foodCategoryMeta, makeStyles, radius, spacing, useTheme } from '../../theme';
+import { LoadErrorCard } from '../../components/ui/LoadErrorCard';
 
 const normalize = (s: string) => s.toLocaleLowerCase('tr').trim();
 
@@ -42,17 +46,28 @@ export default function HomeScreen() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<FoodCategory | null>(null);
 
-  const location = useUserLocation();
-  const center = location.coords ?? (location.status !== 'pending' ? DEFAULT_CENTER : null);
-  const nearby = useNearbyVenues(center);
+  // Gerçek GPS konumu; izin yoksa ya da GPS kapalıysa İstanbul merkezi (uyarıyla)
+  const { origin, isFallback, refresh } = useLocationOrigin();
+  // Keşfet'te seçilen mesafe burada da geçerli (varsayılan 3 km)
+  const distance = useExploreStore((s) => s.distance);
+  const nearby = useNearbyVenues(origin, distance === null ? MAX_RADIUS_M : Math.max(distance, NEARBY_RADIUS_M));
 
   const query = normalize(search);
   const venues = useMemo(
     () =>
-      (nearby.data?.items ?? []).filter(
-        (v) => (!category || v.categories.includes(category)) && matchesSearch(v, query),
-      ),
-    [nearby.data, category, query],
+      // Mesafe cihazdaki konuma göre (Haversine) yeniden hesaplanır ve yakından uzağa sıralanır:
+      // kullanıcı yürüdükçe kartlardaki "370 m" yeni istek beklemeden güncellenir
+      origin
+        ? applyExploreFilters(nearby.data?.items ?? [], {
+            origin,
+            maxDistance: distance,
+            category,
+            openNow: false,
+            budget: false,
+            liveOnly: false,
+          }).filter((v) => matchesSearch(v, query))
+        : [],
+    [nearby.data, origin, distance, category, query],
   );
 
   const openVenue = (id: string) => router.push({ pathname: '/venue/[id]', params: { id } });
@@ -89,6 +104,19 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
+        {/* Konum yok: İstanbul merkezine göre listeleniyor; dokununca yeniden dener (izin / GPS) */}
+        {isFallback && (
+          <Pressable
+            onPress={() => refresh()}
+            style={({ pressed }) => [styles.locationNotice, pressed && styles.pressed]}
+            accessibilityRole="button"
+          >
+            <LocateOff size={16} color={colors.warning} />
+            <Text style={styles.locationNoticeText}>{t.map.locationDenied}</Text>
+            <Text style={styles.locationRetry}>{t.map.retry}</Text>
+          </Pressable>
+        )}
+
         {/* Kategoriler: yatay kaydırılır, seçim listeyi anında süzer */}
         <CategoryRail value={category} onChange={setCategory} />
 
@@ -99,7 +127,9 @@ export default function HomeScreen() {
         <View style={styles.sectionHeader}>
           <Text style={font.title}>{t.home.nearestTitle}</Text>
           <View style={styles.subtitleRow}>
-            {nearby.data && <Text style={font.small}>{t.home.nearestSubtitle(venues.length)}</Text>}
+            {nearby.data && (
+              <Text style={font.small}>{t.home.nearestSubtitle(venues.length, distance === null ? null : distanceLabel(distance))}</Text>
+            )}
             {category && (
               <Pressable
                 onPress={() => setCategory(null)}
@@ -120,10 +150,7 @@ export default function HomeScreen() {
         {nearby.isPending ? (
           <ActivityIndicator color={colors.primary} style={styles.loader} />
         ) : nearby.isError && !nearby.data ? (
-          <Pressable onPress={() => nearby.refetch()} style={styles.empty}>
-            <Text style={styles.emptyText}>{t.map.loadError}</Text>
-            <Text style={[styles.emptyText, { color: colors.primary }]}>{t.map.retry}</Text>
-          </Pressable>
+          <LoadErrorCard error={nearby.error} onRetry={() => nearby.refetch()} retrying={nearby.isFetching} />
         ) : venues.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyText}>{query ? t.home.noResults(search.trim()) : t.home.empty}</Text>
@@ -166,6 +193,17 @@ const useStyles = makeStyles(({ colors, font }) => ({
   },
 
   sectionHeader: { gap: 2, marginTop: spacing.xs },
+  locationNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.warningSoft,
+  },
+  locationNoticeText: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.warning },
+  locationRetry: { fontSize: 13, fontWeight: '800', color: colors.primary },
   subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   filterChip: {
     flexDirection: 'row',

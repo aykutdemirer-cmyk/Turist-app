@@ -1,4 +1,5 @@
 import type { ExpoConfig } from 'expo/config';
+import { withAndroidManifest, type ConfigPlugin } from 'expo/config-plugins';
 
 /** Paylaşılan mekan bağlantılarının alanı (src/api/config.ts SHARE_BASE_URL ile aynı) */
 const SHARE_HOST = new URL(process.env.EXPO_PUBLIC_SHARE_BASE_URL || 'https://uygulama-linki.com').host;
@@ -72,4 +73,16 @@ const config: ExpoConfig = {
   },
 };
 
-export default config;
+/**
+ * Yerel ağdaki HTTP API'ye bağlanan test APK'ları için (ör. EXPO_PUBLIC_API_URL=http://192.168.x.x:3001).
+ * Android release derlemeleri varsayılan olarak düz HTTP'yi engeller; yalnızca ALLOW_HTTP_API=1 ile açılır.
+ * Mağaza derlemelerinde kullanılmaz: API HTTPS olmalı.
+ */
+const withCleartextTraffic: ConfigPlugin = (cfg) =>
+  withAndroidManifest(cfg, (c) => {
+    const app = c.modResults.manifest.application?.[0];
+    if (app) app.$['android:usesCleartextTraffic'] = 'true';
+    return c;
+  });
+
+export default process.env.ALLOW_HTTP_API === '1' ? withCleartextTraffic(config) : config;

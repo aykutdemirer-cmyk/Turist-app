@@ -3,10 +3,14 @@ import * as Location from 'expo-location';
 import { useEffect } from 'react';
 import { create } from 'zustand';
 
-/** İzin verilmezse harita buraya odaklanır: Kadıköy Rıhtım */
+/** Konum yoksa (izin reddi ya da GPS kapalı) kullanılan İstanbul merkezi: Kadıköy Rıhtım */
 export const DEFAULT_CENTER: LatLng = { latitude: 40.9923, longitude: 29.0232 };
 
-export type LocationStatus = 'pending' | 'granted' | 'denied';
+/**
+ * pending: ilk konum bekleniyor · granted: gerçek konum var
+ * denied: izin verilmedi · unavailable: izin var ama GPS kapalı / konum alınamadı
+ */
+export type LocationStatus = 'pending' | 'granted' | 'denied' | 'unavailable';
 
 const CURRENT_POSITION_TIMEOUT_MS = 10_000;
 /** Canlı takip: bu kadar metre yer değiştirince güncelle (pil dostu) */
@@ -27,7 +31,8 @@ interface LocationState {
 }
 
 const useLocationStore = create<LocationState>(() => ({ status: 'pending', coords: null }));
-const setCoords = (coords: LatLng) => useLocationStore.setState({ coords });
+// Gerçek bir konum geldiyse (takip dahil) GPS artık kullanılabilir demektir
+const setCoords = (coords: LatLng) => useLocationStore.setState({ coords, status: 'granted' });
 
 // ─────────────────────────────────────────────
 // Ön plan izni + uygulama içi açıklama (Google Play / App Store konum politikası)
@@ -82,6 +87,12 @@ async function locate(): Promise<LatLng | null> {
     return null;
   }
 
+  // Konum servisleri kapalıysa (GPS / konum anahtarı) sistem konum veremez
+  if (!(await Location.hasServicesEnabledAsync().catch(() => false))) {
+    useLocationStore.setState({ status: 'unavailable' });
+    return null;
+  }
+
   const last = await Location.getLastKnownPositionAsync({ maxAge: 5 * 60_000 }).catch(() => null);
   if (last) setCoords(toLatLng(last));
 
@@ -92,7 +103,8 @@ async function locate(): Promise<LatLng | null> {
   const fix = current ?? last ?? (await Location.getLastKnownPositionAsync().catch(() => null));
 
   const coords = fix ? toLatLng(fix) : null;
-  useLocationStore.setState((s) => ({ status: 'granted', coords: coords ?? s.coords }));
+  if (coords) setCoords(coords);
+  else useLocationStore.setState((s) => ({ status: s.coords ? 'granted' : 'unavailable' }));
   return coords;
 }
 
@@ -106,7 +118,8 @@ export function useLocationTracker() {
     let subscription: Location.LocationSubscription | undefined;
 
     locate().then(async () => {
-      if (cancelled || useLocationStore.getState().status !== 'granted') return;
+      // İzin varsa GPS şu an kapalı olsa da takip başlar; açıldığında ilk konum durumu "granted" yapar
+      if (cancelled || useLocationStore.getState().status === 'denied') return;
       subscription = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.Balanced, distanceInterval: WATCH_DISTANCE_M },
         (l) => setCoords(toLatLng(l)),
@@ -126,6 +139,18 @@ export function useUserLocation() {
   const status = useLocationStore((s) => s.status);
   const coords = useLocationStore((s) => s.coords);
   return { status, coords, refresh: locate };
+}
+
+/**
+ * Mesafelerin ölçüldüğü nokta: gerçek konum, yoksa İstanbul merkezi.
+ * İlk konum beklenirken null (yanlış merkezle istek atılmasın).
+ * isFallback: konum izni yok ya da GPS kapalı → arayüz hafif bir uyarı gösterir.
+ */
+export function useLocationOrigin() {
+  const { status, coords, refresh } = useUserLocation();
+  const isFallback = !coords && (status === 'denied' || status === 'unavailable');
+  const origin = coords ?? (status === 'pending' ? null : DEFAULT_CENTER);
+  return { origin, isFallback, status, coords, refresh };
 }
 
 /** "Bugün buradaydı" için anlık, yüksek doğruluklu konum. İzin yoksa ya da alınamazsa null. */

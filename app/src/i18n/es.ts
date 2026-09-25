@@ -26,7 +26,7 @@ export const es: Dictionary = {
   home: {
     searchPlaceholder: 'Busca un lugar o un plato',
     nearestTitle: 'Joyas ocultas cercanas',
-    nearestSubtitle: (n: number) => (n === 1 ? '1 lugar a menos de 3 km' : `${n} lugares a menos de 3 km`),
+    nearestSubtitle: (n: number, within: string | null) => `${n === 1 ? '1 lugar' : `${n} lugares`} ${within ? `a menos de ${within}` : 'cerca'}`,
     empty: 'Aún no hay resultados. Prueba otra categoría o búsqueda.',
     noResults: (q: string) => `Ningún lugar o plato coincide con «${q}».`,
     clearSearch: 'Borrar',
@@ -212,7 +212,7 @@ export const es: Dictionary = {
   },
   locationDisclosure: {
     title: "¿Te mostramos comida callejera cerca?",
-    body: "Solo necesitamos tu ubicación mientras la app está abierta, para mostrarte en el mapa la comida callejera y los puestos más cercanos.",
+    body: "Necesitamos tu ubicación para ordenar por distancia la comida callejera más cercana. Solo se usa mientras la app está abierta.",
     points: ["Nunca se rastrea en segundo plano", "No se guarda, salvo cuando confirmas un puesto, para comprobar que estás cerca"],
     continue: "Continuar",
     notNow: "Ahora no",
@@ -451,6 +451,13 @@ export const es: Dictionary = {
     emptyFiltered: "Aún no hay reseñas de esta fuente.",
     filterLabel: "Fuente",
   },
+  network: {
+    offlineTitle: "No se pudo conectar con el servidor",
+    offlineBody: "Revisa tu conexión a internet y vuelve a intentarlo.",
+    serverTitle: "No se pudieron cargar los lugares",
+    serverBody: "El servidor no responde ahora. Inténtalo de nuevo en un momento.",
+    retry: "Reintentar",
+  },
   guideTips: {
     CASH_ONLY: 'A menudo no aceptan tarjeta: lleva efectivo y billetes pequeños.',
     PAY_AT_COUNTER: 'No traen la cuenta a la mesa: al salir, di en caja lo que comiste.',
@@ -507,6 +514,7 @@ export const es: Dictionary = {
     searchHere: 'Buscar en esta zona',
     locateMe: 'Mostrar mi ubicación',
     locationDenied: 'Ubicación desactivada: mostrando Kadıköy',
+    youAreHere: "Estás aquí",
     empty: 'Ningún lugar coincide con estos filtros. Aleja el mapa o quita un filtro.',
     loadError: 'No se pudieron cargar los lugares. ¿Está en marcha la API?',
     retry: 'Reintentar',

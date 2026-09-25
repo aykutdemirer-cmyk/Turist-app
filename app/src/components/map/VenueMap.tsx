@@ -4,7 +4,7 @@ import { StyleSheet } from 'react-native';
 import { LeafletView, type LeafletHandle, type MapPin, type MapUser } from './leaflet/LeafletView';
 
 export interface VenueMapHandle {
-  focus: (target: LatLng, zoomedIn?: boolean) => void;
+  focus: (target: LatLng, zoomedIn?: boolean, fly?: boolean) => void;
   /** Mesafe dairesini ekrana sığdır ("Tümü"de şehir ölçeğine uzaklaş) */
   fitRadius: () => void;
 }
@@ -48,7 +48,7 @@ export function VenueMap({
   const mapRef = useRef<LeafletHandle>(null);
 
   useImperativeHandle(ref, () => ({
-    focus: (target, zoomedIn = false) => mapRef.current?.focus(target, zoomedIn ? FOCUS_ZOOM : undefined),
+    focus: (target, zoomedIn = false, fly = false) => mapRef.current?.focus(target, zoomedIn ? FOCUS_ZOOM : undefined, fly),
     fitRadius: () => mapRef.current?.fitRadius(ALL_ZOOM),
   }));
 

@@ -69,18 +69,17 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
   .picker-dot { position: absolute; left: 18px; top: 12px; width: 12px; height: 12px; border-radius: 50%; background: #fff; }
   .picker-shadow { position: absolute; left: 17px; bottom: 0; width: 14px; height: 6px; border-radius: 50%; background: rgba(0,0,0,0.25); }
 
-  .me { position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center; }
-  .radar { position: absolute; width: 56px; height: 56px; border-radius: 50%;
-           border: 2px solid ${page.colors.primary}; background: rgba(194,65,12,0.10);
-           animation: radar 2.6s ease-out infinite; }
-  .radar.r2 { animation-delay: 1.3s; }
-  @keyframes radar { 0% { transform: scale(0.9); opacity: 0.9; } 100% { transform: scale(2.1); opacity: 0; } }
-  .avatar { position: relative; width: 50px; height: 50px; border-radius: 50%; background: #fff;
-            border: 3px solid ${page.colors.primary}; box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-            display: flex; align-items: center; justify-content: center; font-size: 28px; line-height: 1; }
-  .backpack { position: absolute; right: -8px; bottom: -6px; width: 24px; height: 24px; border-radius: 50%;
-              background: ${page.colors.mobileAccent}; border: 2px solid #fff; font-size: 13px;
-              display: flex; align-items: center; justify-content: center; }
+  /* "Buradasınız": standart mavi konum noktası + nabız halkası; üstte seçilen avatarla etiket */
+  .me { position: relative; width: 140px; height: 96px; }
+  .me-halo { position: absolute; left: 48px; top: 26px; width: 44px; height: 44px; border-radius: 50%;
+             background: rgba(37,99,235,0.18); animation: halo 2s ease-out infinite; }
+  @keyframes halo { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.9); opacity: 0; } }
+  .me-dot { position: absolute; left: 61px; top: 39px; width: 18px; height: 18px; border-radius: 50%;
+            background: #2563EB; border: 3px solid #fff; box-sizing: border-box; box-shadow: 0 1px 4px rgba(0,0,0,0.45); }
+  .me-label { position: absolute; left: 50%; top: 0; transform: translateX(-50%); white-space: nowrap;
+              display: flex; align-items: center; gap: 4px; padding: 3px 9px 3px 5px; border-radius: 999px;
+              background: #2563EB; color: #fff; font-size: 12px; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
+  .me-face { font-size: 15px; line-height: 1; }
 </style>
 </head>
 <body>
@@ -190,18 +189,26 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
     if (id && venues[id]) renderVenue(id);
   }
 
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
   function setUser(u) {
     if (!u) { if (userMarker) { map.removeLayer(userMarker); userMarker = null; } return; }
-    if (!userMarker || userFace !== u.face) {
+    var key = u.face + '|' + u.label;
+    if (!userMarker || userFace !== key) {
       if (userMarker) map.removeLayer(userMarker);
-      userFace = u.face;
+      userFace = key;
       userMarker = L.marker([u.latitude, u.longitude], {
-        // Etkileşimsiz olduğu için dokunuşlar alttaki pinlere geçer; karakter hep görünür kalsın
+        // Etkileşimsiz olduğu için dokunuşlar alttaki pinlere geçer; konum hep görünür kalsın
         interactive: false, keyboard: false, zIndexOffset: 5000,
         icon: L.divIcon({
-          className: 'lb-icon', iconSize: [120, 120], iconAnchor: [60, 60],
-          html: '<div class="me"><div class="radar"></div><div class="radar r2"></div>' +
-                '<div class="avatar">' + u.face + '<div class="backpack">🎒</div></div></div>'
+          // Çapa mavi noktanın ortası (etiket noktanın üstünde durur)
+          className: 'lb-icon', iconSize: [140, 96], iconAnchor: [70, 48],
+          html: '<div class="me"><div class="me-halo"></div><div class="me-dot"></div>' +
+                '<div class="me-label"><span class="me-face">' + escapeHtml(u.face) + '</span>' + escapeHtml(u.label) + '</div></div>'
         })
       }).addTo(map);
     } else {
@@ -255,7 +262,10 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
   function focus(m) {
     var zoom = m.zoom || map.getZoom();
     var point = map.project([m.latitude, m.longitude], zoom).add([0, (padding.bottom - padding.top) / 2]);
-    map.setView(map.unproject(point, zoom), zoom, { animate: true });
+    var target = map.unproject(point, zoom);
+    // "Konumuma git": uzaktan akıcı uçuş; diğer odaklamalar kısa kaydırma
+    if (m.fly) map.flyTo(target, zoom, { duration: 0.8 });
+    else map.setView(target, zoom, { animate: true });
   }
 
   window.bridge = {

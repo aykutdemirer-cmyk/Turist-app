@@ -26,7 +26,7 @@ export const de: Dictionary = {
   home: {
     searchPlaceholder: 'Ort oder Gericht suchen',
     nearestTitle: 'Versteckte Perlen in der Nähe',
-    nearestSubtitle: (n: number) => (n === 1 ? '1 Ort im Umkreis von 3 km' : `${n} Orte im Umkreis von 3 km`),
+    nearestSubtitle: (n: number, within: string | null) => `${n === 1 ? '1 Ort' : `${n} Orte`} ${within ? `im Umkreis von ${within}` : 'in der Nähe'}`,
     empty: 'Hier passt noch nichts. Versuche eine andere Kategorie oder Suche.',
     noResults: (q: string) => `Keine Orte oder Gerichte passen zu „${q}“.`,
     clearSearch: 'Löschen',
@@ -212,7 +212,7 @@ export const de: Dictionary = {
   },
   locationDisclosure: {
     title: "Streetfood in deiner Nähe zeigen?",
-    body: "Wir brauchen deinen Standort nur, während die App geöffnet ist, um dir das nächste Streetfood und mobile Stände auf der Karte zu zeigen.",
+    body: "Wir brauchen deinen Standort, um das nächste Streetfood nach Entfernung zu sortieren. Er wird nur genutzt, während die App geöffnet ist.",
     points: ["Nie im Hintergrund verfolgt", "Nicht gespeichert – außer wenn du einen Stand bestätigst, um zu prüfen, dass du in der Nähe bist"],
     continue: "Weiter",
     notNow: "Nicht jetzt",
@@ -451,6 +451,13 @@ export const de: Dictionary = {
     emptyFiltered: "Noch keine Bewertungen aus dieser Quelle.",
     filterLabel: "Quelle",
   },
+  network: {
+    offlineTitle: "Keine Verbindung zum Server",
+    offlineBody: "Prüfe deine Internetverbindung und versuche es erneut.",
+    serverTitle: "Orte konnten nicht geladen werden",
+    serverBody: "Der Server antwortet gerade nicht. Versuche es gleich noch einmal.",
+    retry: "Erneut versuchen",
+  },
   guideTips: {
     CASH_ONLY: 'Karten werden oft nicht akzeptiert – nimm Bargeld und kleine Scheine mit.',
     PAY_AT_COUNTER: 'Es kommt keine Rechnung an den Tisch: Sag beim Gehen an der Kasse, was du gegessen hast.',
@@ -507,6 +514,7 @@ export const de: Dictionary = {
     searchHere: 'In diesem Bereich suchen',
     locateMe: 'Meinen Standort zeigen',
     locationDenied: 'Standort aus – Kadıköy wird angezeigt',
+    youAreHere: "Du bist hier",
     empty: 'Keine Orte für diese Filter. Zoome heraus oder entferne einen Filter.',
     loadError: 'Orte konnten nicht geladen werden. Läuft die API?',
     retry: 'Erneut versuchen',

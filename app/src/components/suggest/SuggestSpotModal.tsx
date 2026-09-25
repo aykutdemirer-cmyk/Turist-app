@@ -180,7 +180,7 @@ function SuggestSpotContent({ onClose, userLocation, fallbackCenter }: Omit<Prop
       <View style={[styles.screen, { paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
         <LocationPicker
           initial={form.location ?? userLocation ?? fallbackCenter}
-          user={userLocation ? { ...userLocation, face: avatarFace } : null}
+          user={userLocation ? { ...userLocation, face: avatarFace, label: t.map.youAreHere } : null}
           bottomInset={insets.bottom}
           onCancel={() => setMode('form')}
           onConfirm={(location) => {

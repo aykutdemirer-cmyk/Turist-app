@@ -26,7 +26,7 @@ export const tr: Dictionary = {
   home: {
     searchPlaceholder: 'Mekan veya yemek ara',
     nearestTitle: 'En yakın gizli lezzetler',
-    nearestSubtitle: (n: number) => `3 km içinde ${n} mekan`,
+    nearestSubtitle: (n: number, within: string | null) => (within ? `${within} içinde ${n} mekan` : `Yakınında ${n} mekan`),
     empty: 'Burada henüz eşleşen mekan yok. Başka bir kategori ya da arama dene.',
     noResults: (q: string) => `"${q}" ile eşleşen mekan veya yemek yok.`,
     clearSearch: 'Temizle',
@@ -212,7 +212,7 @@ export const tr: Dictionary = {
   },
   locationDisclosure: {
     title: "Yakınındaki lezzetleri gösterelim mi?",
-    body: "Size en yakın sokak lezzetlerini ve seyyar satıcıları haritada gösterebilmek için konum bilginize yalnızca uygulama açıkken ihtiyaç duyuyoruz.",
+    body: "En yakın sokak lezzetlerini mesafeye göre sıralayabilmemiz için konum bilginize ihtiyaç duyuyoruz. Konumunuz yalnızca uygulama açıkken kullanılır.",
     points: ["Arka planda asla takip edilmez", "Saklanmaz — yalnızca bir seyyarı teyit ettiğinde, yakında olduğunu doğrulamak için"],
     continue: "Devam Et",
     notNow: "Şimdi değil",
@@ -451,6 +451,13 @@ export const tr: Dictionary = {
     emptyFiltered: "Bu kaynaktan henüz yorum yok.",
     filterLabel: "Yorum kaynağı",
   },
+  network: {
+    offlineTitle: "Sunucuya bağlanılamadı",
+    offlineBody: "İnternetinizi kontrol edin ve tekrar deneyin.",
+    serverTitle: "Mekanlar yüklenemedi",
+    serverBody: "Sunucu şu an yanıt vermiyor. Biraz sonra tekrar deneyin.",
+    retry: "Tekrar Dene",
+  },
   guideTips: {
     CASH_ONLY: 'Kart çoğu zaman geçmez; yanında nakit ve bozuk para bulundur.',
     PAY_AT_COUNTER: 'Masaya hesap gelmez; çıkarken kasaya ne yediğini söyle.',
@@ -507,6 +514,7 @@ export const tr: Dictionary = {
     searchHere: 'Bu bölgede ara',
     locateMe: 'Konumumu göster',
     locationDenied: 'Konum kapalı, Kadıköy gösteriliyor',
+    youAreHere: "Buradasınız",
     empty: 'Bu filtrelerle burada mekan yok. Uzaklaştırmayı ya da bir filtreyi kaldırmayı deneyin.',
     loadError: 'Mekanlar yüklenemedi. API çalışıyor mu?',
     retry: 'Tekrar dene',

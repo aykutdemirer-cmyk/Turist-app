@@ -26,7 +26,7 @@ export const en = {
   home: {
     searchPlaceholder: 'Search a place or dish',
     nearestTitle: 'Nearest hidden gems',
-    nearestSubtitle: (n: number) => (n === 1 ? '1 spot within 3 km' : `${n} spots within 3 km`),
+    nearestSubtitle: (n: number, within: string | null) => `${n === 1 ? '1 spot' : `${n} spots`} ${within ? `within ${within}` : 'nearby'}`,
     empty: 'Nothing matches here yet. Try another category or search.',
     noResults: (q: string) => `No spots or dishes match "${q}".`,
     clearSearch: 'Clear',
@@ -212,7 +212,7 @@ export const en = {
   },
   locationDisclosure: {
     title: "Show street food near you?",
-    body: "We need your location only while the app is open, to show the nearest street food and mobile vendors on the map.",
+    body: "We need your location to sort the nearest street food by distance. It is only used while the app is open.",
     points: ["Never tracked in the background", "Not stored — except when you confirm a vendor, to check you are nearby"],
     continue: "Continue",
     notNow: "Not now",
@@ -451,6 +451,13 @@ export const en = {
     emptyFiltered: "No reviews from this source yet.",
     filterLabel: "Review source",
   },
+  network: {
+    offlineTitle: "Couldn't reach the server",
+    offlineBody: "Check your internet connection and try again.",
+    serverTitle: "Couldn't load places",
+    serverBody: "The server isn't responding right now. Try again in a moment.",
+    retry: "Try again",
+  },
   guideTips: {
     CASH_ONLY: 'Cards are often not accepted — carry cash and small notes.',
     PAY_AT_COUNTER: 'No bill comes to the table: tell the cashier what you ate on your way out.',
@@ -507,6 +514,7 @@ export const en = {
     searchHere: 'Search this area',
     locateMe: 'Show my location',
     locationDenied: 'Location is off — showing Kadıköy',
+    youAreHere: "You are here",
     empty: 'No spots match these filters here. Try zooming out or clearing a filter.',
     loadError: "Couldn't load spots. Is the API running?",
     retry: 'Retry',
