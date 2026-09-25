@@ -93,6 +93,11 @@ export interface VenueSummaryDTO {
   openStatusKnown: boolean;
   /** Dış kaynaklı yerde tür etiketi yerine gösterilir; kendi mekanlarımızda null */
   liveCategory: LiveCategory | null;
+  /** Dış kaynaklı yerde saat biliniyorsa İstanbul saatiyle bir sonraki değişim: açıksa kapanış, kapalıysa açılış */
+  closesAt: string | null;
+  opensAt: string | null;
+  /** Saatin kaynağı; COMMUNITY → LocalBite kullanıcısı güncelledi. Kendi mekanlarımızda null */
+  hoursSource: 'OSM' | 'GOOGLE' | 'COMMUNITY' | null;
   authenticityScore: number;
   /** Seyyarlarda o anki program diliminin köşesi, yoksa varsayılan konum */
   latitude: number;
@@ -117,6 +122,8 @@ export interface VenueSummaryDTO {
   coverImageUrl: string | null;
   /** Kapak lisanslı yemek fotoğrafıysa görünür atıf ("Yazar · CC BY-SA 4.0"); mekanın kendi kapağında null */
   coverImageCredit: string | null;
+  /** true → kapak mekanın kendisi değil, türünü temsil eden yemek fotoğrafı ("Temsili fotoğraf") */
+  coverIsRepresentative: boolean;
   /** Esnaf sponsorlu öne çıkarma (ücretli yerleşim; "Sponsorlu" olarak etiketlenmeli) */
   isPromoted: boolean;
   /**
@@ -152,6 +159,8 @@ export interface VenueDetailDTO extends Omit<VenueSummaryDTO, 'distanceMeters' |
   reviews: ReviewDTO[];
   /** Onaylı, yayın süresi dolmamış satıcı duyuruları */
   announcements: PublicAnnouncementDTO[];
+  /** Dış kaynaklı yerin haftalık saatleri ("Pazartesi: 10:00–22:00"); kendi mekanlarımızda boş (schedules kullanılır) */
+  weeklyHours: string[];
   /** Dış kaynaklı yer Google'da eşleştiyse canlı bilgiler (saklanmaz, 24 saat bellekte); yoksa null */
   google: GooglePlaceDTO | null;
 }

@@ -29,7 +29,11 @@ export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Pro
   const open = venue.isActiveNow || venue.isScheduledOpen;
   const statusLabel = !venue.openStatusKnown
     ? t.status.hoursUnknown
-    : venue.isMobile && venue.isActiveNow
+    : open && venue.closesAt
+      ? t.status.openUntil(venue.closesAt)
+      : !open && venue.opensAt
+        ? t.status.closedUntil(venue.opensAt)
+        : venue.isMobile && venue.isActiveNow
       ? t.status.activeNow
       : open
         ? t.status.openNow
@@ -106,7 +110,7 @@ export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Pro
           {venue.coverImageCredit && (
             <Text style={styles.credit} numberOfLines={1}>
               {/* Google fotoğrafı mekanın kendisidir; yemek fotoğrafı ise temsilidir */}
-              {venue.source === 'LOCALBITE' ? t.detail.photoCredit(venue.coverImageCredit) : t.google.photoBy(venue.coverImageCredit)}
+              {venue.coverIsRepresentative ? t.detail.photoCredit(venue.coverImageCredit) : t.google.photoBy(venue.coverImageCredit)}
             </Text>
           )}
         </View>

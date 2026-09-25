@@ -165,6 +165,23 @@ export const reviewInputSchema = z.object({
 });
 export type ReviewInput = z.infer<typeof reviewInputSchema>;
 
+/** "09:30"; kapanışta "24:00" da geçerli (gece yarısı) */
+const clockSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^24:00$/);
+
+/** Dış kaynaklı yerin haftalık saatleri (topluluk): Pazartesiden Pazara 7 gün */
+export const placeHoursInputSchema = z.object({
+  days: z
+    .array(
+      z.discriminatedUnion('closed', [
+        z.object({ closed: z.literal(true) }),
+        // Kapanış açılıştan küçükse gece yarısını aşar ("18:00" → "02:00")
+        z.object({ closed: z.literal(false), open: clockSchema, close: clockSchema }),
+      ]),
+    )
+    .length(7),
+});
+export type PlaceHoursInput = z.infer<typeof placeHoursInputSchema>;
+
 // ─────────────────────────────────────────────
 // Topluluk
 // ─────────────────────────────────────────────

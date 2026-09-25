@@ -146,6 +146,7 @@ model User {
   blocking        BlockedUser[]   @relation("Blocker")
   blockedBy       BlockedUser[]   @relation("Blocked")
   ownedVenues     Venue[]         @relation("OwnedVenues")
+  placeHoursEdits PlaceHours[]    @relation("PlaceHoursEdits")
 
   @@unique([authProvider, authProviderId])
 }
@@ -532,4 +533,17 @@ model AccountDeletionRequest {
   processedAt DateTime?
 
   @@index([status, createdAt])
+}
+
+/// Dış kaynaklı (OSM/Google) yerin topluluk tarafından girilen çalışma saatleri.
+/// Kaynaktaki (OSM) saatin önüne geçer; son kaydeden kazanır. Kendi mekanlarımız VendorSchedule kullanır.
+model PlaceHours {
+  /// Canlı yer kimliği: "osm:n123" / "google:ChIJ..."
+  placeId      String   @id
+  /// OSM opening_hours sözdizimi: "Mo 10:00-22:00; Tu off; ..." (sunucu formdan üretir ve doğrular)
+  openingHours String
+  updatedById  String?
+  updatedBy    User?    @relation("PlaceHoursEdits", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

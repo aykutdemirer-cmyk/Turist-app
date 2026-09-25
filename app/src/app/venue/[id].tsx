@@ -23,7 +23,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react-native';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { placeUrl } from '../../api/config';
@@ -33,6 +33,7 @@ import { ExperienceSection } from '../../components/monetization/ExperienceSecti
 import { AnnouncementsSection } from '../../components/venue/AnnouncementsSection';
 import { DishRow } from '../../components/venue/DishRow';
 import { GoogleReviewsSection } from '../../components/venue/GoogleReviewsSection';
+import { HoursEditor } from '../../components/venue/HoursEditor';
 import { LinkDistanceCard } from '../../components/venue/LinkDistanceCard';
 import { LiveLocationBadge } from '../../components/venue/LiveLocationBadge';
 import { LiveSourceCard } from '../../components/venue/LiveSourceCard';
@@ -43,6 +44,7 @@ import { openDirections } from '../../lib/directions';
 import { formatTry, priceSymbol } from '../../lib/format';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 import { useGoBack } from '../../hooks/useGoBack';
+import { useRequireAuth } from '../../hooks/useRequireAuth';
 import { useSpotConfirm } from '../../hooks/useSpotConfirm';
 
 const TIP_ICONS: Record<LocalTip, LucideIcon> = {
@@ -129,14 +131,16 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
   const today = new Date().getDay();
   const open = venue.isActiveNow || venue.isScheduledOpen;
   const external = venue.source !== 'LOCALBITE';
+  const requireAuth = useRequireAuth();
+  const [editingHours, setEditingHours] = useState(false);
   const { google } = venue;
-  // Google'dan gerçek durum: "Açık · Kapanış 22:00" / "Kapalı · Açılış 09:00"
+  // Dış kaynaklı yerde gerçek saatlerden: "Açık · Kapanış 22:00" / "Kapalı · Açılış 09:00"
   const statusLabel = !venue.openStatusKnown
     ? t.status.hoursUnknown
-    : google?.openNow && google.closesAt
-      ? t.google.openUntil(google.closesAt)
-      : google?.openNow === false && google.opensAt
-        ? t.google.closedUntil(google.opensAt)
+    : open && venue.closesAt
+      ? t.status.openUntil(venue.closesAt)
+      : !open && venue.opensAt
+        ? t.status.closedUntil(venue.opensAt)
         : venue.isMobile && venue.isActiveNow
       ? t.status.activeNow
       : open
@@ -158,7 +162,7 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
         {/* Google fotoğrafında yazar atfı zorunlu */}
         {external && venue.coverImageCredit && (
           <Text style={styles.coverCredit} numberOfLines={1}>
-            {t.google.photoBy(venue.coverImageCredit)}
+            {venue.coverIsRepresentative ? t.detail.photoCredit(venue.coverImageCredit) : t.google.photoBy(venue.coverImageCredit)}
           </Text>
         )}
         <View style={[styles.statusPill, { backgroundColor: open ? colors.open : colors.overlay }]}>
@@ -260,7 +264,7 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
         )}
 
         {/* Saatler & konum (dış kaynaklı yerlerde çoğu zaman boş: o zaman hiç gösterilmez) */}
-        {(venue.locationNote || venue.address || venue.schedules.length > 0 || (google?.weekdayHours.length ?? 0) > 0) && (
+        {(external || venue.locationNote || venue.address || venue.schedules.length > 0) && (
           <Section title={t.detail.hours}>
             {venue.locationNote && (
               <View style={styles.infoRow}>
@@ -274,8 +278,8 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
                 <Text style={[font.small, styles.flex]}>{venue.address}</Text>
               </View>
             )}
-            {/* Google'ın yerelleştirdiği haftalık saatler ("Pazartesi: 09:00–22:00") */}
-            {google?.weekdayHours.map((line) => (
+            {/* Dış kaynaklı yerin haftalık saatleri ("Pazartesi: 09:00–22:00") */}
+            {venue.weeklyHours.map((line) => (
               <View key={line} style={styles.infoRow}>
                 <Clock size={14} color={colors.textMuted} />
                 <Text style={[font.small, styles.flex]}>{line}</Text>
@@ -297,8 +301,25 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
                 </View>
               </View>
             ))}
+            {/* Haritadaki yerin saatini topluluk ekler/düzeltir; kaynağı her zaman görünür */}
+            {external && (
+              <View style={styles.hoursFooter}>
+                <Text style={styles.hoursSource}>
+                  {venue.hoursSource ? t.hours.source[venue.hoursSource] : t.hours.unknownHint}
+                </Text>
+                <Pressable
+                  onPress={() => requireAuth('hours', () => setEditingHours(true))}
+                  style={({ pressed }) => [styles.hoursEdit, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                >
+                  <Clock size={15} color={colors.primary} />
+                  <Text style={styles.hoursEditText}>{venue.openStatusKnown ? t.hours.edit : t.hours.add}</Text>
+                </Pressable>
+              </View>
+            )}
           </Section>
         )}
+        {editingHours && <HoursEditor venueId={venue.id} onClose={() => setEditingHours(false)} />}
       </View>
     </ScrollView>
   );
@@ -489,6 +510,20 @@ const useStyles = makeStyles(({ colors, font }) => ({
   tipBody: { fontSize: 13, color: colors.textMuted, lineHeight: 19, marginTop: 2 },
 
   infoRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+  hoursFooter: { gap: spacing.sm, marginTop: spacing.xs },
+  hoursSource: { fontSize: 12, lineHeight: 17, color: colors.textMuted },
+  hoursEdit: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  },
+  hoursEditText: { fontSize: 13, fontWeight: '800', color: colors.primary },
   hoursRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

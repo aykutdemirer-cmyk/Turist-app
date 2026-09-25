@@ -2,6 +2,7 @@ import {
   deviceIdSchema,
   localeSchema,
   nearbyQuerySchema,
+  placeHoursInputSchema,
   recentConfirmationsQuerySchema,
   reportInputSchema,
   reviewInputSchema,
@@ -15,6 +16,7 @@ import { recentConfirmations, submitReport } from '../services/report.service';
 import { upsertReview } from '../services/review.service';
 import { suggestVenue } from '../services/suggest.service';
 import { fetchGooglePhoto, PHOTO_NAME_PATTERN } from '../services/google-places.service';
+import { saveCommunityHours } from '../services/place-hours.service';
 import { findNearbyVenues, getVenueDetail } from '../services/venue.service';
 
 // looseObject: doğrulanan değer request.headers'ın yerine geçtiği için diğer header'ları korur.
@@ -32,6 +34,16 @@ export const venueRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { querystring: nearbyQuerySchema } },
     async (req) =>
       findNearbyVenues(req.query, resolveLocale(req.query.locale, req.headers['accept-language']), req.log),
+  );
+
+  // Topluluk saatleri: haritadaki (OSM/Google) yerin haftalık saatlerini üye günceller
+  app.put(
+    '/venues/:id/hours',
+    {
+      schema: { params: z.object({ id: z.string().min(1).max(100) }), body: placeHoursInputSchema },
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
+    async (req) => saveCommunityHours(req.params.id, await requireUserId(req), req.body),
   );
 
   // Google Places fotoğraf vekili: API anahtarı istemciye hiç gitmez

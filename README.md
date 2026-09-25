@@ -17,10 +17,17 @@ Ortak tipler ve doğrulama şemaları `packages/shared` içindedir.
   - SEYYAR / ESNAF katmanları, "Bu bölgede ara"
   - Mesafe filtresi: 500 m · 1 km · 3 km · 5 km · Tümü (Haversine; harita üzerinde kesikli daire)
   - Şu an açık, bütçe dostu `$`, canlı konumlu seyyarlar ve yemek kategorisi filtreleri
-- **Canlı gerçek mekanlar:** `GET /venues/nearby` kendi mekanlarımıza ek olarak yakındaki gerçek yerleri
-  getirir (en fazla 3 km, bellek içinde 1 saat önbellek). `GOOGLE_PLACES_API_KEY` varsa Google Places (New)
-  `searchNearby` (yalnızca uygun/orta fiyatlı), yoksa ya da kota/hata olursa OpenStreetMap (Overpass).
-  Bu yerler salt okunurdur (yorum/teyit yok), küçük gri pinle ve kaynak atfıyla gösterilir.
+- **Canlı gerçek mekanlar (ücretsiz, açık veri):** `GET /venues/nearby` kendi mekanlarımıza ek olarak
+  yakındaki gerçek yerleri OpenStreetMap'ten (Overpass) getirir (en fazla 3 km, bellekte 1 saat önbellek).
+  - Bar, pub, gece kulübü ve meyhaneler elenir; etiket gerçek OSM etiketinden gelir
+    (Kebap & Dürüm, Pide & Börek, Sokak Lezzeti, Fırın & Tatlı, Yerel Restoran).
+  - Çalışma saatleri OSM `opening_hours` etiketinden, açık kaynak `opening_hours` kütüphanesiyle İstanbul
+    saatine göre hesaplanır ("Açık · Kapanış 22:00").
+  - Saati olmayan ya da yanlış olan yere giriş yapmış üye haftalık saat girebilir (`PUT /venues/:id/hours`);
+    topluluk saati kaynağın önüne geçer.
+  - Fotoğraf: OSM'deki Wikimedia Commons/Wikidata bağlantısından dükkanın kendi fotoğrafı (yazar + lisans atfı),
+    yoksa türüne göre lisanslı temsili yemek fotoğrafı.
+  - İsteğe bağlı: `GOOGLE_PLACES_API_KEY` verilirse detayda Google saat/foto/yorum da eklenir (varsayılan kapalı).
 - **Canlı seyyar konumu:** satıcının gönderdiği konum haritada gösterilir.
   - ≤ 4 sa: yeşil halka + "Doğrulanmış Canlı Konum"
   - 4–12 sa: "Konum X dk önce satıcı tarafından güncellendi"

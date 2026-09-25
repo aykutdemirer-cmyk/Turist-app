@@ -5,6 +5,7 @@ import type {
   ReportResultDTO,
   ReportType,
   ReviewDTO,
+  PlaceHoursInput,
   ReviewInput,
   SuggestVenueInput,
   VenueDetailDTO,
@@ -133,6 +134,19 @@ export function useSubmitReview(venueId: string) {
   return useMutation({
     mutationFn: (body: ReviewInput) =>
       api<ReviewDTO>(`/venues/${encodeURIComponent(venueId)}/review`, { method: 'PUT', body }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: venueKeys.detailAll(venueId) });
+      queryClient.invalidateQueries({ queryKey: venueKeys.nearby() });
+    },
+  });
+}
+
+/** Haritadaki (OSM/Google) yerin haftalık saatleri: topluluk günceller, herkes görür */
+export function useSubmitHours(venueId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PlaceHoursInput) =>
+      api<{ placeId: string; openingHours: string }>(`/venues/${encodeURIComponent(venueId)}/hours`, { method: 'PUT', body }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: venueKeys.detailAll(venueId) });
       queryClient.invalidateQueries({ queryKey: venueKeys.nearby() });

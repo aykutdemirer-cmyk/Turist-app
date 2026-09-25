@@ -29,6 +29,7 @@ import {
   withoutDuplicates,
 } from './live-places.service';
 import { blockedIdsFor } from './moderation.service';
+import { communityHours } from './place-hours.service';
 import { localesFor, pickTranslation } from '../lib/locale';
 
 /**
@@ -182,9 +183,9 @@ export function liveStatus(venue: LiveStatusInput, now: Date) {
  * Yemekler sortOrder'a göre gelir, böylece ana lezzet (ör. pilav) yan üründen (ayran) önce seçilir.
  */
 function coverImage(venue: { coverImageUrl: string | null; dishes: { imageUrl: string | null; imageCredit: string | null }[] }) {
-  if (venue.coverImageUrl) return { coverImageUrl: venue.coverImageUrl, coverImageCredit: null };
+  if (venue.coverImageUrl) return { coverImageUrl: venue.coverImageUrl, coverImageCredit: null, coverIsRepresentative: false };
   const dish = venue.dishes.find((d) => d.imageUrl);
-  return { coverImageUrl: dish?.imageUrl ?? null, coverImageCredit: dish?.imageCredit ?? null };
+  return { coverImageUrl: dish?.imageUrl ?? null, coverImageCredit: dish?.imageCredit ?? null, coverIsRepresentative: !!dish };
 }
 
 function toSummary(
@@ -207,6 +208,9 @@ function toSummary(
     priceLevel: venue.priceLevel,
     openStatusKnown: true,
     liveCategory: null,
+    closesAt: null,
+    opensAt: null,
+    hoursSource: null,
     authenticityScore: venue.authenticityScore,
     ...status.position,
     locationNote: status.locationNote,
@@ -280,10 +284,14 @@ export async function findNearbyVenues(query: NearbyQuery, locale: Locale, log: 
 
   // Kendi mekanlarımız her zaman listede; kalan yer canlı gerçek mekanlarla dolar
   const { places, pending } = await livePromise;
-  const live = withoutDuplicates(places, own)
-    .filter((p) => matchesQuery(p, query))
-    .map((p) => livePlaceSummary(p, origin))
+  const candidates = withoutDuplicates(places, own).filter((p) => matchesQuery(p, query));
+  // Topluluğun girdiği saatler kaynaktaki saatin önüne geçer
+  const community = await communityHours(candidates.map((p) => p.id));
+  const live = candidates
+    .map((p) => livePlaceSummary({ ...p, communityHours: community.get(p.id) ?? null }, origin, locale))
     .filter((v) => v.distanceMeters <= query.radius)
+    // Saati bilinmeyen yer "şu an açık" süzgecinde gösterilmez
+    .filter((v) => !query.openNowOnly || v.isActiveNow)
     .sort((a, b) => a.distanceMeters - b.distanceMeters)
     .slice(0, query.limit - own.length);
 
@@ -351,6 +359,9 @@ export async function getVenueDetail(
     priceLevel: venue.priceLevel,
     openStatusKnown: true,
     liveCategory: null,
+    closesAt: null,
+    opensAt: null,
+    hoursSource: null,
     authenticityScore: venue.authenticityScore,
     ...status.position,
     locationNote: status.locationNote,
@@ -382,6 +393,7 @@ export async function getVenueDetail(
     })),
     // Kendi mekanlarımız kendi yorum/saat verisini kullanır
     google: null,
+    weeklyHours: [],
     pricePerPerson:
       venue.avgPriceMinTry !== null && venue.avgPriceMaxTry !== null
         ? { min: venue.avgPriceMinTry, max: venue.avgPriceMaxTry }

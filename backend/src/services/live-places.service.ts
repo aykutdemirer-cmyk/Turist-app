@@ -14,6 +14,9 @@ import {
 } from '@localbite/shared';
 import { env } from '../env';
 import { notFound } from '../lib/errors';
+import { parseOpeningHours, type ParsedHours } from '../lib/openingHours';
+import { commonsFileFromTags, findOpenPhotos, representativePhoto, type OpenPhoto } from '../lib/openPhotos';
+import { communityHours } from './place-hours.service';
 import { enrichWithGoogle, PHOTO_NAME_PATTERN, PHOTO_PROXY_PATH } from './google-places.service';
 
 /**
@@ -88,8 +91,12 @@ export interface LivePlace {
   /** Gösterilen etiket (tür etiketi yerine) */
   liveCategory: LiveCategory;
   priceLevel: PriceLevel | null;
-  /** null → bilinmiyor */
+  /** Google'ın bildirdiği anlık durum; null → bilinmiyor (OSM'de openingHours'tan hesaplanır) */
   openNow: boolean | null;
+  /** OSM `opening_hours` ham değeri; istek anında İstanbul saatiyle yorumlanır (önbellekteki yer bayatlamaz) */
+  openingHours: string | null;
+  /** Topluluğun girdiği saatler (veritabanı); varsa kaynağın önüne geçer. Önbelleğe yazılmaz, istekte eklenir */
+  communityHours?: string | null;
   address: string | null;
   phone: string | null;
   district: string | null;
@@ -98,7 +105,7 @@ export interface LivePlace {
   rating: number | null;
   ratingCount: number;
   /** Kapak: Google fotoğrafı (API vekili üzerinden) */
-  photo: { url: string; attribution: string | null } | null;
+  photo: OpenPhoto | null;
 }
 
 export const isLivePlaceId = (id: string) => id.startsWith('osm:') || id.startsWith('google:');
@@ -284,6 +291,7 @@ function fromGoogle(p: GooglePlace): LivePlace | null {
     ),
     priceLevel: price,
     openNow: p.currentOpeningHours?.openNow ?? null,
+    openingHours: null,
     address: p.formattedAddress ?? null,
     phone: p.nationalPhoneNumber ?? null,
     district: null,
@@ -293,7 +301,8 @@ function fromGoogle(p: GooglePlace): LivePlace | null {
     photo: photo
       ? {
           url: `${PHOTO_PROXY_PATH}?name=${encodeURIComponent(photo.name)}`,
-          attribution: photo.authorAttributions?.[0]?.displayName ?? null,
+          attribution: `${photo.authorAttributions?.[0]?.displayName ?? 'Google'} · Google`,
+          representative: false,
         }
       : null,
   };
@@ -372,6 +381,7 @@ function fromOsm(el: OsmElement): LivePlace | null {
     // OSM'de güvenilir fiyat ve (ayrıştırılmış) açık/kapalı bilgisi yok
     priceLevel: null,
     openNow: null,
+    openingHours: tags.opening_hours ?? null,
     address: street || null,
     phone: tags.phone ?? tags['contact:phone'] ?? null,
     district: tags['addr:suburb'] ?? tags['addr:district'] ?? null,
@@ -413,13 +423,28 @@ async function searchOsm(center: LatLng, radius: number): Promise<LivePlace[]> {
     `(nwr["amenity"="fast_food"]["name"];nwr["amenity"="restaurant"]["name"];nwr["shop"="bakery"]["name"];);` +
     `out center tags ${OVERPASS_FETCH_LIMIT};`;
   const elements = await overpass(query);
-  return elements
-    .map(fromOsm)
-    .filter((p): p is LivePlace => p !== null)
-    .map((p) => ({ p, d: haversineMeters(center, p) }))
+  const nearest = elements
+    .map((el) => ({ el, p: fromOsm(el) }))
+    .filter((x): x is { el: OsmElement; p: LivePlace } => x.p !== null)
+    .map((x) => ({ ...x, d: haversineMeters(center, x.p) }))
     .sort((a, b) => a.d - b.d)
-    .slice(0, MAX_LIVE_RESULTS)
-    .map(({ p }) => p);
+    .slice(0, MAX_LIVE_RESULTS);
+  return withOpenPhotos(nearest);
+}
+
+/**
+ * Ücretsiz fotoğraflar: OSM'deki Commons/Wikidata bağlantısından dükkanın kendi fotoğrafı,
+ * yoksa türüne göre lisanslı temsili yemek fotoğrafı. Wikimedia'ya ulaşılamazsa hepsi temsili olur.
+ */
+async function withOpenPhotos(items: { el: OsmElement; p: LivePlace }[]): Promise<LivePlace[]> {
+  const real = await findOpenPhotos(
+    items.map(({ el, p }) => ({
+      id: p.id,
+      commonsFile: commonsFileFromTags(el.tags ?? {}),
+      wikidata: el.tags?.wikidata ?? el.tags?.['brand:wikidata'] ?? null,
+    })),
+  ).catch(() => new Map<string, OpenPhoto>());
+  return items.map(({ p }) => ({ ...p, photo: real.get(p.id) ?? representativePhoto(p.id, p.liveCategory) }));
 }
 
 async function fetchLivePlaces(center: LatLng, radius: number, locale: Locale, log: Logger): Promise<LivePlace[]> {
@@ -518,11 +543,29 @@ export function withoutDuplicates(places: LivePlace[], own: Pick<VenueSummaryDTO
 export function matchesQuery(p: LivePlace, query: Pick<NearbyQuery, 'category' | 'maxPrice' | 'openNowOnly'>) {
   if (query.category?.length && !query.category.includes(p.type)) return false;
   if (query.maxPrice === 'BUDGET' && p.priceLevel !== 'BUDGET') return false;
-  if (query.openNowOnly && p.openNow !== true) return false;
   return true;
 }
 
-export function livePlaceSummary(p: LivePlace, origin: LatLng): VenueSummaryDTO {
+interface HoursResult {
+  hours: ParsedHours | null;
+  source: VenueSummaryDTO['hoursSource'];
+}
+
+/** Anlık açık/kapalı. Öncelik: topluluk saatleri → OSM saatleri → Google anlık durumu */
+function currentHours(p: LivePlace, locale: Locale): HoursResult {
+  const community = p.communityHours ? parseOpeningHours(p.communityHours, locale) : null;
+  if (community) return { hours: community, source: 'COMMUNITY' };
+  const osm = p.openingHours ? parseOpeningHours(p.openingHours, locale) : null;
+  if (osm) return { hours: osm, source: 'OSM' };
+  if (p.openNow !== null) return { hours: { openNow: p.openNow, closesAt: null, opensAt: null, weeklyHours: [] }, source: 'GOOGLE' };
+  return { hours: null, source: null };
+}
+
+export function livePlaceSummary(p: LivePlace, origin: LatLng, locale: Locale): VenueSummaryDTO {
+  return summaryWithHours(p, origin, currentHours(p, locale));
+}
+
+function summaryWithHours(p: LivePlace, origin: LatLng, { hours, source }: HoursResult): VenueSummaryDTO {
   return {
     id: p.id,
     slug: p.id,
@@ -532,8 +575,11 @@ export function livePlaceSummary(p: LivePlace, origin: LatLng): VenueSummaryDTO 
     source: p.source,
     sourceUrl: p.sourceUrl,
     priceLevel: p.priceLevel,
-    openStatusKnown: p.openNow !== null,
+    openStatusKnown: hours !== null,
     liveCategory: p.liveCategory,
+    closesAt: hours?.closesAt ?? null,
+    opensAt: hours?.opensAt ?? null,
+    hoursSource: source,
     authenticityScore: 0,
     latitude: p.latitude,
     longitude: p.longitude,
@@ -544,15 +590,16 @@ export function livePlaceSummary(p: LivePlace, origin: LatLng): VenueSummaryDTO 
     categories: p.categories,
     tagline: null,
     distanceMeters: Math.round(haversineMeters(origin, p)),
-    isScheduledOpen: p.openNow === true,
-    isActiveNow: p.openNow === true,
+    isScheduledOpen: hours?.openNow === true,
+    isActiveNow: hours?.openNow === true,
     lastSpottedAt: null,
     spottedCount: 0,
     spottedTodayCount: 0,
     upvoteCount: 0,
     rating: { average: p.rating, count: p.ratingCount },
     coverImageUrl: p.photo?.url ?? null,
-    coverImageCredit: p.photo?.attribution ? `${p.photo.attribution} · Google` : null,
+    coverImageCredit: p.photo?.attribution ?? null,
+    coverIsRepresentative: p.photo?.representative ?? false,
     isPromoted: false,
     liveLocation: null,
     topReview: null,
@@ -569,7 +616,8 @@ async function lookupOsm(id: string): Promise<LivePlace | null> {
     OVERPASS_URLS.slice(0, 1),
     OVERPASS_LOOKUP_TIMEOUT_MS,
   );
-  return elements.map(fromOsm).find((p) => p !== null) ?? null;
+  const found = elements.map((el) => ({ el, p: fromOsm(el) })).find((x): x is { el: OsmElement; p: LivePlace } => x.p !== null);
+  return found ? ((await withOpenPhotos([found]))[0] ?? null) : null;
 }
 
 /**
@@ -583,9 +631,13 @@ export async function getLivePlaceDetail(id: string, locale: Locale): Promise<Ve
   if (!place && id.startsWith('osm:')) place = await lookupOsm(id).catch(() => null);
   if (!place) throw notFound('Venue');
 
-  const { distanceMeters: _distance, mustTry: _mustTry, topReview: _topReview, ...summary } = livePlaceSummary(
+  place = { ...place, communityHours: (await communityHours([place.id])).get(place.id) ?? null };
+  const hoursResult = currentHours(place, locale);
+  const { hours } = hoursResult;
+  const { distanceMeters: _distance, mustTry: _mustTry, topReview: _topReview, ...summary } = summaryWithHours(
     place,
     place,
+    hoursResult,
   );
   const google = await enrichWithGoogle(
     {
@@ -601,12 +653,25 @@ export async function getLivePlaceDetail(id: string, locale: Locale): Promise<Ve
   return {
     ...summary,
     ...(google && {
-      openStatusKnown: google.openNow !== null,
-      isScheduledOpen: google.openNow === true,
-      isActiveNow: google.openNow === true,
+      // Topluluk saatleri Google'ın da önündedir (yerel esnaf bilgisi daha güncel)
+      ...(hoursResult.source !== 'COMMUNITY' &&
+        google.openNow !== null && {
+          openStatusKnown: true,
+          isScheduledOpen: google.openNow,
+          isActiveNow: google.openNow,
+          closesAt: google.closesAt,
+          opensAt: google.opensAt,
+          hoursSource: 'GOOGLE' as const,
+        }),
       sourceUrl: google.mapsUrl ?? summary.sourceUrl,
     }),
-    ...(cover && { coverImageUrl: cover.url, coverImageCredit: cover.attribution && `${cover.attribution} · Google` }),
+    weeklyHours:
+      hoursResult.source !== 'COMMUNITY' && google?.weekdayHours.length ? google.weekdayHours : (hours?.weeklyHours ?? []),
+    ...(cover && {
+      coverImageUrl: cover.url,
+      coverImageCredit: `${cover.attribution ?? 'Google'} · Google`,
+      coverIsRepresentative: false,
+    }),
     google,
     pricePerPerson: null,
     address: place.address,
