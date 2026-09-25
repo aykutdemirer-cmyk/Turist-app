@@ -192,7 +192,9 @@ npm run vendor:grant -w @localbite/backend -- kisi@ornek.com mekan-slug  # VENDO
 | `OAUTH_WEB_ORIGINS` | Web paneli için izinli dönüş origin'leri |
 | `LEGAL_CONTACT_EMAIL` | Yasal sayfalar ve silme talepleri iletişim adresi |
 | `GETYOURGUIDE_PARTNER_ID`, `VIATOR_PID`, `AIRALO_REF` | İş ortaklığı kimlikleri |
-| `GOOGLE_PLACES_API_KEY` | Canlı mekanlar için Google Places (New); boşsa OpenStreetMap (Overpass) |
+| `GOOGLE_PLACES_API_KEY` | Google Places (New): dış mekan detayında gerçek saat, kapak fotoğrafı, puan ve yorumlar (boşsa sade OSM kartı) |
+| `GOOGLE_NEARBY_ENABLED` | `true` ise liste/harita da Google'dan gelir (ücretli kullanım); varsayılan `false`, liste OSM'den |
+| `GOOGLE_DAILY_DETAIL_LIMIT`, `GOOGLE_DAILY_PHOTO_LIMIT` | Google'a günlük en fazla detay/fotoğraf isteği (varsayılan 30 ≈ 900/ay, ücretsiz kota altında) |
 | `LIVE_PLACES_ENABLED` | `false` ise canlı dış mekanlar kapalı (varsayılan `true`) |
 | `ALLOW_MOCK_PURCHASES` | Test satın alması; üretimde her zaman kapalı |
 | `SEED_ADMIN_PASSWORD`, `SEED_VENDOR_PASSWORD` | Yalnızca seed: test hesabı parolalarını ezer (üretimde zorunlu) |

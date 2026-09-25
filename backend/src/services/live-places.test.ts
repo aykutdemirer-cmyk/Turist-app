@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 import { env } from '../env';
-import { enrichWithGoogle, namesMatch } from './google-places.service';
+import { enrichWithGoogle, namesMatch, resetGoogleQuota } from './google-places.service';
 import { classify, findLivePlaces, isExcludedPlace } from './live-places.service';
 
 describe('isExcludedPlace', () => {
@@ -100,6 +100,19 @@ describe('enrichWithGoogle', () => {
     assert.equal(await enrichWithGoogle({ ...target, id: 'osm:n4' }, 'tr'), null);
   });
 
+  it('günlük ücretsiz kota dolunca ağa çıkmadan null döner', async () => {
+    env.GOOGLE_PLACES_API_KEY = 'test-key';
+    const realLimit = env.GOOGLE_DAILY_DETAIL_LIMIT;
+    env.GOOGLE_DAILY_DETAIL_LIMIT = 0;
+    resetGoogleQuota();
+    globalThis.fetch = () => assert.fail('fetch çağrılmamalı');
+    try {
+      assert.equal(await enrichWithGoogle({ ...target, id: 'osm:n5' }, 'tr'), null);
+    } finally {
+      env.GOOGLE_DAILY_DETAIL_LIMIT = realLimit;
+    }
+  });
+
   it('namesMatch boşluk ve Türkçe karakterden bağımsızdır', () => {
     assert.ok(namesMatch('Baydöner', 'Bay Döner Kadıköy'));
     assert.ok(!namesMatch('Baydöner', 'Starbucks'));
@@ -109,13 +122,16 @@ describe('enrichWithGoogle', () => {
 describe('findLivePlaces (Google)', () => {
   const realFetch = globalThis.fetch;
   const realKey = env.GOOGLE_PLACES_API_KEY;
+  const realNearby = env.GOOGLE_NEARBY_ENABLED;
   afterEach(() => {
     globalThis.fetch = realFetch;
     env.GOOGLE_PLACES_API_KEY = realKey;
+    env.GOOGLE_NEARBY_ENABLED = realNearby;
   });
 
   it('türleri gruplar halinde sorar; barı ve pahalıyı eler, fiyatı bilinmeyeni foto/puanla tutar', async () => {
     env.GOOGLE_PLACES_API_KEY = 'test-key';
+    env.GOOGLE_NEARBY_ENABLED = true;
     let calls = 0;
     globalThis.fetch = (async () => {
       calls += 1;

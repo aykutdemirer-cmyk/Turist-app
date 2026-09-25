@@ -20,7 +20,8 @@ const BIAS_RADIUS_M = 100;
 const MAX_MATCH_DISTANCE_M = 150;
 /** Adı benzemiyorsa ancak bu kadar yakınsa aynı yer sayılır */
 const SAME_SPOT_M = 30;
-const MAX_PHOTOS = 5;
+/** Yalnızca kapak kullanılıyor: her ek foto ayrı ücretli istek olurdu */
+const MAX_PHOTOS = 1;
 const MAX_REVIEWS = 5;
 
 const SEARCH_TEXT_URL = 'https://places.googleapis.com/v1/places:searchText';
@@ -91,6 +92,28 @@ function remember(key: string, value: GooglePlaceDTO | null, ttl: number) {
 }
 
 export const googlePlacesEnabled = () => env.GOOGLE_PLACES_API_KEY !== '';
+
+// ─────────────────────────────────────────────
+// Günlük kota: ücretsiz aylık sınırın altında kalmak için (sunucu yeniden başlarsa sayaç sıfırlanır;
+// asıl güvence Cloud Console'daki bütçe uyarısı ve kota ayarlarıdır)
+// ─────────────────────────────────────────────
+
+const usage = { day: '', details: 0, photos: 0 };
+
+/** Bugünkü (İstanbul) kotadan bir istek düşer; kota dolduysa false */
+function takeQuota(kind: 'details' | 'photos'): boolean {
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date());
+  if (usage.day !== day) Object.assign(usage, { day, details: 0, photos: 0 });
+  const limit = kind === 'details' ? env.GOOGLE_DAILY_DETAIL_LIMIT : env.GOOGLE_DAILY_PHOTO_LIMIT;
+  if (usage[kind] >= limit) return false;
+  usage[kind] += 1;
+  return true;
+}
+
+/** Testler için */
+export function resetGoogleQuota() {
+  Object.assign(usage, { day: '', details: 0, photos: 0 });
+}
 
 async function googleFetch(url: string, init: RequestInit & { fieldMask: string }): Promise<unknown> {
   const { fieldMask, ...rest } = init;
@@ -222,6 +245,8 @@ export async function enrichWithGoogle(target: EnrichTarget, locale: Locale): Pr
 
   let pending = inFlight.get(key);
   if (!pending) {
+    // Günlük ücretsiz kota doldu: önbelleğe yazmadan sade karta düş (yarın yeniden denenir)
+    if (!takeQuota('details')) return null;
     pending = (target.googlePlaceId ? findById(target.googlePlaceId, locale) : findByText(target.name, target, locale))
       .then((place) => {
         const value = place ? toDTO(place) : null;
@@ -240,7 +265,7 @@ export async function enrichWithGoogle(target: EnrichTarget, locale: Locale): Pr
 
 /** Fotoğraf vekili: Google'dan çeker, anahtarı gizler. Anahtar yoksa ya da ad geçersizse null. */
 export async function fetchGooglePhoto(name: string): Promise<{ body: Buffer; contentType: string } | null> {
-  if (!googlePlacesEnabled() || !PHOTO_NAME_PATTERN.test(name)) return null;
+  if (!googlePlacesEnabled() || !PHOTO_NAME_PATTERN.test(name) || !takeQuota('photos')) return null;
   const res = await fetch(`https://places.googleapis.com/v1/${name}/media?maxWidthPx=1000`, {
     headers: { 'X-Goog-Api-Key': env.GOOGLE_PLACES_API_KEY },
     signal: AbortSignal.timeout(GOOGLE_TIMEOUT_MS),

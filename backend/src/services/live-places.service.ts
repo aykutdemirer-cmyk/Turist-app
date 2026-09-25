@@ -424,7 +424,8 @@ async function searchOsm(center: LatLng, radius: number): Promise<LivePlace[]> {
 
 async function fetchLivePlaces(center: LatLng, radius: number, locale: Locale, log: Logger): Promise<LivePlace[]> {
   const key = env.GOOGLE_PLACES_API_KEY;
-  if (key) {
+  // Liste için Google yalnızca açıkça etkinse (ücretli kullanım); varsayılan ücretsiz OSM
+  if (key && env.GOOGLE_NEARBY_ENABLED) {
     try {
       return await searchGoogle(key, center, radius, locale);
     } catch (err) {
