@@ -35,14 +35,15 @@ interface NominatimAddress {
   county?: string;
 }
 
-/** "Moda Caddesi 12, Caferağa, Kadıköy" — sokak yoksa null (yalnızca ilçe adı adres sayılmaz) */
+/**
+ * "Caferağa, Kadıköy": yalnızca mahalle + ilçe. Konumdan tahmin edilen sokak/kapı numarası aynı nokta için
+ * farklı sonuç verebiliyor (yanlış bilgi riski); kesin konum zaten koordinatla (yol tarifi) veriliyor.
+ */
 export function formatAddress(a: NominatimAddress): string | null {
-  const street = a.road ?? a.pedestrian;
-  if (!street) return null;
-  const line = a.house_number ? `${street} ${a.house_number}` : street;
   const area = a.neighbourhood ?? a.quarter ?? a.suburb;
   const district = a.city_district ?? a.town ?? a.county;
-  return [line, area, district].filter((p, i, all) => p && all.indexOf(p) === i).join(', ');
+  if (!area || !district) return null;
+  return area === district ? district : `${area}, ${district}`;
 }
 
 export async function reverseGeocode(latitude: number, longitude: number): Promise<string | null> {

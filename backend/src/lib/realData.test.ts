@@ -39,12 +39,12 @@ describe('extractWebsiteInfo (schema.org JSON-LD)', () => {
 });
 
 describe('formatAddress (Nominatim)', () => {
-  it('sokak + mahalle + ilçe; sokak yoksa null', () => {
+  it('yalnızca mahalle + ilçe (tahmini sokak yazılmaz); eksikse null', () => {
     assert.equal(
       formatAddress({ road: 'Moda Caddesi', house_number: '12', suburb: 'Caferağa', city_district: 'Kadıköy' }),
-      'Moda Caddesi 12, Caferağa, Kadıköy',
+      'Caferağa, Kadıköy',
     );
-    assert.equal(formatAddress({ suburb: 'Caferağa', city_district: 'Kadıköy' }), null);
+    assert.equal(formatAddress({ road: 'Moda Caddesi', city_district: 'Kadıköy' }), null);
   });
 });
 
