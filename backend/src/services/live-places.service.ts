@@ -7,28 +7,22 @@ import {
   type Locale,
   type NearbyQuery,
   type PriceLevel,
-  type VenueDetailDTO,
   type VenueSource,
   type VenueSummaryDTO,
   type VenueType,
 } from '@localbite/shared';
 import { env } from '../env';
-import { notFound } from '../lib/errors';
 import { parseOpeningHours, type ParsedHours } from '../lib/openingHours';
 import { commonsFileFromTags, findOpenPhotos, representativePhoto, type OpenPhoto } from '../lib/openPhotos';
-import { communityHours } from './place-hours.service';
-import { enrichWithGoogle, PHOTO_NAME_PATTERN, PHOTO_PROXY_PATH } from './google-places.service';
 
 /**
- * Canlı gerçek mekanlar: veritabanımızda olmayan yakın yerleri dış kaynaktan getirir.
- * GOOGLE_PLACES_API_KEY varsa Google Places (New), yoksa ya da kota/hata olursa OpenStreetMap (Overpass).
- * Sonuçlar salt okunurdur (yorum/teyit/ihbar yok) ve kaynak atfıyla gösterilir.
+ * Canlı gerçek mekanlar: veritabanımızda olmayan yakın yerleri OpenStreetMap'ten (Overpass, ücretsiz) getirir.
+ * Yer ilk açıldığında kalıcı mekan kaydına dönüşür (real-venues.service); o andan sonra listede veritabanından gelir.
  */
 
 const CACHE_TTL_MS = 60 * 60 * 1000;
 /** Başarısız sorgudan sonra aynı bölge için bekleme (dış servisi dövmeyelim) */
 const FAILURE_BACKOFF_MS = 60 * 1000;
-const GOOGLE_TIMEOUT_MS = 4_000;
 /** Liste isteği canlı veriyi en fazla bu kadar bekler; geç kalan sorgu arka planda önbelleği doldurur */
 export const LIVE_WAIT_MS = 3_500;
 // Arka planda sürdüğü için istemcinin 10 sn sınırına bağlı değil
@@ -53,33 +47,6 @@ const OVERPASS_URLS = ['https://overpass-api.de/api/interpreter'];
 const CELL_DEG = 0.01;
 /** Hücre merkezinden köşesine en fazla ~800 m: sorgu yarıçapı hücredeki her nokta için 3 km'yi kapsar */
 const CELL_PAD_M = 800;
-const GOOGLE_NEARBY_URL = 'https://places.googleapis.com/v1/places:searchNearby';
-/**
- * Google Nearby Search istek başına en fazla 20 yer döner: türleri gruplara bölüp paralel sorarız
- * (hücre başına saatte bir). Geçersiz/başarısız grup diğerlerini düşürmez.
- */
-const GOOGLE_TYPE_GROUPS = [
-  ['restaurant'],
-  ['fast_food_restaurant', 'meal_takeaway', 'sandwich_shop'],
-  ['turkish_restaurant', 'pizza_restaurant', 'hamburger_restaurant'],
-  ['bakery', 'dessert_shop', 'cafe'],
-];
-const GOOGLE_FIELDS = [
-  'rating',
-  'userRatingCount',
-  'photos',
-  'id',
-  'displayName',
-  'location',
-  'priceLevel',
-  'primaryType',
-  'types',
-  'currentOpeningHours.openNow',
-  'formattedAddress',
-  'nationalPhoneNumber',
-  'googleMapsUri',
-];
-
 export interface LivePlace {
   id: string;
   source: Exclude<VenueSource, 'LOCALBITE'>;
@@ -91,24 +58,19 @@ export interface LivePlace {
   /** Gösterilen etiket (tür etiketi yerine) */
   liveCategory: LiveCategory;
   priceLevel: PriceLevel | null;
-  /** Google'ın bildirdiği anlık durum; null → bilinmiyor (OSM'de openingHours'tan hesaplanır) */
-  openNow: boolean | null;
   /** OSM `opening_hours` ham değeri; istek anında İstanbul saatiyle yorumlanır (önbellekteki yer bayatlamaz) */
   openingHours: string | null;
-  /** Topluluğun girdiği saatler (veritabanı); varsa kaynağın önüne geçer. Önbelleğe yazılmaz, istekte eklenir */
-  communityHours?: string | null;
   address: string | null;
   phone: string | null;
   district: string | null;
+  /** Dükkanın kendi web sitesi (OSM website/contact:website) */
+  website: string | null;
   sourceUrl: string;
-  /** Google puanı (OSM'de yok) */
-  rating: number | null;
-  ratingCount: number;
-  /** Kapak: Google fotoğrafı (API vekili üzerinden) */
+  /** Kapak: dükkanın Commons/Wikidata fotoğrafı ya da türüne göre temsili yemek fotoğrafı */
   photo: OpenPhoto | null;
 }
 
-export const isLivePlaceId = (id: string) => id.startsWith('osm:') || id.startsWith('google:');
+export const isLivePlaceId = (id: string) => /^osm:[nwr]\d+$/.test(id);
 
 // ─────────────────────────────────────────────
 // Önbellek (bellek içi, 1 saat)
@@ -235,119 +197,14 @@ export function isExcludedPlace(name: string, types: string[]): boolean {
 // Kaynaklar
 // ─────────────────────────────────────────────
 
-class QuotaError extends Error {}
-
 async function fetchJson(url: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
   const res = await fetch(url, {
     ...init,
     headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', ...init.headers },
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (res.status === 429 || res.status === 403) throw new QuotaError(`${url} → ${res.status}`);
   if (!res.ok) throw new Error(`${url} → ${res.status}`);
   return res.json();
-}
-
-interface GooglePlace {
-  id: string;
-  displayName?: { text: string };
-  location?: { latitude: number; longitude: number };
-  priceLevel?: string;
-  primaryType?: string;
-  types?: string[];
-  currentOpeningHours?: { openNow?: boolean };
-  formattedAddress?: string;
-  nationalPhoneNumber?: string;
-  googleMapsUri?: string;
-  rating?: number;
-  userRatingCount?: number;
-  photos?: { name: string; authorAttributions?: { displayName?: string }[] }[];
-}
-
-/** Pahalı yerler elenir; fiyatı bilinmeyenler (Türkiye'de çoğunluk) kalır */
-const EXPENSIVE = new Set(['PRICE_LEVEL_EXPENSIVE', 'PRICE_LEVEL_VERY_EXPENSIVE']);
-
-const GOOGLE_PRICE: Record<string, PriceLevel> = {
-  PRICE_LEVEL_INEXPENSIVE: 'BUDGET',
-  PRICE_LEVEL_MODERATE: 'MODERATE',
-};
-
-function fromGoogle(p: GooglePlace): LivePlace | null {
-  if (p.priceLevel && EXPENSIVE.has(p.priceLevel)) return null;
-  if (!p.location || !p.displayName?.text) return null;
-  const price = (p.priceLevel && GOOGLE_PRICE[p.priceLevel]) || null;
-  const photo = p.photos?.find((ph) => PHOTO_NAME_PATTERN.test(ph.name));
-  const types = [p.primaryType ?? '', ...(p.types ?? [])];
-  if (isExcludedPlace(p.displayName.text, types)) return null;
-  return {
-    id: `google:${p.id}`,
-    source: 'GOOGLE',
-    name: p.displayName.text,
-    latitude: p.location.latitude,
-    longitude: p.location.longitude,
-    ...classify(
-      [...types, p.displayName.text],
-      types.includes('bakery') ? 'bakery' : types.includes('meal_takeaway') || types.includes('fast_food_restaurant') ? 'fast_food' : 'restaurant',
-    ),
-    priceLevel: price,
-    openNow: p.currentOpeningHours?.openNow ?? null,
-    openingHours: null,
-    address: p.formattedAddress ?? null,
-    phone: p.nationalPhoneNumber ?? null,
-    district: null,
-    sourceUrl: p.googleMapsUri ?? `https://www.google.com/maps/place/?q=place_id:${p.id}`,
-    rating: p.rating ?? null,
-    ratingCount: p.userRatingCount ?? 0,
-    photo: photo
-      ? {
-          url: `${PHOTO_PROXY_PATH}?name=${encodeURIComponent(photo.name)}`,
-          attribution: `${photo.authorAttributions?.[0]?.displayName ?? 'Google'} · Google`,
-          representative: false,
-        }
-      : null,
-  };
-}
-
-async function searchGoogle(key: string, center: LatLng, radius: number, locale: Locale): Promise<LivePlace[]> {
-  const results = await Promise.allSettled(GOOGLE_TYPE_GROUPS.map((types) => searchGoogleGroup(key, types, center, radius, locale)));
-  const ok = results.filter((r): r is PromiseFulfilledResult<LivePlace[]> => r.status === 'fulfilled');
-  // Hiçbir grup yanıt vermediyse (anahtar/kota/ağ) hata: OSM'e düşülür
-  if (!ok.length) throw (results[0] as PromiseRejectedResult).reason;
-  const byId = new Map<string, LivePlace>();
-  for (const place of ok.flatMap((r) => r.value)) byId.set(place.id, place);
-  return [...byId.values()];
-}
-
-async function searchGoogleGroup(
-  key: string,
-  includedTypes: string[],
-  center: LatLng,
-  radius: number,
-  locale: Locale,
-): Promise<LivePlace[]> {
-  const data = (await fetchJson(
-    GOOGLE_NEARBY_URL,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': key,
-        'X-Goog-FieldMask': GOOGLE_FIELDS.map((f) => `places.${f}`).join(','),
-      },
-      body: JSON.stringify({
-        includedTypes,
-        // Sokak yemeği / esnaf odağı: içkili eğlence mekanları hiç gelmesin (ayrıca isExcludedPlace)
-        excludedTypes: ['bar', 'night_club'],
-        maxResultCount: 20,
-        rankPreference: 'DISTANCE',
-        languageCode: locale,
-        // Nearby Search en fazla 50 km kabul eder
-        locationRestriction: { circle: { center, radius: Math.min(radius, 50_000) } },
-      }),
-    },
-    GOOGLE_TIMEOUT_MS,
-  )) as { places?: GooglePlace[] };
-  return (data.places ?? []).map(fromGoogle).filter((p): p is LivePlace => p !== null);
 }
 
 interface OsmElement {
@@ -371,6 +228,12 @@ function fromOsm(el: OsmElement): LivePlace | null {
   if (tags.bar === 'yes' || /(^|;)\s*(bar|pub|meyhane|wine|cocktail|hookah)\s*(;|$)/.test(cuisine)) return null;
   if (isExcludedPlace(name, [tags.amenity ?? ''])) return null;
   const street = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(' ');
+  const area = tags['addr:neighbourhood'] ?? tags['addr:suburb'] ?? tags['addr:quarter'];
+  const district = tags['addr:district'] ?? tags['addr:city'];
+  // Adres yalnızca sokak biliniyorsa (tek başına ilçe adı adres sayılmaz)
+  const fullAddress = street ? [street, area, district].filter((p, i, all) => p && all.indexOf(p) === i).join(', ') : null;
+  // "0216 ...; 0532 ..." gibi birden çok numarada ilki
+  const phone = (tags.phone ?? tags['contact:phone'] ?? tags['contact:mobile'])?.split(';')[0]?.trim() || null;
   return {
     id: `osm:${el.type[0]}${el.id}`,
     source: 'OSM',
@@ -378,16 +241,14 @@ function fromOsm(el: OsmElement): LivePlace | null {
     latitude: lat,
     longitude: lon,
     ...classify([cuisine, name, tags.shop ?? ''], kind),
-    // OSM'de güvenilir fiyat ve (ayrıştırılmış) açık/kapalı bilgisi yok
+    // OSM'de güvenilir fiyat bilgisi yok
     priceLevel: null,
-    openNow: null,
     openingHours: tags.opening_hours ?? null,
-    address: street || null,
-    phone: tags.phone ?? tags['contact:phone'] ?? null,
+    address: fullAddress,
+    phone,
     district: tags['addr:suburb'] ?? tags['addr:district'] ?? null,
+    website: tags.website ?? tags['contact:website'] ?? null,
     sourceUrl: `https://www.openstreetmap.org/${el.type}/${el.id}`,
-    rating: null,
-    ratingCount: 0,
     photo: null,
   };
 }
@@ -447,20 +308,6 @@ async function withOpenPhotos(items: { el: OsmElement; p: LivePlace }[]): Promis
   return items.map(({ p }) => ({ ...p, photo: real.get(p.id) ?? representativePhoto(p.id, p.liveCategory) }));
 }
 
-async function fetchLivePlaces(center: LatLng, radius: number, locale: Locale, log: Logger): Promise<LivePlace[]> {
-  const key = env.GOOGLE_PLACES_API_KEY;
-  // Liste için Google yalnızca açıkça etkinse (ücretli kullanım); varsayılan ücretsiz OSM
-  if (key && env.GOOGLE_NEARBY_ENABLED) {
-    try {
-      return await searchGoogle(key, center, radius, locale);
-    } catch (err) {
-      // Kota/yetki hatası ya da zaman aşımı: OSM ile devam
-      log.warn({ err: String(err), quota: err instanceof QuotaError }, 'google places failed, falling back to overpass');
-    }
-  }
-  return searchOsm(center, radius);
-}
-
 interface Logger {
   warn: (obj: object, msg: string) => void;
 }
@@ -471,7 +318,6 @@ interface Logger {
  */
 export async function findLivePlaces(
   center: LatLng,
-  locale: Locale,
   log: Logger,
 ): Promise<{ places: LivePlace[]; pending: boolean }> {
   if (!env.LIVE_PLACES_ENABLED) return { places: [], pending: false };
@@ -483,7 +329,7 @@ export async function findLivePlaces(
   let pending = inFlight.get(key);
   if (!pending) {
     const stale = hit?.places ?? [];
-    pending = fetchLivePlaces(cell.center, MAX_LIVE_RADIUS_M + CELL_PAD_M, locale, log)
+    pending = searchOsm(cell.center, MAX_LIVE_RADIUS_M + CELL_PAD_M)
       .then((places) => {
         remember(key, places, CACHE_TTL_MS);
         return places;
@@ -529,10 +375,16 @@ function similarNames(a: string, b: string) {
   return nb.split(' ').some((w) => wordsA.has(w));
 }
 
-/** Veritabanında zaten olan mekanların dış kopyalarını ele */
-export function withoutDuplicates(places: LivePlace[], own: Pick<VenueSummaryDTO, 'name' | 'latitude' | 'longitude'>[]) {
-  return places.filter((p) =>
-    own.every((v) => {
+/** Veritabanında zaten olan mekanların (kalıcı kayda dönüşmüş olanlar dahil) dış kopyalarını ele */
+export function withoutDuplicates(
+  places: LivePlace[],
+  own: Pick<VenueSummaryDTO, 'name' | 'latitude' | 'longitude'>[],
+  ownExternalIds: Set<string> = new Set(),
+) {
+  return places.filter(
+    (p) =>
+      !ownExternalIds.has(p.id) &&
+      own.every((v) => {
       const d = haversineMeters(p, v);
       return d > DUPLICATE_RADIUS_M && !(d <= SIMILAR_NAME_RADIUS_M && similarNames(p.name, v.name));
     }),
@@ -551,14 +403,10 @@ interface HoursResult {
   source: VenueSummaryDTO['hoursSource'];
 }
 
-/** Anlık açık/kapalı. Öncelik: topluluk saatleri → OSM saatleri → Google anlık durumu */
+/** Anlık açık/kapalı: OSM saatlerinin şimdiki (İstanbul) yorumu; saat yoksa bilinmiyor */
 function currentHours(p: LivePlace, locale: Locale): HoursResult {
-  const community = p.communityHours ? parseOpeningHours(p.communityHours, locale) : null;
-  if (community) return { hours: community, source: 'COMMUNITY' };
   const osm = p.openingHours ? parseOpeningHours(p.openingHours, locale) : null;
-  if (osm) return { hours: osm, source: 'OSM' };
-  if (p.openNow !== null) return { hours: { openNow: p.openNow, closesAt: null, opensAt: null, weeklyHours: [] }, source: 'GOOGLE' };
-  return { hours: null, source: null };
+  return osm ? { hours: osm, source: 'OSM' } : { hours: null, source: null };
 }
 
 export function livePlaceSummary(p: LivePlace, origin: LatLng, locale: Locale): VenueSummaryDTO {
@@ -580,6 +428,7 @@ function summaryWithHours(p: LivePlace, origin: LatLng, { hours, source }: Hours
     closesAt: hours?.closesAt ?? null,
     opensAt: hours?.opensAt ?? null,
     hoursSource: source,
+    isRealPlace: true,
     authenticityScore: 0,
     latitude: p.latitude,
     longitude: p.longitude,
@@ -596,7 +445,7 @@ function summaryWithHours(p: LivePlace, origin: LatLng, { hours, source }: Hours
     spottedCount: 0,
     spottedTodayCount: 0,
     upvoteCount: 0,
-    rating: { average: p.rating, count: p.ratingCount },
+    rating: { average: null, count: 0 },
     coverImageUrl: p.photo?.url ?? null,
     coverImageCredit: p.photo?.attribution ?? null,
     coverIsRepresentative: p.photo?.representative ?? false,
@@ -620,67 +469,9 @@ async function lookupOsm(id: string): Promise<LivePlace | null> {
   return found ? ((await withOpenPhotos([found]))[0] ?? null) : null;
 }
 
-/**
- * Dış kaynaklı yerin detayı: adres/telefon ve kaynak bağlantısı. Google anahtarı varsa ve yer Google'da
- * eşleşirse gerçek saatler, kapak fotoğrafı, puan ve yorumlar eklenir; yoksa sade kart (google: null).
- */
-export async function getLivePlaceDetail(id: string, locale: Locale): Promise<VenueDetailDTO> {
+/** Kimliğiyle canlı yer: önce listede görülenler (önbellek), yoksa OSM'den tek kayıt */
+export async function findLivePlace(id: string): Promise<LivePlace | null> {
   const indexed = placeIndex.get(id);
-  let place = indexed && indexed.expiresAt > Date.now() ? indexed.place : null;
-  // Önbellekte yoksa (ör. paylaşılan bağlantı) OSM'den tek kayıt çekilebilir; Google için listeden gelmek gerekir
-  if (!place && id.startsWith('osm:')) place = await lookupOsm(id).catch(() => null);
-  if (!place) throw notFound('Venue');
-
-  place = { ...place, communityHours: (await communityHours([place.id])).get(place.id) ?? null };
-  const hoursResult = currentHours(place, locale);
-  const { hours } = hoursResult;
-  const { distanceMeters: _distance, mustTry: _mustTry, topReview: _topReview, ...summary } = summaryWithHours(
-    place,
-    place,
-    hoursResult,
-  );
-  const google = await enrichWithGoogle(
-    {
-      id: place.id,
-      name: place.name,
-      latitude: place.latitude,
-      longitude: place.longitude,
-      googlePlaceId: place.source === 'GOOGLE' ? place.id.slice('google:'.length) : undefined,
-    },
-    locale,
-  );
-  const cover = google?.photos[0];
-  return {
-    ...summary,
-    ...(google && {
-      // Topluluk saatleri Google'ın da önündedir (yerel esnaf bilgisi daha güncel)
-      ...(hoursResult.source !== 'COMMUNITY' &&
-        google.openNow !== null && {
-          openStatusKnown: true,
-          isScheduledOpen: google.openNow,
-          isActiveNow: google.openNow,
-          closesAt: google.closesAt,
-          opensAt: google.opensAt,
-          hoursSource: 'GOOGLE' as const,
-        }),
-      sourceUrl: google.mapsUrl ?? summary.sourceUrl,
-    }),
-    weeklyHours:
-      hoursResult.source !== 'COMMUNITY' && google?.weekdayHours.length ? google.weekdayHours : (hours?.weeklyHours ?? []),
-    ...(cover && {
-      coverImageUrl: cover.url,
-      coverImageCredit: `${cover.attribution ?? 'Google'} · Google`,
-      coverIsRepresentative: false,
-    }),
-    google,
-    pricePerPerson: null,
-    address: place.address,
-    phone: place.phone,
-    description: null,
-    customTip: null,
-    dishes: [],
-    schedules: [],
-    reviews: [],
-    announcements: [],
-  };
+  if (indexed && indexed.expiresAt > Date.now()) return indexed.place;
+  return id.startsWith('osm:') ? lookupOsm(id).catch(() => null) : null;
 }

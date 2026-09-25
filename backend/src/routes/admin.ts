@@ -18,6 +18,12 @@ import {
 } from '../services/admin.service';
 import { dismissReport, listReports, removeReportedContent } from '../services/moderation.service';
 import { listDeletionRequests, processDeletionRequest } from '../services/privacy.service';
+import {
+  decideClaim,
+  decideDishSuggestion,
+  listPendingClaims,
+  listPendingDishSuggestions,
+} from '../services/real-venues.service';
 
 const idParams = z.object({ id: z.string().min(1).max(100) });
 const decisionParams = idParams.extend({ decision: z.enum(['approve', 'reject']) });
@@ -49,6 +55,16 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
     '/admin/deletion-requests/:id/:action',
     { schema: { params: idParams.extend({ action: z.enum(['complete', 'reject']) }) } },
     async (req) => processDeletionRequest(req.params.id, req.params.action),
+  );
+
+  // ── Gerçek mekanlar: sahiplenme başvuruları ve üyelerin menü önerileri ──
+  app.get('/admin/claims', async () => ({ items: await listPendingClaims() }));
+  app.post('/admin/claims/:id/:decision', { schema: { params: decisionParams } }, async (req) =>
+    decideClaim(req.params.id, req.params.decision),
+  );
+  app.get('/admin/dish-suggestions', async () => ({ items: await listPendingDishSuggestions() }));
+  app.post('/admin/dish-suggestions/:id/:decision', { schema: { params: decisionParams } }, async (req) =>
+    decideDishSuggestion(req.params.id, req.params.decision),
   );
 
   // ── Mekanlar: başvuru onayı, sponsorluk, canlı konum denetimi ──

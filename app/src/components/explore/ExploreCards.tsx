@@ -86,7 +86,7 @@ export function SocialReportCallout({
         </View>
         <View style={styles.flex}>
           <Text style={styles.kicker}>
-            {venue.source === 'LOCALBITE' ? t.explore.socialReport : t.liveSource[venue.source]}
+            {venue.liveCategory ? t.liveCategory[venue.liveCategory] : t.explore.socialReport}
           </Text>
           <Text style={styles.calloutName} numberOfLines={1}>
             {venue.name}
@@ -127,7 +127,7 @@ export function SocialReportCallout({
           </View>
         </View>
       ) : (
-        <Text style={styles.muted}>{venue.source === 'LOCALBITE' ? t.explore.noReviewYet : t.liveSource.note}</Text>
+        venue.source === 'LOCALBITE' && <Text style={styles.muted}>{t.explore.noReviewYet}</Text>
       )}
 
       <View style={styles.calloutFooter}>

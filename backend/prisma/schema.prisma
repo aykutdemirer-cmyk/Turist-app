@@ -22,6 +22,31 @@ enum VenueType {
 }
 
 /// Pahalı seviye bilinçli olarak YOK — uygulamanın temel kuralı.
+/// Gerçek mekan etiketi: doğrulanmamış yere "Esnaf lokantası" denmez
+enum LiveCategory {
+  KEBAB_WRAP
+  PIDE_BOREK
+  STREET_FOOD
+  BAKERY_DESSERT
+  LOCAL_RESTAURANT
+}
+
+/// Gerçek mekanın saatlerinin kaynağı
+enum HoursSource {
+  OSM
+  GOOGLE
+  WEBSITE // Dükkanın kendi web sitesindeki schema.org saatleri
+  COMMUNITY // Üye girdi
+  VENDOR // Mekanı sahiplenen esnaf girdi
+}
+
+/// Başvuru/öneri onay durumu
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum PriceLevel {
   BUDGET // $
   MODERATE // $$
@@ -136,17 +161,18 @@ model User {
   updatedAt DateTime @updatedAt
 
   reports         SpotReport[]
-  submittedVenues Venue[]         @relation("SubmittedVenues")
+  submittedVenues Venue[]          @relation("SubmittedVenues")
   reviews         Review[]
   posts           Post[]
   comments        Comment[]
   postLikes       PostLike[]
-  contentReports  ContentReport[] @relation("ReportedBy")
-  resolvedReports ContentReport[] @relation("ResolvedBy")
-  blocking        BlockedUser[]   @relation("Blocker")
-  blockedBy       BlockedUser[]   @relation("Blocked")
-  ownedVenues     Venue[]         @relation("OwnedVenues")
-  placeHoursEdits PlaceHours[]    @relation("PlaceHoursEdits")
+  contentReports  ContentReport[]  @relation("ReportedBy")
+  resolvedReports ContentReport[]  @relation("ResolvedBy")
+  blocking        BlockedUser[]    @relation("Blocker")
+  blockedBy       BlockedUser[]    @relation("Blocked")
+  ownedVenues     Venue[]          @relation("OwnedVenues")
+  venueClaims     VenueClaim[]     @relation("VenueClaims")
+  dishSuggestions DishSuggestion[] @relation("DishSuggestions")
 
   @@unique([authProvider, authProviderId])
 }
@@ -163,7 +189,8 @@ model Venue {
   type         VenueType
   /// DYNAMIC_STREET = seyyar; konum VendorSchedule'a ya da satıcının canlı konumuna göre değişir
   locationType LocationType @default(STATIC)
-  priceLevel   PriceLevel   @default(BUDGET)
+  /// Gerçek (haritadan gelen) mekanda fiyat bilinmeyebilir → null
+  priceLevel   PriceLevel?  @default(BUDGET)
 
   /// 1–100 yerellik puanı. Aralık kontrolü migration'da CHECK constraint ile.
   authenticityScore Int @default(70)
@@ -217,16 +244,32 @@ model Venue {
   submittedById String?
   submittedBy   User?   @relation("SubmittedVenues", fields: [submittedById], references: [id], onDelete: SetNull)
 
+  /// Haritadan (OSM/Google) açılınca kalıcı kayda dönüşen gerçek mekanın kaynak kimliği: "osm:n123"
+  externalId            String?       @unique
+  /// Gerçek mekanın gösterilen etiketi (tür etiketi yerine); küratörlü mekanlarda null
+  liveCategory          LiveCategory?
+  /// OSM opening_hours sözdizimiyle haftalık saatler. VendorSchedule yoksa açık/kapalı bundan hesaplanır
+  openingHours          String?
+  openingHoursSource    HoursSource?
+  /// Kapak fotoğrafının atfı (Commons yazarı/lisansı ya da temsili yemek fotoğrafı)
+  /// Adres konumdan türetildi (Nominatim ters coğrafi kodlama); kesin kapı adresi değil
+  addressIsApproximate  Boolean       @default(false)
+  website               String?
+  coverImageCredit      String?
+  coverIsRepresentative Boolean       @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  translations  VenueTranslation[]
-  dishes        Dish[]
-  schedules     VendorSchedule[]
-  reports       SpotReport[]
-  reviews       Review[]
-  posts         Post[]
-  announcements VendorAnnouncement[]
+  translations    VenueTranslation[]
+  dishes          Dish[]
+  schedules       VendorSchedule[]
+  reports         SpotReport[]
+  reviews         Review[]
+  posts           Post[]
+  announcements   VendorAnnouncement[]
+  claims          VenueClaim[]
+  dishSuggestions DishSuggestion[]
 
   @@index([latitude, longitude]) // bbox sorgusu için
   @@index([type, status])
@@ -535,15 +578,41 @@ model AccountDeletionRequest {
   @@index([status, createdAt])
 }
 
-/// Dış kaynaklı (OSM/Google) yerin topluluk tarafından girilen çalışma saatleri.
-/// Kaynaktaki (OSM) saatin önüne geçer; son kaydeden kazanır. Kendi mekanlarımız VendorSchedule kullanır.
-model PlaceHours {
-  /// Canlı yer kimliği: "osm:n123" / "google:ChIJ..."
-  placeId      String   @id
-  /// OSM opening_hours sözdizimi: "Mo 10:00-22:00; Tu off; ..." (sunucu formdan üretir ve doğrular)
-  openingHours String
-  updatedById  String?
-  updatedBy    User?    @relation("PlaceHoursEdits", fields: [updatedById], references: [id], onDelete: SetNull)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+/// "Bu mekan benim": gerçek mekanı sahiplenme başvurusu. Super Admin onaylarsa üye VENDOR olur ve mekanı yönetir.
+model VenueClaim {
+  id         String        @id @default(cuid())
+  venueId    String
+  userId     String
+  /// Başvuranın açıklaması: "Dükkan sahibiyim, 10 yıldır buradayım"
+  note       String?
+  /// Doğrulama için iletişim (yalnızca yöneticiler görür)
+  phone      String?
+  status     RequestStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+  reviewedAt DateTime?
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  user  User  @relation("VenueClaims", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, userId])
+  @@index([status, createdAt])
+}
+
+/// Üyenin menüye önerdiği lezzet. Super Admin onaylarsa mekanın menüsüne (Dish) eklenir.
+model DishSuggestion {
+  id         String        @id @default(cuid())
+  venueId    String
+  userId     String?
+  localName  String
+  priceTry   Decimal?      @db.Decimal(8, 2)
+  portion    String?
+  status     RequestStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+  reviewedAt DateTime?
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  user  User? @relation("DishSuggestions", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([venueId])
 }

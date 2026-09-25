@@ -6,7 +6,7 @@ const TOKEN_KEY = 'localbite.authToken';
 const USER_KEY = 'localbite.authUser';
 
 /** Giriş modalında gösterilen gerekçe metninin anahtarı (t.auth.reasons) */
-export type AuthReason = 'review' | 'post' | 'comment' | 'like' | 'profile' | 'moderate' | 'hours';
+export type AuthReason = 'review' | 'post' | 'comment' | 'like' | 'profile' | 'moderate' | 'hours' | 'claim' | 'dish';
 
 interface Session {
   token: string;

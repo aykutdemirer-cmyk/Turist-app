@@ -3,6 +3,8 @@ import {
   localeSchema,
   nearbyQuerySchema,
   placeHoursInputSchema,
+  dishInputSchema,
+  venueClaimSchema,
   recentConfirmationsQuerySchema,
   reportInputSchema,
   reviewInputSchema,
@@ -15,8 +17,7 @@ import { resolveLocale } from '../lib/locale';
 import { recentConfirmations, submitReport } from '../services/report.service';
 import { upsertReview } from '../services/review.service';
 import { suggestVenue } from '../services/suggest.service';
-import { fetchGooglePhoto, PHOTO_NAME_PATTERN } from '../services/google-places.service';
-import { saveCommunityHours } from '../services/place-hours.service';
+import { claimVenue, saveCommunityHours, suggestDish } from '../services/real-venues.service';
 import { findNearbyVenues, getVenueDetail } from '../services/venue.service';
 
 // looseObject: doğrulanan değer request.headers'ın yerine geçtiği için diğer header'ları korur.
@@ -36,7 +37,27 @@ export const venueRoutes: FastifyPluginAsyncZod = async (app) => {
       findNearbyVenues(req.query, resolveLocale(req.query.locale, req.headers['accept-language']), req.log),
   );
 
-  // Topluluk saatleri: haritadaki (OSM/Google) yerin haftalık saatlerini üye günceller
+  // "Bu mekan benim": gerçek dükkanın sahibi başvurur, Super Admin onaylar
+  app.post(
+    '/venues/:id/claim',
+    {
+      schema: { params: z.object({ id: z.string().min(1).max(100) }), body: venueClaimSchema },
+      config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+    },
+    async (req, reply) => reply.code(201).send(await claimVenue(req.params.id, await requireUserId(req), req.body)),
+  );
+
+  // Menüye lezzet önerisi (onaydan sonra menüde, görseliyle)
+  app.post(
+    '/venues/:id/dish-suggestions',
+    {
+      schema: { params: z.object({ id: z.string().min(1).max(100) }), body: dishInputSchema },
+      config: { rateLimit: { max: 20, timeWindow: '1 hour' } },
+    },
+    async (req, reply) => reply.code(201).send(await suggestDish(req.params.id, await requireUserId(req), req.body)),
+  );
+
+  // Topluluk saatleri: sahiplenilmemiş gerçek mekanın haftalık saatlerini üye günceller
   app.put(
     '/venues/:id/hours',
     {
@@ -44,20 +65,6 @@ export const venueRoutes: FastifyPluginAsyncZod = async (app) => {
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
     },
     async (req) => saveCommunityHours(req.params.id, await requireUserId(req), req.body),
-  );
-
-  // Google Places fotoğraf vekili: API anahtarı istemciye hiç gitmez
-  app.get(
-    '/places/photo',
-    {
-      schema: { querystring: z.object({ name: z.string().max(600).regex(PHOTO_NAME_PATTERN) }) },
-      config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
-    },
-    async (req, reply) => {
-      const photo = await fetchGooglePhoto(req.query.name).catch(() => null);
-      if (!photo) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Photo not found' });
-      return reply.header('Content-Type', photo.contentType).header('Cache-Control', 'public, max-age=86400').send(photo.body);
-    },
   );
 
   app.get(

@@ -20,16 +20,10 @@ import {
 } from '@localbite/shared';
 import { prisma } from '../db';
 import { notFound } from '../lib/errors';
-import {
-  findLivePlaces,
-  getLivePlaceDetail,
-  isLivePlaceId,
-  livePlaceSummary,
-  matchesQuery,
-  withoutDuplicates,
-} from './live-places.service';
+import { parseOpeningHours } from '../lib/openingHours';
+import { findLivePlaces, isLivePlaceId, livePlaceSummary, matchesQuery, withoutDuplicates } from './live-places.service';
 import { blockedIdsFor } from './moderation.service';
-import { communityHours } from './place-hours.service';
+import { venueIdForExternal } from './real-venues.service';
 import { localesFor, pickTranslation } from '../lib/locale';
 
 /**
@@ -179,13 +173,56 @@ export function liveStatus(venue: LiveStatusInput, now: Date) {
 }
 
 /**
- * Kapak: mekanın kendi fotoğrafı; yoksa öne çıkan ilk yemeğin lisanslı fotoğrafı (atfıyla).
+ * Kapak önceliği: mekanın kendi (gerçek) fotoğrafı → menüdeki ilk yemeğin fotoğrafı → türüne göre temsili fotoğraf.
  * Yemekler sortOrder'a göre gelir, böylece ana lezzet (ör. pilav) yan üründen (ayran) önce seçilir.
  */
-function coverImage(venue: { coverImageUrl: string | null; dishes: { imageUrl: string | null; imageCredit: string | null }[] }) {
-  if (venue.coverImageUrl) return { coverImageUrl: venue.coverImageUrl, coverImageCredit: null, coverIsRepresentative: false };
+function coverImage(venue: {
+  coverImageUrl: string | null;
+  coverImageCredit: string | null;
+  coverIsRepresentative: boolean;
+  dishes: { imageUrl: string | null; imageCredit: string | null }[];
+}) {
+  if (venue.coverImageUrl && !venue.coverIsRepresentative) {
+    return { coverImageUrl: venue.coverImageUrl, coverImageCredit: venue.coverImageCredit, coverIsRepresentative: false };
+  }
   const dish = venue.dishes.find((d) => d.imageUrl);
-  return { coverImageUrl: dish?.imageUrl ?? null, coverImageCredit: dish?.imageCredit ?? null, coverIsRepresentative: !!dish };
+  if (dish) return { coverImageUrl: dish.imageUrl, coverImageCredit: dish.imageCredit, coverIsRepresentative: true };
+  return {
+    coverImageUrl: venue.coverImageUrl,
+    coverImageCredit: venue.coverImageCredit,
+    coverIsRepresentative: venue.coverIsRepresentative,
+  };
+}
+
+type OpenInfoInput = Pick<
+  Venue,
+  'externalId' | 'liveCategory' | 'openingHours' | 'openingHoursSource' | 'openOverride' | 'openOverrideAt'
+> & { schedules: VendorSchedule[] };
+
+/**
+ * Gerçek mekanlarda (haritadan gelen) açık/kapalı: program (VendorSchedule) yoksa OSM sözdizimli saatlerden,
+ * İstanbul saatiyle. Esnafın elle "Açık/Kapalı" ayarı her zaman önceliklidir. Saat hiçbir kaynakta yoksa
+ * "bilinmiyor" (uydurulmaz).
+ */
+export function openInfo(venue: OpenInfoInput, status: ReturnType<typeof liveStatus>, locale: Locale, now: Date) {
+  const real = venue.externalId !== null;
+  const override = activeOpenOverride(venue.openOverride, venue.openOverrideAt, now);
+  const parsed = !venue.schedules.length && venue.openingHours ? parseOpeningHours(venue.openingHours, locale, now) : null;
+  const open = parsed ? (override ?? parsed.openNow) : null;
+  const showNextChange = parsed !== null && override === null;
+  return {
+    source: real ? ('OSM' as const) : ('LOCALBITE' as const),
+    sourceUrl: null,
+    isRealPlace: real,
+    liveCategory: venue.liveCategory,
+    openStatusKnown: !real || venue.schedules.length > 0 || parsed !== null || override !== null,
+    isScheduledOpen: open ?? status.isScheduledOpen,
+    isActiveNow: open ?? status.isActiveNow,
+    closesAt: showNextChange ? parsed.closesAt : null,
+    opensAt: showNextChange ? parsed.opensAt : null,
+    hoursSource: parsed ? venue.openingHoursSource : real && venue.schedules.length ? ('VENDOR' as const) : null,
+    weeklyHours: parsed?.weeklyHours ?? [],
+  };
 }
 
 function toSummary(
@@ -196,6 +233,7 @@ function toSummary(
   { spottedToday, ratings, latest }: Aggregates,
 ): VenueSummaryDTO {
   const status = liveStatus(venue, now);
+  const { weeklyHours: _weekly, ...summaryOpen } = openInfo(venue, status, locale, now);
   const t = pickTranslation(venue.translations, locale);
   return {
     id: venue.id,
@@ -203,14 +241,8 @@ function toSummary(
     name: venue.name,
     type: venue.type,
     isMobile: isStreetVendor(venue),
-    source: 'LOCALBITE',
-    sourceUrl: null,
     priceLevel: venue.priceLevel,
-    openStatusKnown: true,
-    liveCategory: null,
-    closesAt: null,
-    opensAt: null,
-    hoursSource: null,
+    ...summaryOpen,
     authenticityScore: venue.authenticityScore,
     ...status.position,
     locationNote: status.locationNote,
@@ -220,8 +252,6 @@ function toSummary(
     categories: foodCategories(venue),
     tagline: t?.tagline ?? null,
     distanceMeters: Math.round(haversineMeters(origin, status.position)),
-    isScheduledOpen: status.isScheduledOpen,
-    isActiveNow: status.isActiveNow,
     lastSpottedAt: venue.lastSpottedAt?.toISOString() ?? null,
     spottedCount: venue.spottedCount,
     spottedTodayCount: spottedToday.get(venue.id) ?? 0,
@@ -239,12 +269,12 @@ function toSummary(
   };
 }
 
-type Logger = Parameters<typeof findLivePlaces>[2];
+type Logger = Parameters<typeof findLivePlaces>[1];
 
 export async function findNearbyVenues(query: NearbyQuery, locale: Locale, log: Logger, now = new Date()) {
   const origin: LatLng = { latitude: query.lat, longitude: query.lng };
   // Dış kaynak sorgusu veritabanıyla paralel başlar
-  const livePromise = findLivePlaces(origin, locale, log);
+  const livePromise = findLivePlaces(origin, log);
   const box = boundingBox(origin, query.radius + MOBILE_VENDOR_MARGIN_M);
 
   const venues = await prisma.venue.findMany({
@@ -284,11 +314,11 @@ export async function findNearbyVenues(query: NearbyQuery, locale: Locale, log: 
 
   // Kendi mekanlarımız her zaman listede; kalan yer canlı gerçek mekanlarla dolar
   const { places, pending } = await livePromise;
-  const candidates = withoutDuplicates(places, own).filter((p) => matchesQuery(p, query));
-  // Topluluğun girdiği saatler kaynaktaki saatin önüne geçer
-  const community = await communityHours(candidates.map((p) => p.id));
-  const live = candidates
-    .map((p) => livePlaceSummary({ ...p, communityHours: community.get(p.id) ?? null }, origin, locale))
+  // Kalıcı kayda dönüşmüş gerçek mekanlar veritabanından gelir; haritadaki kopyası elenir
+  const ownExternalIds = new Set(venues.map((v) => v.externalId).filter((id): id is string => id !== null));
+  const live = withoutDuplicates(places, own, ownExternalIds)
+    .filter((p) => matchesQuery(p, query))
+    .map((p) => livePlaceSummary(p, origin, locale))
     .filter((v) => v.distanceMeters <= query.radius)
     // Saati bilinmeyen yer "şu an açık" süzgecinde gösterilmez
     .filter((v) => !query.openNowOnly || v.isActiveNow)
@@ -314,7 +344,12 @@ export async function getVenueDetail(
   viewerId: string | null = null,
   now = new Date(),
 ): Promise<VenueDetailDTO> {
-  if (isLivePlaceId(idOrSlug)) return getLivePlaceDetail(idOrSlug, locale);
+  // Haritadaki gerçek mekan ilk açılışta kalıcı kayda dönüşür; sonra her şey küratörlü mekanlar gibi çalışır
+  if (isLivePlaceId(idOrSlug)) {
+    const id = await venueIdForExternal(idOrSlug);
+    if (!id) throw notFound('Venue');
+    idOrSlug = id;
+  }
   const venue = await prisma.venue.findFirst({
     where: { status: 'ACTIVE', OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
     include: {
@@ -329,6 +364,7 @@ export async function getVenueDetail(
   if (!venue) throw notFound('Venue');
 
   const status = liveStatus(venue, now);
+  const open = openInfo(venue, status, locale, now);
   const t = pickTranslation(venue.translations, locale);
   const [spottedToday, ratings, reviews] = await Promise.all([
     spottedTodayCounts([venue.id], now),
@@ -354,28 +390,23 @@ export async function getVenueDetail(
     name: venue.name,
     type: venue.type,
     isMobile: isStreetVendor(venue),
-    source: 'LOCALBITE',
-    sourceUrl: null,
     priceLevel: venue.priceLevel,
-    openStatusKnown: true,
-    liveCategory: null,
-    closesAt: null,
-    opensAt: null,
-    hoursSource: null,
+    ...open,
     authenticityScore: venue.authenticityScore,
     ...status.position,
     locationNote: status.locationNote,
     neighborhood: venue.neighborhood,
     district: venue.district,
     address: venue.address,
+    addressIsApproximate: venue.addressIsApproximate,
     phone: venue.phone,
+    website: venue.website,
+    isClaimed: venue.ownerId !== null,
     localTips: venue.localTips,
     categories: foodCategories(venue),
     tagline: t?.tagline ?? null,
     description: t?.description ?? null,
     customTip: t?.customTip ?? null,
-    isScheduledOpen: status.isScheduledOpen,
-    isActiveNow: status.isActiveNow,
     lastSpottedAt: venue.lastSpottedAt?.toISOString() ?? null,
     spottedCount: venue.spottedCount,
     spottedTodayCount: spottedToday.get(venue.id) ?? 0,
@@ -391,9 +422,6 @@ export async function getVenueDetail(
       content: a.content,
       publishedAt: (a.reviewedAt ?? a.createdAt).toISOString(),
     })),
-    // Kendi mekanlarımız kendi yorum/saat verisini kullanır
-    google: null,
-    weeklyHours: [],
     pricePerPerson:
       venue.avgPriceMinTry !== null && venue.avgPriceMaxTry !== null
         ? { min: venue.avgPriceMinTry, max: venue.avgPriceMaxTry }

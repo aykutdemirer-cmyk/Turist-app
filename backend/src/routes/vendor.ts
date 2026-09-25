@@ -1,10 +1,20 @@
-import { vendorAnnouncementSchema, vendorDishSchema, vendorLocationSchema, vendorOpenSchema } from '@localbite/shared';
+import {
+  dishInputSchema,
+  placeHoursInputSchema,
+  vendorAnnouncementSchema,
+  vendorDishSchema,
+  vendorLocationSchema,
+  vendorOpenSchema,
+} from '@localbite/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { roleGuard } from '../lib/auth';
 import { resolveLocale } from '../lib/locale';
+import { saveVendorHours } from '../services/real-venues.service';
 import {
+  addVendorDish,
   createAnnouncement,
+  deleteVendorDish,
   listVendorVenues,
   setOpenOverride,
   updateDish,
@@ -46,5 +56,21 @@ export const vendorRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.put('/vendor/dishes/:id', { schema: { params: idParams, body: vendorDishSchema } }, async (req) =>
     updateDish(req.actorId, req.params.id, req.body),
+  );
+
+  app.post(
+    '/vendor/venues/:id/dishes',
+    { schema: { params: idParams, body: dishInputSchema }, config: { rateLimit: { max: 30, timeWindow: '10 minutes' } } },
+    async (req, reply) => reply.code(201).send(await addVendorDish(req.actorId, req.params.id, req.body)),
+  );
+
+  app.delete('/vendor/dishes/:id', { schema: { params: idParams } }, async (req, reply) => {
+    await deleteVendorDish(req.actorId, req.params.id);
+    return reply.code(204).send();
+  });
+
+  // Haftalık saatler (gerçek mekanlar): OSM sözdizimiyle saklanır, ziyaretçiye "Açık · Kapanış 22:00" olarak görünür
+  app.put('/vendor/venues/:id/hours', { schema: { params: idParams, body: placeHoursInputSchema } }, async (req) =>
+    saveVendorHours(req.actorId, req.params.id, req.body),
   );
 };

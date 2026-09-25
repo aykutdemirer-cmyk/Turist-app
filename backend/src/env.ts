@@ -41,25 +41,6 @@ const envSchema = z.object({
    * Mağaza ödemesi bağlanana kadar test satın alması. Üretimde AÇILMAZ (bkz. aşağıdaki kontrol):
    * aksi hâlde herkes Premium'u bedava alabilirdi.
    */
-  /**
-   * Google Places API (New) anahtarı; boşsa canlı mekanlar yalnızca OpenStreetMap'ten (Overpass) gelir.
-   * Kota/hata durumunda da OSM'e düşülür.
-   */
-  GOOGLE_PLACES_API_KEY: z.string().default(''),
-  /**
-   * Liste/harita için Google Nearby Search. Varsayılan kapalı: liste ücretsiz OSM'den gelir,
-   * Google yalnızca mekan detayında (ücretsiz aylık kota içinde) kullanılır.
-   */
-  GOOGLE_NEARBY_ENABLED: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((v) => v === 'true'),
-  /**
-   * Google'a günlük en fazla detay (Text Search/Place Details) ve fotoğraf isteği. Varsayılan 30/gün
-   * ≈ 900/ay: Google'ın aylık ücretsiz kotasının altında kalır; sınır dolunca sade OSM kartı gösterilir.
-   */
-  GOOGLE_DAILY_DETAIL_LIMIT: z.coerce.number().int().min(0).default(30),
-  GOOGLE_DAILY_PHOTO_LIMIT: z.coerce.number().int().min(0).default(30),
   /** Yakındaki canlı gerçek mekanları (Google/OSM) listeye ekle */
   LIVE_PLACES_ENABLED: z
     .enum(['true', 'false'])

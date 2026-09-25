@@ -1,4 +1,5 @@
 import type {
+  DishInput,
   LatLng,
   NearbyResponseDTO,
   RecentConfirmationDTO,
@@ -8,6 +9,7 @@ import type {
   PlaceHoursInput,
   ReviewInput,
   SuggestVenueInput,
+  VenueClaimInput,
   VenueDetailDTO,
   VenueSummaryDTO,
   Locale,
@@ -151,5 +153,24 @@ export function useSubmitHours(venueId: string) {
       queryClient.invalidateQueries({ queryKey: venueKeys.detailAll(venueId) });
       queryClient.invalidateQueries({ queryKey: venueKeys.nearby() });
     },
+  });
+}
+
+/** "Bu mekan benim" başvurusu (yönetici onaylar) */
+export function useClaimVenue(venueId: string) {
+  return useMutation({
+    mutationFn: (body: VenueClaimInput) =>
+      api<{ claimId: string; status: string }>(`/venues/${encodeURIComponent(venueId)}/claim`, { method: 'POST', body }),
+  });
+}
+
+/** Menüye lezzet önerisi (onaydan sonra görseliyle menüde) */
+export function useSuggestDish(venueId: string) {
+  return useMutation({
+    mutationFn: (body: DishInput) =>
+      api<{ suggestionId: string; status: string }>(`/venues/${encodeURIComponent(venueId)}/dish-suggestions`, {
+        method: 'POST',
+        body,
+      }),
   });
 }

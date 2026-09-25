@@ -4,7 +4,6 @@ import { Copy, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSubmitHours } from '../../api/venues';
 import { useT } from '../../i18n';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
@@ -27,13 +26,19 @@ function normalizeClock(raw: string): string {
   return raw;
 }
 
-/** Haritadaki (OSM/Google) yer için haftalık saat formu: Pazartesi → Pazar */
-export function HoursEditor({ venueId, onClose }: { venueId: string; onClose: () => void }) {
+/** Kaydetme işlemi: üye (topluluk saatleri) ya da esnaf (satıcı paneli) */
+export interface HoursMutation {
+  mutate: (body: PlaceHoursInput, callbacks: { onSuccess: () => void; onError: () => void }) => void;
+  isPending: boolean;
+}
+
+/** Haftalık saat formu (Pazartesi → Pazar): gerçek mekanın saatleri */
+export function HoursEditor({ mutation, onClose }: { mutation: HoursMutation; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useStyles();
   const t = useT();
   const insets = useSafeAreaInsets();
-  const submit = useSubmitHours(venueId);
+  const submit = mutation;
   const [days, setDays] = useState<DayForm[]>(() => Array.from({ length: 7 }, () => ({ ...DEFAULT_DAY })));
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);

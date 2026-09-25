@@ -188,6 +188,10 @@ export function LeafletView({
       bounces={false}
       overScrollMode="never"
       setSupportMultipleWindows={false}
+      // Harita asla başka bir sayfaya gitmez (atıf ya da karo bağlantısına dokunulsa bile uygulamada kalınır)
+      onShouldStartLoadWithRequest={(req) =>
+        req.url === 'about:blank' || req.url.startsWith('data:') || req.url.startsWith(API_URL)
+      }
       showsHorizontalScrollIndicator={false}
       showsVerticalScrollIndicator={false}
       pointerEvents={interactive ? 'auto' : 'none'}

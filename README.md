@@ -17,17 +17,22 @@ Ortak tipler ve doğrulama şemaları `packages/shared` içindedir.
   - SEYYAR / ESNAF katmanları, "Bu bölgede ara"
   - Mesafe filtresi: 500 m · 1 km · 3 km · 5 km · Tümü (Haversine; harita üzerinde kesikli daire)
   - Şu an açık, bütçe dostu `$`, canlı konumlu seyyarlar ve yemek kategorisi filtreleri
-- **Canlı gerçek mekanlar (ücretsiz, açık veri):** `GET /venues/nearby` kendi mekanlarımıza ek olarak
-  yakındaki gerçek yerleri OpenStreetMap'ten (Overpass) getirir (en fazla 3 km, bellekte 1 saat önbellek).
+- **Gerçek mekanlar (ücretsiz, açık veri):** `GET /venues/nearby` kendi mekanlarımıza ek olarak yakındaki gerçek
+  dükkanları OpenStreetMap'ten (Overpass) getirir (en fazla 3 km, bellekte 1 saat önbellek).
   - Bar, pub, gece kulübü ve meyhaneler elenir; etiket gerçek OSM etiketinden gelir
     (Kebap & Dürüm, Pide & Börek, Sokak Lezzeti, Fırın & Tatlı, Yerel Restoran).
-  - Çalışma saatleri OSM `opening_hours` etiketinden, açık kaynak `opening_hours` kütüphanesiyle İstanbul
-    saatine göre hesaplanır ("Açık · Kapanış 22:00").
-  - Saati olmayan ya da yanlış olan yere giriş yapmış üye haftalık saat girebilir (`PUT /venues/:id/hours`);
-    topluluk saati kaynağın önüne geçer.
-  - Fotoğraf: OSM'deki Wikimedia Commons/Wikidata bağlantısından dükkanın kendi fotoğrafı (yazar + lisans atfı),
-    yoksa türüne göre lisanslı temsili yemek fotoğrafı.
-  - İsteğe bağlı: `GOOGLE_PLACES_API_KEY` verilirse detayda Google saat/foto/yorum da eklenir (varsayılan kapalı).
+  - Yer ilk açıldığında kalıcı mekan kaydına dönüşür (`Venue.externalId = "osm:n123"`): yorum/puan, menü,
+    duyuru, "Bugün burada gördüm" ve sahiplenme küratörlü mekanlardaki gibi çalışır.
+  - Bilgiler yalnızca gerçek kaynaklardan, bu sırayla: OSM etiketleri → dükkanın kendi web sitesi (schema.org
+    JSON-LD: saat, telefon, adres) → adres için Nominatim ("yaklaşık adres" diye işaretlenir). Bulunamayan uydurulmaz.
+  - Saatler açık kaynak `opening_hours` kütüphanesiyle İstanbul saatine göre yorumlanır ("Açık · Kapanış 22:00").
+    Saat yoksa üye ekleyebilir (`PUT /venues/:id/hours`); mekan sahiplenildiyse yalnızca esnaf.
+  - **"Bu mekan benim":** `POST /venues/:id/claim` → yönetim merkezi onaylar → üye VENDOR olur; satıcı panelinden
+    menüye yemek ekler/siler, fiyat ve porsiyon girer, saatleri düzenler.
+  - **Menüye lezzet ekle:** `POST /venues/:id/dish-suggestions` → yönetim merkezi onaylar → menüye eklenir.
+  - Menü görseli otomatik: önce lisanslı yemek arşivi (`media/dishes`), yoksa Wikimedia Commons'ta yemeğin adıyla
+    arama (yalnızca CC/kamu malı; yazar ve lisans atfıyla, "Temsili fotoğraf").
+  - Kapak: dükkanın Commons/Wikidata fotoğrafı → menüdeki ilk yemeğin görseli → türüne göre temsili fotoğraf.
 - **Canlı seyyar konumu:** satıcının gönderdiği konum haritada gösterilir.
   - ≤ 4 sa: yeşil halka + "Doğrulanmış Canlı Konum"
   - 4–12 sa: "Konum X dk önce satıcı tarafından güncellendi"
@@ -199,10 +204,7 @@ npm run vendor:grant -w @localbite/backend -- kisi@ornek.com mekan-slug  # VENDO
 | `OAUTH_WEB_ORIGINS` | Web paneli için izinli dönüş origin'leri |
 | `LEGAL_CONTACT_EMAIL` | Yasal sayfalar ve silme talepleri iletişim adresi |
 | `GETYOURGUIDE_PARTNER_ID`, `VIATOR_PID`, `AIRALO_REF` | İş ortaklığı kimlikleri |
-| `GOOGLE_PLACES_API_KEY` | Google Places (New): dış mekan detayında gerçek saat, kapak fotoğrafı, puan ve yorumlar (boşsa sade OSM kartı) |
-| `GOOGLE_NEARBY_ENABLED` | `true` ise liste/harita da Google'dan gelir (ücretli kullanım); varsayılan `false`, liste OSM'den |
-| `GOOGLE_DAILY_DETAIL_LIMIT`, `GOOGLE_DAILY_PHOTO_LIMIT` | Google'a günlük en fazla detay/fotoğraf isteği (varsayılan 30 ≈ 900/ay, ücretsiz kota altında) |
-| `LIVE_PLACES_ENABLED` | `false` ise canlı dış mekanlar kapalı (varsayılan `true`) |
+| `LIVE_PLACES_ENABLED` | `false` ise haritadaki gerçek mekanlar (OSM) kapalı (varsayılan `true`) |
 | `ALLOW_MOCK_PURCHASES` | Test satın alması; üretimde her zaman kapalı |
 | `SEED_ADMIN_PASSWORD`, `SEED_VENDOR_PASSWORD` | Yalnızca seed: test hesabı parolalarını ezer (üretimde zorunlu) |
 

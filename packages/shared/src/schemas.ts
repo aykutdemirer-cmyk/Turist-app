@@ -182,6 +182,22 @@ export const placeHoursInputSchema = z.object({
 });
 export type PlaceHoursInput = z.infer<typeof placeHoursInputSchema>;
 
+/** "Bu mekan benim" başvurusu */
+export const venueClaimSchema = z.object({
+  note: z.string().trim().max(300).optional(),
+  phone: z.string().trim().max(30).optional(),
+});
+export type VenueClaimInput = z.infer<typeof venueClaimSchema>;
+
+/** Menüye lezzet (üye önerisi ya da esnafın yeni yemeği) */
+export const dishInputSchema = z.object({
+  localName: z.string().trim().min(2).max(60),
+  /** TL */
+  priceTry: z.number().min(0).max(100_000).nullable().optional(),
+  portion: z.string().trim().max(60).nullable().optional(),
+});
+export type DishInput = z.infer<typeof dishInputSchema>;
+
 // ─────────────────────────────────────────────
 // Topluluk
 // ─────────────────────────────────────────────

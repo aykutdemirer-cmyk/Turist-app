@@ -56,6 +56,10 @@ export type VenueSource = (typeof VENUE_SOURCES)[number];
 export const LIVE_CATEGORIES = ['KEBAB_WRAP', 'PIDE_BOREK', 'STREET_FOOD', 'BAKERY_DESSERT', 'LOCAL_RESTAURANT'] as const;
 export type LiveCategory = (typeof LIVE_CATEGORIES)[number];
 
+/** Gerçek mekanın saat kaynağı */
+export const HOURS_SOURCES = ['OSM', 'GOOGLE', 'WEBSITE', 'COMMUNITY', 'VENDOR'] as const;
+export type HoursSource = (typeof HOURS_SOURCES)[number];
+
 export const REVIEW_SOURCES = ['APP', 'GOOGLE', 'OTHER', 'SAMPLE'] as const;
 export type ReviewSource = (typeof REVIEW_SOURCES)[number];
 

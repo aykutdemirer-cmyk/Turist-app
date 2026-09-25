@@ -5,6 +5,7 @@ import {
   type Locale,
   type VendorAnnouncementDTO,
   type VendorAnnouncementInput,
+  type DishInput,
   type VendorDishInput,
   type VendorLocationInput,
   type VendorVenueDTO,
@@ -13,7 +14,8 @@ import { prisma } from '../db';
 import { assertAcceptableContent } from '../lib/contentFilter';
 import { HttpError, notFound } from '../lib/errors';
 import { localesFor, pickTranslation } from '../lib/locale';
-import { isStreetVendor, liveStatus } from './venue.service';
+import { addDish } from './real-venues.service';
+import { isStreetVendor, liveStatus, openInfo } from './venue.service';
 
 /** Canlı konum kayıtlı köşeden en fazla bu kadar uzak olabilir (yanlış tıklama / kötüye kullanım) */
 export const MAX_LIVE_DISTANCE_FROM_BASE_M = 25_000;
@@ -44,6 +46,7 @@ export const toAnnouncementDTO = (a: VendorVenue['announcements'][number]): Vend
 
 function toVendorVenue(v: VendorVenue, locale: Locale, now: Date): VendorVenueDTO {
   const status = liveStatus(v, now);
+  const open = openInfo(v, status, locale, now);
   return {
     id: v.id,
     slug: v.slug,
@@ -56,7 +59,8 @@ function toVendorVenue(v: VendorVenue, locale: Locale, now: Date): VendorVenueDT
       v.isLiveLocation && v.liveLatitude != null && v.liveLongitude != null && v.lastLocationUpdate
         ? { latitude: v.liveLatitude, longitude: v.liveLongitude, updatedAt: v.lastLocationUpdate.toISOString() }
         : null,
-    isOpenNow: status.isActiveNow,
+    isOpenNow: open.isActiveNow,
+    weeklyHours: open.weeklyHours,
     openOverride: activeOpenOverride(v.openOverride, v.openOverrideAt, now),
     dishes: v.dishes.map((d) => ({
       id: d.id,
@@ -137,6 +141,22 @@ export async function createAnnouncement(ownerId: string, venueId: string, input
     data: { venueId: venue.id, title: input.title, content: input.content, type: input.type ?? 'ANNOUNCEMENT' },
   });
   return toAnnouncementDTO(created);
+}
+
+/** Esnaf menüsüne yemek ekler (görsel arşivden ya da Wikimedia Commons'tan otomatik) */
+export async function addVendorDish(ownerId: string, venueId: string, input: DishInput) {
+  const venue = await prisma.venue.findFirst({ where: { id: venueId, ownerId }, select: { id: true } });
+  if (!venue) throw notFound('Venue');
+  assertAcceptableContent(input.localName);
+  if (input.portion) assertAcceptableContent(input.portion);
+  const dish = await addDish(venueId, input);
+  return { id: dish.id, localName: dish.localName, imageUrl: dish.imageUrl };
+}
+
+export async function deleteVendorDish(ownerId: string, dishId: string) {
+  const dish = await prisma.dish.findFirst({ where: { id: dishId, venue: { ownerId } }, select: { id: true } });
+  if (!dish) throw notFound('Dish');
+  await prisma.dish.delete({ where: { id: dish.id } });
 }
 
 /** Yalnızca kendi mekanının yemeği: fiyat ve porsiyon */

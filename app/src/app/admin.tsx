@@ -6,6 +6,8 @@ import { Alert, FlatList, Pressable, ScrollView, Text, View } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useAdminAnnouncements,
+  useAdminClaims,
+  useAdminDishSuggestions,
   useAdminReports,
   useAdminVenues,
   useDeletionRequests,
@@ -14,6 +16,7 @@ import {
 } from '../api/admin';
 import { AnnouncementsTab } from '../components/admin/AnnouncementsTab';
 import { LiveLocationsTab } from '../components/admin/LiveLocationsTab';
+import { ClaimsTab, DishSuggestionsTab } from '../components/admin/RealPlacesTabs';
 import { ActionButton, apiErrorText, ListState, useRefreshControl } from '../components/admin/parts';
 import { SponsorshipTab } from '../components/admin/SponsorshipTab';
 import { VenueApprovalsTab } from '../components/admin/VenueApprovalsTab';
@@ -24,7 +27,7 @@ import { useCurrentUser } from '../store/auth';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 import { useGoBack } from '../hooks/useGoBack';
 
-type Tab = 'reports' | 'deletions' | 'venues' | 'announcements' | 'sponsorship' | 'live';
+type Tab = 'reports' | 'deletions' | 'venues' | 'claims' | 'dishes' | 'announcements' | 'sponsorship' | 'live';
 type Filter = 'all' | 'comments' | 'posts';
 
 const FILTER_TYPES: Record<Filter, ReportableContent[]> = {
@@ -49,6 +52,8 @@ export default function AdminCenterScreen() {
   const pendingVenues = useAdminVenues({ status: 'PENDING_APPROVAL' });
   const announcements = useAdminAnnouncements('PENDING');
   const liveVendors = useAdminVenues({ live: true });
+  const claims = useAdminClaims();
+  const dishSuggestions = useAdminDishSuggestions();
 
   // Yalnızca genel yönetici; sunucu da her istekte rolü doğrular
   if (user?.role !== 'SUPER_ADMIN') return <Redirect href="/profile" />;
@@ -57,6 +62,8 @@ export default function AdminCenterScreen() {
     { key: 'reports', label: t.adminCenter.tabReports, count: reports.data?.items.length ?? 0 },
     { key: 'deletions', label: t.adminCenter.tabDeletions, count: (deletions.data?.items ?? []).filter((d) => d.status === 'PENDING').length },
     { key: 'venues', label: t.adminCenter.tabVenues, count: pendingVenues.data?.items.length ?? 0 },
+    { key: 'claims', label: t.adminCenter.tabClaims, count: claims.data?.items.length ?? 0 },
+    { key: 'dishes', label: t.adminCenter.tabDishes, count: dishSuggestions.data?.items.length ?? 0 },
     { key: 'announcements', label: t.adminCenter.tabAnnouncements, count: announcements.data?.items.length ?? 0 },
     { key: 'sponsorship', label: t.adminCenter.tabSponsorship, count: 0 },
     // Bilgi amaçlı sayı (bekleyen iş değil)
@@ -67,6 +74,8 @@ export default function AdminCenterScreen() {
     reports: <ReportsTab notify={notify} bottom={insets.bottom} />,
     deletions: <DeletionsTab notify={notify} bottom={insets.bottom} />,
     venues: <VenueApprovalsTab notify={notify} bottom={insets.bottom} />,
+    claims: <ClaimsTab notify={notify} bottom={insets.bottom} />,
+    dishes: <DishSuggestionsTab notify={notify} bottom={insets.bottom} />,
     announcements: <AnnouncementsTab notify={notify} bottom={insets.bottom} />,
     sponsorship: <SponsorshipTab notify={notify} bottom={insets.bottom} />,
     live: <LiveLocationsTab notify={notify} bottom={insets.bottom} />,

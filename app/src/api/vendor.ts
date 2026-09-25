@@ -1,4 +1,6 @@
 import type {
+  DishInput,
+  PlaceHoursInput,
   VendorAnnouncementDTO,
   VendorAnnouncementInput,
   VendorDishInput,
@@ -66,4 +68,24 @@ export const useUpdateDish = () =>
       method: 'PUT',
       body,
     }),
+  );
+
+/** Menüye yemek: görseli sunucu arşivden ya da Wikimedia Commons'tan bulur */
+export const useAddVendorDish = () =>
+  useVendorMutation(({ venueId, ...body }: DishInput & { venueId: string }) =>
+    api<{ id: string; localName: string; imageUrl: string | null }>(`/vendor/venues/${encodeURIComponent(venueId)}/dishes`, {
+      method: 'POST',
+      body,
+    }),
+  );
+
+export const useDeleteVendorDish = () =>
+  useVendorMutation(({ dishId }: { dishId: string }) =>
+    api<void>(`/vendor/dishes/${encodeURIComponent(dishId)}`, { method: 'DELETE' }),
+  );
+
+/** Haftalık saatler (Pazartesi → Pazar) */
+export const useSetVendorHours = (venueId: string) =>
+  useVendorMutation((body: PlaceHoursInput) =>
+    api<{ venueId: string; openingHours: string }>(`/vendor/venues/${encodeURIComponent(venueId)}/hours`, { method: 'PUT', body }),
   );

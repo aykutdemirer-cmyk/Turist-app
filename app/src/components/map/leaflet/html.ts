@@ -102,7 +102,8 @@ export function buildLeafletHtml({ colors, ...config }: LeafletConfig): string {
   map.attributionControl.setPrefix(false);
   L.tileLayer(cfg.tileUrl, {
     maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    // Lisans gereği atıf görünür kalır ama bağlantı değildir: dokununca harita OSM sitesine gitmesin
+    attribution: '&copy; OpenStreetMap'
   }).addTo(map);
 
   var padding = { top: 0, bottom: 0 };

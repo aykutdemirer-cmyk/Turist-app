@@ -1,12 +1,23 @@
 import type { AnnouncementType, VendorDishDTO, VendorVenueDTO } from '@localbite/shared';
 import * as Location from 'expo-location';
 import { Redirect } from 'expo-router';
-import { ChevronLeft, Crosshair, MapPinned, Megaphone, Save, Store } from 'lucide-react-native';
+import { ChevronLeft, Clock, Crosshair, MapPinned, Megaphone, Plus, Save, Store, Trash2 } from 'lucide-react-native';
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../api/client';
-import { useCreateAnnouncement, useSetVendorOpen, useUpdateDish, useUpdateVendorLocation, useVendorVenues } from '../api/vendor';
+import {
+  useAddVendorDish,
+  useCreateAnnouncement,
+  useDeleteVendorDish,
+  useSetVendorHours,
+  useSetVendorOpen,
+  useUpdateDish,
+  useUpdateVendorLocation,
+  useVendorVenues,
+} from '../api/vendor';
+import { FormSheet } from '../components/venue/FormSheet';
+import { HoursEditor } from '../components/venue/HoursEditor';
 import { Input, Segmented } from '../components/suggest/FormControls';
 import { NoticeBanner, useNotice, type Notify } from '../components/ui/Notice';
 import { LiveLocationBadge } from '../components/venue/LiveLocationBadge';
@@ -88,6 +99,7 @@ export default function VendorScreen() {
           <VenueHeader venue={venue} />
           <LocationCard venue={venue} notify={notify} />
           <OpenCard venue={venue} notify={notify} />
+          <HoursCard venue={venue} notify={notify} />
           <AnnouncementCard venue={venue} notify={notify} />
           <MenuCard venue={venue} notify={notify} />
         </ScrollView>
@@ -357,13 +369,103 @@ function AnnouncementCard({ venue, notify }: { venue: VendorVenueDTO; notify: No
 // ─────────────────────────────────────────────
 
 function MenuCard({ venue, notify }: { venue: VendorVenueDTO; notify: Notify }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const t = useT();
+  const add = useAddVendorDish();
+  const [adding, setAdding] = useState(false);
   return (
     <Card title={t.vendorPanel.menuTitle} body={t.vendorPanel.menuBody}>
       {venue.dishes.map((d) => (
         // Sunucudan yeni değer gelince taslak sıfırlansın
         <DishEditor key={`${d.id}:${d.priceTry}:${d.portion}`} dish={d} notify={notify} />
       ))}
+      <Pressable
+        onPress={() => setAdding(true)}
+        style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}
+        accessibilityRole="button"
+      >
+        <Plus size={16} color={colors.primary} />
+        <Text style={styles.outlineText}>{t.vendorPanel.addDish}</Text>
+      </Pressable>
+      {adding && (
+        <FormSheet
+          title={t.vendorPanel.addDish}
+          intro={t.vendorPanel.addDishHint}
+          fields={[
+            { key: 'name', label: t.vendorPanel.dishName, maxLength: 60 },
+            { key: 'price', label: t.vendorPanel.price, keyboardType: 'decimal-pad', maxLength: 8 },
+            { key: 'portion', label: t.vendorPanel.portionPlaceholder, maxLength: 60 },
+          ]}
+          submitLabel={t.vendorPanel.addDish}
+          sentText={t.vendorPanel.dishAdded}
+          validate={(v) =>
+            (v.name ?? '').trim().length < 2 ? t.menu.invalid : parsePrice(v.price ?? '') === undefined ? t.vendorPanel.invalidPrice : null
+          }
+          isPending={add.isPending}
+          onSubmit={(v, done) =>
+            add.mutate(
+              {
+                venueId: venue.id,
+                localName: v.name!.trim(),
+                priceTry: parsePrice(v.price ?? '') ?? null,
+                portion: v.portion?.trim() || null,
+              },
+              { onSuccess: done.onSuccess, onError: (err) => done.onError(errorText(err, t)) },
+            )
+          }
+          onClose={() => setAdding(false)}
+        />
+      )}
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 🕒 Çalışma saatleri (ziyaretçi "Açık · Kapanış 22:00" görür)
+// ─────────────────────────────────────────────
+
+function HoursCard({ venue, notify }: { venue: VendorVenueDTO; notify: Notify }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const t = useT();
+  const save = useSetVendorHours(venue.id);
+  const [editing, setEditing] = useState(false);
+  return (
+    <Card title={t.vendorPanel.hours}>
+      {venue.weeklyHours.length ? (
+        venue.weeklyHours.map((line) => (
+          <Text key={line} style={styles.hoursLine}>
+            {line}
+          </Text>
+        ))
+      ) : (
+        <Text style={styles.muted}>{t.vendorPanel.noHours}</Text>
+      )}
+      <Pressable
+        onPress={() => setEditing(true)}
+        style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}
+        accessibilityRole="button"
+      >
+        <Clock size={16} color={colors.primary} />
+        <Text style={styles.outlineText}>{t.vendorPanel.editHours}</Text>
+      </Pressable>
+      {editing && (
+        <HoursEditor
+          mutation={{
+            mutate: (body, cb) =>
+              save.mutate(body, {
+                onSuccess: () => {
+                  cb.onSuccess();
+                  notify({ kind: 'success', text: t.vendorPanel.hoursSaved });
+                },
+                onError: cb.onError,
+              }),
+            isPending: save.isPending,
+          }}
+          onClose={() => setEditing(false)}
+        />
+      )}
     </Card>
   );
 }
@@ -381,6 +483,7 @@ function DishEditor({ dish, notify }: { dish: VendorDishDTO; notify: Notify }) {
   const styles = useStyles();
   const t = useT();
   const update = useUpdateDish();
+  const remove = useDeleteVendorDish();
   const [price, setPrice] = useState(dish.priceTry === null ? '' : String(dish.priceTry));
   const [portion, setPortion] = useState(dish.portion ?? '');
   const parsed = parsePrice(price);
@@ -399,10 +502,29 @@ function DishEditor({ dish, notify }: { dish: VendorDishDTO; notify: Notify }) {
 
   return (
     <View style={styles.dish}>
-      <Text style={styles.dishName}>
-        {dish.localName}
-        {dish.name !== dish.localName ? <Text style={styles.muted}>{`  ·  ${dish.name}`}</Text> : null}
-      </Text>
+      <View style={styles.dishHead}>
+        <Text style={[styles.dishName, styles.flex]}>
+          {dish.localName}
+          {dish.name !== dish.localName ? <Text style={styles.muted}>{`  ·  ${dish.name}`}</Text> : null}
+        </Text>
+        <Pressable
+          onPress={() =>
+            remove.mutate(
+              { dishId: dish.id },
+              {
+                onSuccess: () => notify({ kind: 'success', text: t.vendorPanel.dishDeleted }),
+                onError: (err) => notify({ kind: 'error', text: errorText(err, t) }),
+              },
+            )
+          }
+          disabled={remove.isPending}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`${t.vendorPanel.deleteDish}: ${dish.localName}`}
+        >
+          {remove.isPending ? <ActivityIndicator size="small" color={colors.danger} /> : <Trash2 size={18} color={colors.danger} />}
+        </Pressable>
+      </View>
       <View style={styles.dishFields}>
         <View style={styles.priceField}>
           <Text style={styles.fieldLabel}>{t.vendorPanel.price}</Text>
@@ -443,6 +565,8 @@ const useStyles = makeStyles(({ colors }) => ({
   },
   back: { padding: spacing.xs },
   content: { padding: spacing.lg, gap: spacing.lg },
+  hoursLine: { fontSize: 14, color: colors.text, lineHeight: 21 },
+  dishHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   venueChips: { gap: spacing.sm },
   venueChip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border },
   venueChipActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },

@@ -102,15 +102,10 @@ export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Pro
             </Text>
           )}
           {/* CC lisansı görünür atıf ister; fotoğraf temsilidir (mekanın kendisi değil, yemeği) */}
-          {venue.source !== 'LOCALBITE' && (
-            <Text style={styles.credit} numberOfLines={1}>
-              {t.liveSource[venue.source]}
-            </Text>
-          )}
           {venue.coverImageCredit && (
             <Text style={styles.credit} numberOfLines={1}>
               {/* Google fotoğrafı mekanın kendisidir; yemek fotoğrafı ise temsilidir */}
-              {venue.coverIsRepresentative ? t.detail.photoCredit(venue.coverImageCredit) : t.google.photoBy(venue.coverImageCredit)}
+              {venue.coverIsRepresentative ? t.detail.photoCredit(venue.coverImageCredit) : t.detail.photoBy(venue.coverImageCredit)}
             </Text>
           )}
         </View>

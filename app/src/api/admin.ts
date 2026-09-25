@@ -1,5 +1,7 @@
 import type {
   AdminAnnouncementDTO,
+  AdminClaimDTO,
+  AdminDishSuggestionDTO,
   AdminReportDTO,
   AdminVenueDTO,
   AdminVenuesQuery,
@@ -158,6 +160,53 @@ export function useReviewAnnouncement() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'announcements'] });
+      queryClient.invalidateQueries({ queryKey: venueKeys.all });
+    },
+  });
+}
+
+// ─────────────────────────────────────────────
+// Gerçek mekanlar: sahiplenme başvuruları ve menü önerileri
+// ─────────────────────────────────────────────
+
+const claimsKey = ['admin', 'claims'] as const;
+const dishSuggestionsKey = ['admin', 'dish-suggestions'] as const;
+
+export function useAdminClaims() {
+  return useQuery({
+    queryKey: claimsKey,
+    queryFn: ({ signal }) => api<{ items: AdminClaimDTO[] }>('/admin/claims', { signal }),
+  });
+}
+
+/** Onay: üye mekanın sahibi (esnaf) olur */
+export function useDecideClaim() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: 'approve' | 'reject' }) =>
+      api<{ id: string; status: string }>(`/admin/claims/${encodeURIComponent(id)}/${decision}`, { method: 'POST' }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: claimsKey });
+      queryClient.invalidateQueries({ queryKey: venueKeys.all });
+    },
+  });
+}
+
+export function useAdminDishSuggestions() {
+  return useQuery({
+    queryKey: dishSuggestionsKey,
+    queryFn: ({ signal }) => api<{ items: AdminDishSuggestionDTO[] }>('/admin/dish-suggestions', { signal }),
+  });
+}
+
+/** Onay: lezzet görseliyle birlikte mekanın menüsüne eklenir */
+export function useDecideDishSuggestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: 'approve' | 'reject' }) =>
+      api<{ id: string; status: string }>(`/admin/dish-suggestions/${encodeURIComponent(id)}/${decision}`, { method: 'POST' }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: dishSuggestionsKey });
       queryClient.invalidateQueries({ queryKey: venueKeys.all });
     },
   });

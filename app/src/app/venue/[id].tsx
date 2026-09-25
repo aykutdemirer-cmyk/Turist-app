@@ -22,21 +22,24 @@ import {
   Wallet,
   X,
   type LucideIcon,
+  Phone,
+  Plus,
+  Store,
 } from 'lucide-react-native';
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { placeUrl } from '../../api/config';
-import { useVenue } from '../../api/venues';
+import { ApiError } from '../../api/client';
+import { useClaimVenue, useSubmitHours, useSuggestDish, useVenue } from '../../api/venues';
 import { FoodImage } from '../../components/ui/FoodImage';
 import { ExperienceSection } from '../../components/monetization/ExperienceSection';
 import { AnnouncementsSection } from '../../components/venue/AnnouncementsSection';
 import { DishRow } from '../../components/venue/DishRow';
-import { GoogleReviewsSection } from '../../components/venue/GoogleReviewsSection';
+import { FormSheet } from '../../components/venue/FormSheet';
 import { HoursEditor } from '../../components/venue/HoursEditor';
 import { LinkDistanceCard } from '../../components/venue/LinkDistanceCard';
 import { LiveLocationBadge } from '../../components/venue/LiveLocationBadge';
-import { LiveSourceCard } from '../../components/venue/LiveSourceCard';
 import { ReviewsSection } from '../../components/venue/ReviewsSection';
 import { SpottedLine } from '../../components/venue/SpottedLine';
 import { useT } from '../../i18n';
@@ -130,11 +133,15 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
   const t = useT();
   const today = new Date().getDay();
   const open = venue.isActiveNow || venue.isScheduledOpen;
-  const external = venue.source !== 'LOCALBITE';
+  // Haritadaki gerçek dükkan: menü/saat topluluk ya da sahiplenen esnaf tarafından tamamlanır
+  const real = venue.isRealPlace;
+  const communityEditable = real && !venue.isClaimed;
   const requireAuth = useRequireAuth();
-  const [editingHours, setEditingHours] = useState(false);
-  const { google } = venue;
-  // Dış kaynaklı yerde gerçek saatlerden: "Açık · Kapanış 22:00" / "Kapalı · Açılış 09:00"
+  const [sheet, setSheet] = useState<'hours' | 'claim' | 'dish' | null>(null);
+  const submitHours = useSubmitHours(venue.id);
+  const claim = useClaimVenue(venue.id);
+  const suggestDish = useSuggestDish(venue.id);
+  // Gerçek saatlerden: "Açık · Kapanış 22:00" / "Kapalı · Açılış 09:00"; saat yoksa uydurulmaz
   const statusLabel = !venue.openStatusKnown
     ? t.status.hoursUnknown
     : open && venue.closesAt
@@ -142,10 +149,10 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
       : !open && venue.opensAt
         ? t.status.closedUntil(venue.opensAt)
         : venue.isMobile && venue.isActiveNow
-      ? t.status.activeNow
-      : open
-        ? t.status.openNow
-        : t.status.closed;
+          ? t.status.activeNow
+          : open
+            ? t.status.openNow
+            : t.status.closed;
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: bottomInset + spacing.xxl }}>
@@ -159,10 +166,10 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
           style={{ height: COVER_HEIGHT, width: '100%' }}
           emojiSize={96}
         />
-        {/* Google fotoğrafında yazar atfı zorunlu */}
-        {external && venue.coverImageCredit && (
+        {/* Lisanslı fotoğrafta atıf zorunlu; temsili ise öyle yazılır */}
+        {real && venue.coverImageCredit && (
           <Text style={styles.coverCredit} numberOfLines={1}>
-            {venue.coverIsRepresentative ? t.detail.photoCredit(venue.coverImageCredit) : t.google.photoBy(venue.coverImageCredit)}
+            {venue.coverIsRepresentative ? t.detail.photoCredit(venue.coverImageCredit) : t.detail.photoBy(venue.coverImageCredit)}
           </Text>
         )}
         <View style={[styles.statusPill, { backgroundColor: open ? colors.open : colors.overlay }]}>
@@ -178,7 +185,7 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
           <Text style={styles.meta}>
             {venue.priceLevel && <Text style={styles.price}>{`${priceSymbol(venue.priceLevel)}  ·  `}</Text>}
             {venue.liveCategory ? t.liveCategory[venue.liveCategory] : t.venueType[venue.type]}
-            {external ? '' : `  ·  ${t.status.local(venue.authenticityScore)}`}
+            {real ? '' : `  ·  ${t.status.local(venue.authenticityScore)}`}
             {venue.neighborhood ? `  ·  ${venue.neighborhood}` : ''}
           </Text>
           {venue.rating.average !== null && (
@@ -202,36 +209,53 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
 
         <AnnouncementsSection items={venue.announcements} />
 
-        {/* Yol tarifi (ana eylem) */}
-        <Pressable
-          onPress={() => openDirections(venue.latitude, venue.longitude, venue.name)}
-          style={({ pressed }) => [styles.directions, pressed && styles.pressed]}
-        >
-          <Navigation size={18} color={colors.textInverse} />
-          <Text style={styles.directionsText}>{t.detail.directions}</Text>
-        </Pressable>
+        {/* Yol tarifi (ana eylem) + arama */}
+        <View style={styles.primaryRow}>
+          <Pressable
+            onPress={() => openDirections(venue.latitude, venue.longitude, venue.name)}
+            style={({ pressed }) => [styles.directions, styles.flex, pressed && styles.pressed]}
+          >
+            <Navigation size={18} color={colors.textInverse} />
+            <Text style={styles.directionsText}>{t.detail.directions}</Text>
+          </Pressable>
+          {venue.phone && (
+            <Pressable
+              onPress={() => Linking.openURL(`tel:${venue.phone!.replace(/[^\d+]/g, '')}`)}
+              style={({ pressed }) => [styles.call, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel={`${t.detail.call}: ${venue.phone}`}
+            >
+              <Phone size={18} color={colors.primary} />
+              <Text style={styles.callText}>{t.detail.call}</Text>
+            </Pressable>
+          )}
+        </View>
 
         {venue.isMobile && <SpottedAction venue={venue} />}
 
         {venue.description && <Text style={[font.body, styles.description]}>{venue.description}</Text>}
 
-        {/* Menü / Öne çıkan lezzetler — sipariş yok, yalnızca rehber */}
-        {venue.dishes.length > 0 && (
-          <Section title={t.detail.mustTry} note={t.detail.menuNote}>
+        {/* Menü — sipariş yok, yalnızca rehber. Gerçek dükkanda esnaf ya da topluluk ekler (görselleriyle) */}
+        {(venue.dishes.length > 0 || real) && (
+          <Section title={real ? t.menu.title : t.detail.mustTry} note={venue.dishes.length > 0 ? t.detail.menuNote : undefined}>
             {venue.dishes.map((dish) => (
               <DishRow key={dish.id} dish={dish} venueType={venue.type} isMobile={venue.isMobile} />
             ))}
+            {real && venue.dishes.length === 0 && <Text style={styles.menuEmpty}>{t.menu.empty}</Text>}
+            {communityEditable && (
+              <Pressable
+                onPress={() => requireAuth('dish', () => setSheet('dish'))}
+                style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <Plus size={16} color={colors.primary} />
+                <Text style={styles.outlineButtonText}>{t.menu.add}</Text>
+              </Pressable>
+            )}
           </Section>
         )}
 
-        {/* Dış kaynaklı yer: yorum kabul etmez; kaynağa atıf ve bağlantı */}
-        {google ? (
-          <GoogleReviewsSection google={google} />
-        ) : venue.source !== 'LOCALBITE' ? (
-          <LiveSourceCard source={venue.source} url={venue.sourceUrl} />
-        ) : (
-          <ReviewsSection venueId={venue.id} rating={venue.rating} reviews={venue.reviews} />
-        )}
+        <ReviewsSection venueId={venue.id} rating={venue.rating} reviews={venue.reviews} />
 
         <ExperienceSection venueId={venue.id} />
 
@@ -263,8 +287,8 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
           </Section>
         )}
 
-        {/* Saatler & konum (dış kaynaklı yerlerde çoğu zaman boş: o zaman hiç gösterilmez) */}
-        {(external || venue.locationNote || venue.address || venue.schedules.length > 0) && (
+        {/* Saatler & konum: yalnızca gerçek kaynaklardan (OSM, dükkanın sitesi, esnaf, topluluk) */}
+        {(real || venue.locationNote || venue.address || venue.schedules.length > 0) && (
           <Section title={t.detail.hours}>
             {venue.locationNote && (
               <View style={styles.infoRow}>
@@ -274,11 +298,24 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
             )}
             {venue.address && (
               <View style={styles.infoRow}>
-                <MapPin size={16} color="transparent" />
-                <Text style={[font.small, styles.flex]}>{venue.address}</Text>
+                <MapPin size={16} color={venue.locationNote ? 'transparent' : colors.textMuted} />
+                <View style={styles.flex}>
+                  <Text style={font.small}>{venue.address}</Text>
+                  {venue.addressIsApproximate && <Text style={styles.approx}>{t.detail.approxAddress}</Text>}
+                </View>
               </View>
             )}
-            {/* Dış kaynaklı yerin haftalık saatleri ("Pazartesi: 09:00–22:00") */}
+            {venue.phone && (
+              <Pressable
+                onPress={() => Linking.openURL(`tel:${venue.phone!.replace(/[^\d+]/g, '')}`)}
+                style={styles.infoRow}
+                accessibilityRole="button"
+              >
+                <Phone size={16} color={colors.textMuted} />
+                <Text style={[font.small, styles.flex, styles.phone]}>{venue.phone}</Text>
+              </Pressable>
+            )}
+            {/* Gerçek mekanın haftalık saatleri ("Pazartesi: 09:00–22:00") */}
             {venue.weeklyHours.map((line) => (
               <View key={line} style={styles.infoRow}>
                 <Clock size={14} color={colors.textMuted} />
@@ -301,25 +338,107 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
                 </View>
               </View>
             ))}
-            {/* Haritadaki yerin saatini topluluk ekler/düzeltir; kaynağı her zaman görünür */}
-            {external && (
+            {/* Saatin kaynağı her zaman görünür; sahiplenilmemiş dükkanda topluluk ekler/düzeltir */}
+            {real && (
               <View style={styles.hoursFooter}>
                 <Text style={styles.hoursSource}>
-                  {venue.hoursSource ? t.hours.source[venue.hoursSource] : t.hours.unknownHint}
+                  {venue.isClaimed
+                    ? t.claim.claimed
+                    : venue.hoursSource
+                      ? t.hours.source[venue.hoursSource]
+                      : t.hours.unknownHint}
                 </Text>
-                <Pressable
-                  onPress={() => requireAuth('hours', () => setEditingHours(true))}
-                  style={({ pressed }) => [styles.hoursEdit, pressed && styles.pressed]}
-                  accessibilityRole="button"
-                >
-                  <Clock size={15} color={colors.primary} />
-                  <Text style={styles.hoursEditText}>{venue.openStatusKnown ? t.hours.edit : t.hours.add}</Text>
-                </Pressable>
+                {communityEditable && (
+                  <Pressable
+                    onPress={() => requireAuth('hours', () => setSheet('hours'))}
+                    style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                  >
+                    <Clock size={15} color={colors.primary} />
+                    <Text style={styles.outlineButtonText}>{venue.openStatusKnown ? t.hours.edit : t.hours.add}</Text>
+                  </Pressable>
+                )}
               </View>
             )}
           </Section>
         )}
-        {editingHours && <HoursEditor venueId={venue.id} onClose={() => setEditingHours(false)} />}
+
+        {/* "Bu mekan benim": esnaf sahiplenir, menü/fiyat/saat/duyuruyu kendisi yönetir */}
+        {communityEditable && (
+          <View style={styles.claimCard}>
+            <Store size={22} color={colors.primary} />
+            <View style={styles.flex}>
+              <Text style={styles.claimTitle}>{t.claim.cta}</Text>
+              <Text style={styles.claimBody}>{t.claim.ctaBody}</Text>
+              <Pressable
+                onPress={() => requireAuth('claim', () => setSheet('claim'))}
+                style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.outlineButtonText}>{t.claim.button}</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {sheet === 'hours' && (
+          <HoursEditor
+            mutation={{ mutate: (body, cb) => submitHours.mutate(body, cb), isPending: submitHours.isPending }}
+            onClose={() => setSheet(null)}
+          />
+        )}
+        {sheet === 'claim' && (
+          <FormSheet
+            title={t.claim.title}
+            intro={t.claim.ctaBody}
+            fields={[
+              { key: 'note', label: t.claim.note, multiline: true, maxLength: 300 },
+              { key: 'phone', label: t.claim.phone, keyboardType: 'phone-pad', maxLength: 30 },
+            ]}
+            submitLabel={t.claim.submit}
+            sentText={t.claim.sent}
+            isPending={claim.isPending}
+            onSubmit={(v, done) =>
+              claim.mutate(
+                { note: v.note?.trim() || undefined, phone: v.phone?.trim() || undefined },
+                {
+                  onSuccess: done.onSuccess,
+                  onError: (err) =>
+                    done.onError(err instanceof ApiError && err.code === 'ALREADY_CLAIMED' ? t.claim.already : t.claim.failed),
+                },
+              )
+            }
+            onClose={() => setSheet(null)}
+          />
+        )}
+        {sheet === 'dish' && (
+          <FormSheet
+            title={t.menu.addTitle}
+            fields={[
+              { key: 'name', label: t.menu.name, maxLength: 60 },
+              { key: 'price', label: t.menu.price, keyboardType: 'decimal-pad', maxLength: 8 },
+              { key: 'portion', label: t.menu.portion, maxLength: 60 },
+            ]}
+            submitLabel={t.menu.submit}
+            sentText={t.menu.sent}
+            validate={(v) => ((v.name ?? '').trim().length < 2 ? t.menu.invalid : null)}
+            isPending={suggestDish.isPending}
+            onSubmit={(v, done) => {
+              const price = Number((v.price ?? '').replace(',', '.'));
+              suggestDish.mutate(
+                {
+                  localName: v.name!.trim(),
+                  priceTry: v.price?.trim() && Number.isFinite(price) ? price : null,
+                  portion: v.portion?.trim() || null,
+                },
+                { onSuccess: done.onSuccess, onError: () => done.onError(t.menu.failed) },
+              );
+            }}
+            onClose={() => setSheet(null)}
+          />
+        )}
+        {/* Açık veri lisansı (ODbL) gereği atıf; bağlantı değil */}
+        {venue.source === 'OSM' && <Text style={styles.dataCredit}>{t.liveSource.OSM}</Text>}
       </View>
     </ScrollView>
   );
@@ -510,9 +629,10 @@ const useStyles = makeStyles(({ colors, font }) => ({
   tipBody: { fontSize: 13, color: colors.textMuted, lineHeight: 19, marginTop: 2 },
 
   infoRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+  dataCredit: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xl },
   hoursFooter: { gap: spacing.sm, marginTop: spacing.xs },
   hoursSource: { fontSize: 12, lineHeight: 17, color: colors.textMuted },
-  hoursEdit: {
+  outlineButton: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
@@ -522,8 +642,34 @@ const useStyles = makeStyles(({ colors, font }) => ({
     borderRadius: radius.pill,
     borderWidth: 1.5,
     borderColor: colors.primary,
+    marginTop: spacing.xs,
   },
-  hoursEditText: { fontSize: 13, fontWeight: '800', color: colors.primary },
+  outlineButtonText: { fontSize: 13, fontWeight: '800', color: colors.primary },
+  primaryRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'stretch' },
+  call: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    height: 52,
+  },
+  callText: { fontSize: 15, fontWeight: '800', color: colors.primary },
+  phone: { color: colors.primary, fontWeight: '700' },
+  approx: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  menuEmpty: { fontSize: 14, lineHeight: 20, color: colors.textMuted },
+  claimCard: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.xl,
+    padding: spacing.md,
+    borderRadius: 16,
+    backgroundColor: colors.primarySoft,
+  },
+  claimTitle: { fontSize: 15, fontWeight: '800', color: colors.text },
+  claimBody: { fontSize: 13, lineHeight: 19, color: colors.textMuted, marginTop: 2 },
   hoursRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

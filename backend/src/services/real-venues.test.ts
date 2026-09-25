@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { parseOpeningHours } from '../lib/openingHours';
-import { toOsmHours } from './place-hours.service';
+import { toOsmHours } from './real-venues.service';
 
 describe('toOsmHours', () => {
   it('formu OSM sözdizimine çevirir ve aynı ayrıştırıcı okuyabilir', () => {
