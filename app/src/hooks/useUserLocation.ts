@@ -2,8 +2,12 @@ import type { LatLng } from '@localbite/shared';
 import * as Location from 'expo-location';
 import { useEffect } from 'react';
 import { create } from 'zustand';
+import { useAreaStore, type Area } from '../store/area';
 
-/** Konum yoksa (izin reddi ya da GPS kapalı) kullanılan İstanbul merkezi: Kadıköy Rıhtım */
+/**
+ * Son çare merkezi: GPS yok, son bilinen konum yok ve kullanıcı bölge seçmedi.
+ * Bu durumda arayüz "Konum seç" der (varsayılan konum gibi davranılmaz).
+ */
 export const DEFAULT_CENTER: LatLng = { latitude: 40.9923, longitude: 29.0232 };
 
 /**
@@ -77,8 +81,8 @@ async function ensureForegroundPermission(): Promise<boolean> {
 }
 
 /**
- * İzin ister; son bilinen konumu hemen, güncel konumu en geç 10 sn içinde yazar.
- * Taze konum gelmezse (kapalı alan, emülatör) eski de olsa son bilinen konum kullanılır.
+ * İzin ister ve cihazın anlık konumunu (en geç 10 sn) alır.
+ * Anlık konum alınamazsa (kapalı alan, emülatör) yalnızca yedek olarak son bilinen konum kullanılır.
  */
 async function locate(): Promise<LatLng | null> {
   const granted = await ensureForegroundPermission();
@@ -93,14 +97,11 @@ async function locate(): Promise<LatLng | null> {
     return null;
   }
 
-  const last = await Location.getLastKnownPositionAsync({ maxAge: 5 * 60_000 }).catch(() => null);
-  if (last) setCoords(toLatLng(last));
-
   const current = await withTimeout(
     Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
     CURRENT_POSITION_TIMEOUT_MS,
   ).catch(() => null);
-  const fix = current ?? last ?? (await Location.getLastKnownPositionAsync().catch(() => null));
+  const fix = current ?? (await Location.getLastKnownPositionAsync().catch(() => null));
 
   const coords = fix ? toLatLng(fix) : null;
   if (coords) setCoords(coords);
@@ -142,15 +143,27 @@ export function useUserLocation() {
 }
 
 /**
- * Mesafelerin ölçüldüğü nokta: gerçek konum, yoksa İstanbul merkezi.
- * İlk konum beklenirken null (yanlış merkezle istek atılmasın).
- * isFallback: konum izni yok ya da GPS kapalı → arayüz hafif bir uyarı gösterir.
+ * Mesafelerin ölçüldüğü nokta. Öncelik: elle seçilen bölge → cihaz GPS'i → son çare merkezi.
+ * İlk konum beklenirken (bölge de seçilmemişse) null: yanlış merkezle istek atılmasın.
+ * isFallback: bölge seçilmedi ve konum yok (izin/GPS) → arayüz "Konum seç" der.
+ * followGps(): elle seçimi bırakıp anlık GPS konumuna döner.
  */
 export function useLocationOrigin() {
   const { status, coords, refresh } = useUserLocation();
-  const isFallback = !coords && (status === 'denied' || status === 'unavailable');
-  const origin = coords ?? (status === 'pending' ? null : DEFAULT_CENTER);
-  return { origin, isFallback, status, coords, refresh };
+  const manual = useAreaStore((s) => s.manual);
+  const isFallback = !manual && !coords && (status === 'denied' || status === 'unavailable');
+  const origin: LatLng | null = manual ?? coords ?? (status === 'pending' ? null : DEFAULT_CENTER);
+  return { origin, manual, isFallback, status, coords, refresh, selectArea, followGps };
+}
+
+function selectArea(area: Area) {
+  useAreaStore.getState().setManual(area);
+}
+
+/** "Anlık Konumumu Kullan" / "Konumuma git": seçimi temizler, GPS'i yeniden okur */
+function followGps(): Promise<LatLng | null> {
+  useAreaStore.getState().setManual(null);
+  return locate();
 }
 
 /** "Bugün buradaydı" için anlık, yüksek doğruluklu konum. İzin yoksa ya da alınamazsa null. */

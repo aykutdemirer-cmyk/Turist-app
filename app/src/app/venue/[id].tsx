@@ -32,6 +32,7 @@ import { FoodImage } from '../../components/ui/FoodImage';
 import { ExperienceSection } from '../../components/monetization/ExperienceSection';
 import { AnnouncementsSection } from '../../components/venue/AnnouncementsSection';
 import { DishRow } from '../../components/venue/DishRow';
+import { GoogleReviewsSection } from '../../components/venue/GoogleReviewsSection';
 import { LinkDistanceCard } from '../../components/venue/LinkDistanceCard';
 import { LiveLocationBadge } from '../../components/venue/LiveLocationBadge';
 import { LiveSourceCard } from '../../components/venue/LiveSourceCard';
@@ -128,9 +129,15 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
   const today = new Date().getDay();
   const open = venue.isActiveNow || venue.isScheduledOpen;
   const external = venue.source !== 'LOCALBITE';
+  const { google } = venue;
+  // Google'dan gerçek durum: "Açık · Kapanış 22:00" / "Kapalı · Açılış 09:00"
   const statusLabel = !venue.openStatusKnown
     ? t.status.hoursUnknown
-    : venue.isMobile && venue.isActiveNow
+    : google?.openNow && google.closesAt
+      ? t.google.openUntil(google.closesAt)
+      : google?.openNow === false && google.opensAt
+        ? t.google.closedUntil(google.opensAt)
+        : venue.isMobile && venue.isActiveNow
       ? t.status.activeNow
       : open
         ? t.status.openNow
@@ -160,7 +167,7 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
           <Text style={font.title}>{venue.name}</Text>
           <Text style={styles.meta}>
             {venue.priceLevel && <Text style={styles.price}>{`${priceSymbol(venue.priceLevel)}  ·  `}</Text>}
-            {t.venueType[venue.type]}
+            {venue.liveCategory ? t.liveCategory[venue.liveCategory] : t.venueType[venue.type]}
             {external ? '' : `  ·  ${t.status.local(venue.authenticityScore)}`}
             {venue.neighborhood ? `  ·  ${venue.neighborhood}` : ''}
           </Text>
@@ -208,7 +215,9 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
         )}
 
         {/* Dış kaynaklı yer: yorum kabul etmez; kaynağa atıf ve bağlantı */}
-        {venue.source !== 'LOCALBITE' ? (
+        {google ? (
+          <GoogleReviewsSection google={google} />
+        ) : venue.source !== 'LOCALBITE' ? (
           <LiveSourceCard source={venue.source} url={venue.sourceUrl} />
         ) : (
           <ReviewsSection venueId={venue.id} rating={venue.rating} reviews={venue.reviews} />
@@ -245,7 +254,7 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
         )}
 
         {/* Saatler & konum (dış kaynaklı yerlerde çoğu zaman boş: o zaman hiç gösterilmez) */}
-        {(venue.locationNote || venue.address || venue.schedules.length > 0) && (
+        {(venue.locationNote || venue.address || venue.schedules.length > 0 || (google?.weekdayHours.length ?? 0) > 0) && (
           <Section title={t.detail.hours}>
             {venue.locationNote && (
               <View style={styles.infoRow}>
@@ -259,6 +268,13 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
                 <Text style={[font.small, styles.flex]}>{venue.address}</Text>
               </View>
             )}
+            {/* Google'ın yerelleştirdiği haftalık saatler ("Pazartesi: 09:00–22:00") */}
+            {google?.weekdayHours.map((line) => (
+              <View key={line} style={styles.infoRow}>
+                <Clock size={14} color={colors.textMuted} />
+                <Text style={[font.small, styles.flex]}>{line}</Text>
+              </View>
+            ))}
             {groupByDay(venue.schedules).map(([day, slots]) => (
               <View key={day} style={[styles.hoursRow, day === today && styles.hoursToday]}>
                 <Clock size={14} color={day === today ? colors.primary : colors.textMuted} />

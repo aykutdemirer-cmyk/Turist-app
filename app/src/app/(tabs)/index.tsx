@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MAX_RADIUS_M, NEARBY_RADIUS_M, useNearbyVenues } from '../../api/venues';
 import { CategoryRail } from '../../components/home/CategoryRail';
 import { VenueFeedCard } from '../../components/home/VenueFeedCard';
+import { AreaButton } from '../../components/location/AreaPicker';
 import { ExperienceSection } from '../../components/monetization/ExperienceSection';
 import { TrailsSection } from '../../components/monetization/TrailsSection';
 import { useLocationOrigin } from '../../hooks/useUserLocation';
@@ -46,7 +47,7 @@ export default function HomeScreen() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<FoodCategory | null>(null);
 
-  // Gerçek GPS konumu; izin yoksa ya da GPS kapalıysa İstanbul merkezi (uyarıyla)
+  // Elle seçilen bölge, yoksa cihazın anlık GPS konumu; ikisi de yoksa İstanbul merkezi (uyarıyla)
   const { origin, isFallback, refresh } = useLocationOrigin();
   // Keşfet'te seçilen mesafe burada da geçerli (varsayılan 3 km)
   const distance = useExploreStore((s) => s.distance);
@@ -82,6 +83,9 @@ export default function HomeScreen() {
           <RefreshControl refreshing={nearby.isRefetching} onRefresh={() => nearby.refetch()} tintColor={colors.primary} />
         }
       >
+        {/* Seçili bölge: dokununca semt seçici / GPS */}
+        <AreaButton />
+
         {/* Arama */}
         <View style={[styles.search, shadow.pin]}>
           <TextInput

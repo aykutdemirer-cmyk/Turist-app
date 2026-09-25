@@ -3,6 +3,7 @@ import {
   haversineMeters,
   type FoodCategory,
   type LatLng,
+  type LiveCategory,
   type Locale,
   type NearbyQuery,
   type PriceLevel,
@@ -13,6 +14,7 @@ import {
 } from '@localbite/shared';
 import { env } from '../env';
 import { notFound } from '../lib/errors';
+import { enrichWithGoogle } from './google-places.service';
 
 /**
  * Canlı gerçek mekanlar: veritabanımızda olmayan yakın yerleri dış kaynaktan getirir.
@@ -71,6 +73,8 @@ export interface LivePlace {
   longitude: number;
   type: VenueType;
   categories: FoodCategory[];
+  /** Gösterilen etiket (tür etiketi yerine) */
+  liveCategory: LiveCategory;
   priceLevel: PriceLevel | null;
   /** null → bilinmiyor */
   openNow: boolean | null;
@@ -127,24 +131,80 @@ export function clearLivePlacesCache() {
 const CATEGORY_KEYWORDS: [FoodCategory, RegExp][] = [
   ['DONER_WRAP', /kebab|doner|döner|shawarma|durum|dürüm|wrap|kokorec|kokoreç|cig_kofte|çiğ/],
   ['BURGER_TOAST', /burger|sandwich|toast|tost/],
-  ['PIDE_PIZZA', /pizza|pide|lahmacun|turkish_pizza/],
+  ['PIDE_PIZZA', /pizza|pide|lahmacun|turkish_pizza|borek|börek/],
   ['SOUP', /soup|corba|çorba|iskembe|işkembe/],
   ['OLIVE_OIL_VEGAN', /vegan|vegetarian|zeytinyag/],
-  ['STEW', /turkish|home|regional|anatolian|esnaf|lokanta|ev_yemek|meze|kofte|köfte/],
+  // Yalnızca adında/etiketinde açıkça esnaf/lokanta geçenler; "turkish" gibi genel mutfak etiketi yetmez
+  ['STEW', /esnaf|lokanta|ev_yemek|ev yemek|sulu yemek/],
 ];
 
-const DESSERT_PATTERN = /bakery|cafe|coffee|tea|dessert|ice_cream|baklava|pastry|patisserie|confectionery/;
+const KEBAB_PATTERN = /kebab|kebap|doner|döner|shawarma|durum|dürüm|turkish|kokorec|kokoreç|cig_kofte/;
+const PIDE_PATTERN = /pizza|pide|lahmacun|turkish_pizza|borek|börek/;
+const DESSERT_PATTERN = /bakery|cafe|coffee|tea|dessert|ice_cream|baklava|pastry|patisserie|confectionery|firin|fırın|pastane/;
 
-export function classify(keywords: string[], fallback: 'fast_food' | 'restaurant'): Pick<LivePlace, 'type' | 'categories'> {
-  const text = keywords.join(' ').toLowerCase();
+export type PlaceKind = 'fast_food' | 'restaurant' | 'bakery';
+
+/**
+ * Dış kaynaklı yerin türü (ikon/katman/süzgeç) ve gösterilen etiketi.
+ * Bilinmeyen yer "Yerel restoran" olur; doğrulanmamış hiçbir yere "Esnaf lokantası" denmez.
+ */
+export function classify(keywords: string[], kind: PlaceKind): Pick<LivePlace, 'type' | 'categories' | 'liveCategory'> {
+  const text = keywords.join(' ').toLocaleLowerCase('tr');
   const categories = CATEGORY_KEYWORDS.filter(([, re]) => re.test(text)).map(([c]) => c);
-  let type: VenueType;
-  if (DESSERT_PATTERN.test(text) && !categories.length) type = 'DESSERT_TEA';
-  else if (categories.includes('DONER_WRAP') || categories.includes('BURGER_TOAST')) type = 'LOCAL_BURGER_WRAP';
-  else if (categories.includes('STEW') || categories.includes('SOUP') || categories.includes('OLIVE_OIL_VEGAN'))
-    type = 'HOME_COOKING';
-  else type = fallback === 'fast_food' ? 'LOCAL_BURGER_WRAP' : 'HOME_COOKING';
-  return { type, categories };
+  const liveCategory: LiveCategory = KEBAB_PATTERN.test(text)
+    ? 'KEBAB_WRAP'
+    : PIDE_PATTERN.test(text)
+      ? 'PIDE_BOREK'
+      : kind === 'bakery' || (DESSERT_PATTERN.test(text) && !categories.length)
+        ? 'BAKERY_DESSERT'
+        : kind === 'fast_food'
+          ? 'STREET_FOOD'
+          : 'LOCAL_RESTAURANT';
+  const type: VenueType =
+    liveCategory === 'BAKERY_DESSERT'
+      ? 'DESSERT_TEA'
+      : liveCategory === 'KEBAB_WRAP' || liveCategory === 'STREET_FOOD' || categories.includes('BURGER_TOAST')
+        ? 'LOCAL_BURGER_WRAP'
+        : 'HOME_COOKING';
+  return { type, categories, liveCategory };
+}
+
+// ─────────────────────────────────────────────
+// Kara liste: bar, gece kulübü, meyhane vb. sokak yemeği/esnaf konseptine uymaz
+// ─────────────────────────────────────────────
+
+const EXCLUDED_TYPES = new Set([
+  'bar',
+  'pub',
+  'night_club',
+  'nightclub',
+  'biergarten',
+  'beer_garden',
+  'lounge',
+  'lounge_bar',
+  'hookah_lounge',
+  'hookah_bar',
+  'wine_bar',
+  'cocktail_bar',
+  'sports_bar',
+  'karaoke',
+  'casino',
+  'liquor_store',
+]);
+// Unicode harf sınırı (\b Türkçe harflerde çalışmaz)
+const word = (alternatives: string) => new RegExp(`(^|[^\p{L}])(${alternatives})($|[^\p{L}])`, 'iu');
+/** Bu kelimeler adda geçerse her zaman elenir */
+const ALWAYS_EXCLUDED_NAME = word('meyhane|meyhanesi|pub|club|klub|kulüp|kulübü|lounge|nargile|hookah|birahane|bira evi|wine|şarap|sarap|cocktail|kokteyl|disco|disko|gece kulübü');
+/** "bar" yalnızca adda yemek belirten bir kelime yoksa eler ("Döner Bar", "Çorba Bar" kalır) */
+const BAR_NAME = word('bar|barı|bistro bar');
+const FOOD_WORDS = word(
+  'döner|doner|kebap|kebab|dürüm|durum|pilav|çorba|corba|köfte|kofte|burger|pide|lahmacun|tost|salata|makarna|mantı|manti|börek|borek|kokoreç|kokorec|balık|balik|falafel|waffle|kumpir|midye',
+);
+
+export function isExcludedPlace(name: string, types: string[]): boolean {
+  if (types.some((t) => EXCLUDED_TYPES.has(t))) return true;
+  if (ALWAYS_EXCLUDED_NAME.test(name)) return true;
+  return BAR_NAME.test(name) && !FOOD_WORDS.test(name);
 }
 
 // ─────────────────────────────────────────────
@@ -187,13 +247,17 @@ function fromGoogle(p: GooglePlace): LivePlace | null {
   // Yalnızca uygun fiyatlı (INEXPENSIVE / MODERATE) yerler
   if (!price || !p.location || !p.displayName?.text) return null;
   const types = [p.primaryType ?? '', ...(p.types ?? [])];
+  if (isExcludedPlace(p.displayName.text, types)) return null;
   return {
     id: `google:${p.id}`,
     source: 'GOOGLE',
     name: p.displayName.text,
     latitude: p.location.latitude,
     longitude: p.location.longitude,
-    ...classify(types, types.includes('meal_takeaway') ? 'fast_food' : 'restaurant'),
+    ...classify(
+      [...types, p.displayName.text],
+      types.includes('bakery') ? 'bakery' : types.includes('meal_takeaway') || types.includes('fast_food_restaurant') ? 'fast_food' : 'restaurant',
+    ),
     priceLevel: price,
     openNow: p.currentOpeningHours?.openNow ?? null,
     address: p.formattedAddress ?? null,
@@ -215,6 +279,8 @@ async function searchGoogle(key: string, center: LatLng, radius: number, locale:
       },
       body: JSON.stringify({
         includedTypes: GOOGLE_TYPES,
+        // Sokak yemeği / esnaf odağı: içkili eğlence mekanları hiç gelmesin (ayrıca isExcludedPlace)
+        excludedTypes: ['bar', 'night_club'],
         maxResultCount: 20,
         rankPreference: 'DISTANCE',
         languageCode: locale,
@@ -241,7 +307,11 @@ function fromOsm(el: OsmElement): LivePlace | null {
   const lon = el.lon ?? el.center?.lon;
   const name = tags.name;
   if (lat === undefined || lon === undefined || !name) return null;
-  const amenity = tags.amenity === 'fast_food' ? 'fast_food' : 'restaurant';
+  const kind: PlaceKind = tags.shop === 'bakery' ? 'bakery' : tags.amenity === 'fast_food' ? 'fast_food' : 'restaurant';
+  // İçkili/eğlence mekanı: bar alanı olan restoran, bar/pub mutfağı ya da adında meyhane/pub/club...
+  const cuisine = (tags.cuisine ?? '').toLowerCase();
+  if (tags.bar === 'yes' || /(^|;)\s*(bar|pub|meyhane|wine|cocktail|hookah)\s*(;|$)/.test(cuisine)) return null;
+  if (isExcludedPlace(name, [tags.amenity ?? ''])) return null;
   const street = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(' ');
   return {
     id: `osm:${el.type[0]}${el.id}`,
@@ -249,7 +319,7 @@ function fromOsm(el: OsmElement): LivePlace | null {
     name,
     latitude: lat,
     longitude: lon,
-    ...classify([tags.cuisine ?? '', name, amenity], amenity),
+    ...classify([cuisine, name, tags.shop ?? ''], kind),
     // OSM'de güvenilir fiyat ve (ayrıştırılmış) açık/kapalı bilgisi yok
     priceLevel: null,
     openNow: null,
@@ -288,7 +358,7 @@ async function searchOsm(center: LatLng, radius: number): Promise<LivePlace[]> {
   const bbox = [b.minLat, b.minLng, b.maxLat, b.maxLng].map((n) => n.toFixed(5)).join(',');
   const query =
     `[out:json][timeout:25][bbox:${bbox}];` +
-    `(nwr["amenity"="fast_food"]["name"];nwr["amenity"="restaurant"]["name"];);` +
+    `(nwr["amenity"="fast_food"]["name"];nwr["amenity"="restaurant"]["name"];nwr["shop"="bakery"]["name"];);` +
     `out center tags ${OVERPASS_FETCH_LIMIT};`;
   const elements = await overpass(query);
   return elements
@@ -410,6 +480,7 @@ export function livePlaceSummary(p: LivePlace, origin: LatLng): VenueSummaryDTO 
     sourceUrl: p.sourceUrl,
     priceLevel: p.priceLevel,
     openStatusKnown: p.openNow !== null,
+    liveCategory: p.liveCategory,
     authenticityScore: 0,
     latitude: p.latitude,
     longitude: p.longitude,
@@ -448,8 +519,11 @@ async function lookupOsm(id: string): Promise<LivePlace | null> {
   return elements.map(fromOsm).find((p) => p !== null) ?? null;
 }
 
-/** Dış kaynaklı yerin sade detayı: menü, program, yorum yok; adres/telefon ve kaynak bağlantısı var */
-export async function getLivePlaceDetail(id: string): Promise<VenueDetailDTO> {
+/**
+ * Dış kaynaklı yerin detayı: adres/telefon ve kaynak bağlantısı. Google anahtarı varsa ve yer Google'da
+ * eşleşirse gerçek saatler, kapak fotoğrafı, puan ve yorumlar eklenir; yoksa sade kart (google: null).
+ */
+export async function getLivePlaceDetail(id: string, locale: Locale): Promise<VenueDetailDTO> {
   const indexed = placeIndex.get(id);
   let place = indexed && indexed.expiresAt > Date.now() ? indexed.place : null;
   // Önbellekte yoksa (ör. paylaşılan bağlantı) OSM'den tek kayıt çekilebilir; Google için listeden gelmek gerekir
@@ -460,8 +534,27 @@ export async function getLivePlaceDetail(id: string): Promise<VenueDetailDTO> {
     place,
     place,
   );
+  const google = await enrichWithGoogle(
+    {
+      id: place.id,
+      name: place.name,
+      latitude: place.latitude,
+      longitude: place.longitude,
+      googlePlaceId: place.source === 'GOOGLE' ? place.id.slice('google:'.length) : undefined,
+    },
+    locale,
+  );
+  const cover = google?.photos[0];
   return {
     ...summary,
+    ...(google && {
+      openStatusKnown: google.openNow !== null,
+      isScheduledOpen: google.openNow === true,
+      isActiveNow: google.openNow === true,
+      sourceUrl: google.mapsUrl ?? summary.sourceUrl,
+    }),
+    ...(cover && { coverImageUrl: cover.url, coverImageCredit: cover.attribution && `${cover.attribution} · Google` }),
+    google,
     pricePerPerson: null,
     address: place.address,
     phone: place.phone,

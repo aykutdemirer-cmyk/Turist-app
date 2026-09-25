@@ -10,6 +10,7 @@ import type {
   ReportableContent,
   ReportType,
   ReviewSource,
+  LiveCategory,
   LocationType,
   UserRole,
   VenueStatus,
@@ -90,6 +91,8 @@ export interface VenueSummaryDTO {
   priceLevel: PriceLevel | null;
   /** false → açık/kapalı bilinmiyor (isScheduledOpen/isActiveNow false döner) */
   openStatusKnown: boolean;
+  /** Dış kaynaklı yerde tür etiketi yerine gösterilir; kendi mekanlarımızda null */
+  liveCategory: LiveCategory | null;
   authenticityScore: number;
   /** Seyyarlarda o anki program diliminin köşesi, yoksa varsayılan konum */
   latitude: number;
@@ -149,6 +152,37 @@ export interface VenueDetailDTO extends Omit<VenueSummaryDTO, 'distanceMeters' |
   reviews: ReviewDTO[];
   /** Onaylı, yayın süresi dolmamış satıcı duyuruları */
   announcements: PublicAnnouncementDTO[];
+  /** Dış kaynaklı yer Google'da eşleştiyse canlı bilgiler (saklanmaz, 24 saat bellekte); yoksa null */
+  google: GooglePlaceDTO | null;
+}
+
+/** Google Places (New) zenginleştirmesi. Gösterilirken "Google Haritalar" atfı zorunlu. */
+export interface GooglePlaceDTO {
+  placeId: string;
+  mapsUrl: string | null;
+  rating: number | null;
+  userRatingCount: number;
+  /** null → Google'da saat bilgisi yok */
+  openNow: boolean | null;
+  /** İstanbul saatiyle "22:00"; açıkken kapanış, kapalıyken açılış */
+  closesAt: string | null;
+  opensAt: string | null;
+  /** Google'ın yerelleştirdiği haftalık saatler ("Pazartesi: 09:00–22:00") */
+  weekdayHours: string[];
+  /** API üzerinden vekillenen fotoğraflar (anahtar istemciye gitmez) */
+  photos: { url: string; attribution: string | null }[];
+  reviews: GoogleReviewDTO[];
+}
+
+export interface GoogleReviewDTO {
+  authorName: string;
+  authorUrl: string | null;
+  authorPhotoUrl: string | null;
+  rating: number;
+  text: string;
+  /** "2 hafta önce" (Google yerelleştirir) */
+  relativeTime: string | null;
+  publishedAt: string | null;
 }
 
 export interface PublicAnnouncementDTO {

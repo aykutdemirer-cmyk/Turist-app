@@ -14,6 +14,7 @@ import { resolveLocale } from '../lib/locale';
 import { recentConfirmations, submitReport } from '../services/report.service';
 import { upsertReview } from '../services/review.service';
 import { suggestVenue } from '../services/suggest.service';
+import { fetchGooglePhoto, PHOTO_NAME_PATTERN } from '../services/google-places.service';
 import { findNearbyVenues, getVenueDetail } from '../services/venue.service';
 
 // looseObject: doğrulanan değer request.headers'ın yerine geçtiği için diğer header'ları korur.
@@ -31,6 +32,20 @@ export const venueRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { querystring: nearbyQuerySchema } },
     async (req) =>
       findNearbyVenues(req.query, resolveLocale(req.query.locale, req.headers['accept-language']), req.log),
+  );
+
+  // Google Places fotoğraf vekili: API anahtarı istemciye hiç gitmez
+  app.get(
+    '/places/photo',
+    {
+      schema: { querystring: z.object({ name: z.string().max(600).regex(PHOTO_NAME_PATTERN) }) },
+      config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+    },
+    async (req, reply) => {
+      const photo = await fetchGooglePhoto(req.query.name).catch(() => null);
+      if (!photo) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Photo not found' });
+      return reply.header('Content-Type', photo.contentType).header('Cache-Control', 'public, max-age=86400').send(photo.body);
+    },
   );
 
   app.get(

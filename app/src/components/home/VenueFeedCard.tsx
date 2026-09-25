@@ -89,7 +89,7 @@ export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Pro
           </Text>
           <Text style={styles.meta} numberOfLines={1}>
             {venue.priceLevel && <Text style={styles.price}>{`${priceSymbol(venue.priceLevel)}  ·  `}</Text>}
-            {t.venueType[venue.type]}
+            {venue.liveCategory ? t.liveCategory[venue.liveCategory] : t.venueType[venue.type]}
             {venue.neighborhood ? `  ·  ${venue.neighborhood}` : ''}
           </Text>
           {venue.tagline && (

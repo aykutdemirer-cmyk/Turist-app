@@ -206,6 +206,7 @@ function toSummary(
     sourceUrl: null,
     priceLevel: venue.priceLevel,
     openStatusKnown: true,
+    liveCategory: null,
     authenticityScore: venue.authenticityScore,
     ...status.position,
     locationNote: status.locationNote,
@@ -305,7 +306,7 @@ export async function getVenueDetail(
   viewerId: string | null = null,
   now = new Date(),
 ): Promise<VenueDetailDTO> {
-  if (isLivePlaceId(idOrSlug)) return getLivePlaceDetail(idOrSlug);
+  if (isLivePlaceId(idOrSlug)) return getLivePlaceDetail(idOrSlug, locale);
   const venue = await prisma.venue.findFirst({
     where: { status: 'ACTIVE', OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
     include: {
@@ -349,6 +350,7 @@ export async function getVenueDetail(
     sourceUrl: null,
     priceLevel: venue.priceLevel,
     openStatusKnown: true,
+    liveCategory: null,
     authenticityScore: venue.authenticityScore,
     ...status.position,
     locationNote: status.locationNote,
@@ -378,6 +380,8 @@ export async function getVenueDetail(
       content: a.content,
       publishedAt: (a.reviewedAt ?? a.createdAt).toISOString(),
     })),
+    // Kendi mekanlarımız kendi yorum/saat verisini kullanır
+    google: null,
     pricePerPerson:
       venue.avgPriceMinTry !== null && venue.avgPriceMaxTry !== null
         ? { min: venue.avgPriceMinTry, max: venue.avgPriceMaxTry }

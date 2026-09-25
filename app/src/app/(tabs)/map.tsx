@@ -8,11 +8,13 @@ import { useShallow } from 'zustand/react/shallow';
 import { MAX_RADIUS_M, NEARBY_RADIUS_M, useNearbyVenues } from '../../api/venues';
 import { NearestCartsCard, SocialReportCallout } from '../../components/explore/ExploreCards';
 import { ExploreFilterBar } from '../../components/explore/ExploreFilterBar';
+import { AreaButton } from '../../components/location/AreaPicker';
 import { VenueMap, type VenueMapHandle } from '../../components/map/VenueMap';
 import { DEFAULT_CENTER, useLocationOrigin } from '../../hooks/useUserLocation';
 import { useT } from '../../i18n';
 import { applyExploreFilters } from '../../lib/exploreFilter';
 import { DEFAULT_DISTANCE, useExploreStore } from '../../store/explore';
+import { useAreaStore } from '../../store/area';
 import { useAvatarFace } from '../../store/profile';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 import { LoadErrorCard } from '../../components/ui/LoadErrorCard';
@@ -53,9 +55,9 @@ export default function ExploreScreen() {
   );
   const [topHeight, setTopHeight] = useState(TOP_BAR_ESTIMATE);
 
-  // İzin yoksa ya da konum alınamadıysa varsayılan merkez; yalnızca izin cevabı beklenirken null
-  const userCenter = location.coords ?? (location.status !== 'pending' ? DEFAULT_CENTER : null);
-  const queryCenter = searchCenter ?? userCenter;
+  // Elle seçilen bölge → GPS → varsayılan merkez; yalnızca ilk konum beklenirken null
+  const { manual } = location;
+  const queryCenter = searchCenter ?? location.origin;
   // 500 m / 1 km da 3 km'lik ortak önbellekten süzülür; 5 km ve "Tümü" için daha geniş çekilir
   const fetchRadius = distance === null ? MAX_RADIUS_M : Math.max(distance, NEARBY_RADIUS_M);
   const nearby = useNearbyVenues(queryCenter, fetchRadius);
@@ -83,16 +85,25 @@ export default function ExploreScreen() {
   }, [distance]);
   const selected = visible.find((v) => v.id === selectedId) ?? null;
 
-  // İlk konum geldiğinde haritayı kullanıcıya odakla
+  // İlk konum geldiğinde haritayı kullanıcıya odakla (bölge elle seçildiyse GPS merkezi değiştirmez)
   const centeredOnUser = useRef(false);
   useEffect(() => {
-    if (location.coords && !centeredOnUser.current) {
+    if (location.coords && !manual && !centeredOnUser.current) {
       centeredOnUser.current = true;
       mapRef.current?.focus(location.coords);
     }
-  }, [location.coords]);
+  }, [location.coords, manual]);
 
   const [mapCenter, setMapCenter] = useState<LatLng | null>(null);
+
+  // Bölge seçildiğinde (burada ya da Ana Sayfa'da) harita oraya uçar; "Bu bölgede ara" sıfırlanır
+  useEffect(() => {
+    if (!manual) return;
+    centeredOnUser.current = true;
+    setSearchCenter(null);
+    requestAnimationFrame(() => setMapCenter(null));
+    mapRef.current?.focus(manual, true, true);
+  }, [manual, setSearchCenter]);
   const showSearchHere =
     mapCenter !== null && queryCenter !== null && haversineMeters(mapCenter, queryCenter) > SEARCH_HERE_THRESHOLD_M;
 
@@ -111,13 +122,14 @@ export default function ExploreScreen() {
 
   const openVenue = (id: string) => router.push({ pathname: '/venue/[id]', params: { id } });
 
-  // Bilinen konuma hemen uç; taze GPS okuması (en fazla ~10 sn) gelince belirgin fark varsa düzelt
+  // "Beni bul": bölge seçimi "Mevcut Konum"a döner. Bilinen konuma hemen uç;
+  // taze GPS okuması (en fazla ~10 sn) gelince belirgin fark varsa düzelt
   const locateMe = async () => {
     setSearchCenter(null);
     setMapCenter(null);
     const known = location.coords;
     if (known) mapRef.current?.focus(known, true, true);
-    const fresh = await location.refresh();
+    const fresh = await location.followGps();
     if (fresh && (!known || haversineMeters(known, fresh) > LOCATE_REFOCUS_M)) mapRef.current?.focus(fresh, true, true);
     else if (!fresh && !known) mapRef.current?.focus(DEFAULT_CENTER, true, true);
   };
@@ -132,7 +144,7 @@ export default function ExploreScreen() {
     <View style={styles.screen}>
       <VenueMap
         ref={mapRef}
-        initialCenter={location.coords ?? DEFAULT_CENTER}
+        initialCenter={location.origin ?? DEFAULT_CENTER}
         venues={visible}
         selectedId={selected?.id ?? null}
         onSelectVenue={focusVenue}
@@ -150,6 +162,17 @@ export default function ExploreScreen() {
       <View style={[styles.top, { paddingTop: insets.top + spacing.sm }]} pointerEvents="box-none">
         {/* Ölçülen yükseklik: harita odaklaması bu alanın altına yapılır */}
         <View pointerEvents="box-none" onLayout={(e) => setTopHeight(insets.top + spacing.sm + e.nativeEvent.layout.height)}>
+          <AreaButton
+            style={styles.area}
+            onPicked={(center) => {
+              // GPS seçildiyse (bölge seçimi efektle ele alınır) haritayı anlık konuma getir
+              if (center && !useAreaStore.getState().manual) {
+                setSearchCenter(null);
+                setMapCenter(null);
+                mapRef.current?.focus(center, true, true);
+              }
+            }}
+          />
           <ExploreFilterBar />
         </View>
         <View style={styles.topStatus} pointerEvents="box-none">
@@ -216,6 +239,7 @@ const useStyles = makeStyles(({ colors, shadow }) => ({
   pressed: { opacity: 0.8 },
 
   top: { position: 'absolute', top: 0, left: 0, right: 0 },
+  area: { marginHorizontal: spacing.lg, marginBottom: spacing.sm },
   resetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 4 },
   resetText: { fontSize: 13, fontWeight: '800', color: colors.primary },
   topStatus: { alignItems: 'center', marginTop: spacing.sm, gap: spacing.sm },

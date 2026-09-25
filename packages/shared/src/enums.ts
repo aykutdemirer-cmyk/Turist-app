@@ -49,6 +49,13 @@ export const LOCATION_REQUIRED_REPORTS: readonly ReportType[] = ['SPOTTED_TODAY'
 export const VENUE_SOURCES = ['LOCALBITE', 'GOOGLE', 'OSM'] as const;
 export type VenueSource = (typeof VENUE_SOURCES)[number];
 
+/**
+ * Dış kaynaklı (OSM/Google) yerin gösterilen etiketi. Doğrulanmamış yere asla "Esnaf lokantası" denmez;
+ * bilinmiyorsa LOCAL_RESTAURANT ("Yerel restoran").
+ */
+export const LIVE_CATEGORIES = ['KEBAB_WRAP', 'PIDE_BOREK', 'STREET_FOOD', 'BAKERY_DESSERT', 'LOCAL_RESTAURANT'] as const;
+export type LiveCategory = (typeof LIVE_CATEGORIES)[number];
+
 export const REVIEW_SOURCES = ['APP', 'GOOGLE', 'OTHER', 'SAMPLE'] as const;
 export type ReviewSource = (typeof REVIEW_SOURCES)[number];
 
