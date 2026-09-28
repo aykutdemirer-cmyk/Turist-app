@@ -167,6 +167,8 @@ export interface VenueDetailDTO extends Omit<VenueSummaryDTO, 'distanceMeters' |
   website: string | null;
   /** Mekanı bir esnaf sahiplenmiş (menü/saat esnaf tarafından yönetilir) */
   isClaimed: boolean;
+  /** Google kaynaklı gerçek mekanda canlı Google bilgileri (puan, yorumlar); saklanmaz. Yoksa null */
+  google: GooglePlaceDTO | null;
   /** Dış kaynaklı yerin haftalık saatleri ("Pazartesi: 10:00–22:00"); kendi mekanlarımızda boş (schedules kullanılır) */
   weeklyHours: string[];
 }
@@ -402,6 +404,35 @@ export interface VendorVenueDTO {
   announcements: VendorAnnouncementDTO[];
   /** Esnafın girdiği haftalık saatler (gerçek mekanlar); küratörlü mekanlarda program kullanılır */
   weeklyHours: string[];
+}
+
+/** Google Places (New) bilgileri. Gösterilirken "Google Haritalar" atfı zorunlu. */
+export interface GooglePlaceDTO {
+  placeId: string;
+  mapsUrl: string | null;
+  rating: number | null;
+  userRatingCount: number;
+  /** null → Google'da saat bilgisi yok */
+  openNow: boolean | null;
+  /** İstanbul saatiyle "22:00"; açıkken kapanış, kapalıyken açılış */
+  closesAt: string | null;
+  opensAt: string | null;
+  /** Google'ın yerelleştirdiği haftalık saatler ("Pazartesi: 09:00–22:00") */
+  weekdayHours: string[];
+  /** API üzerinden vekillenen kapak fotoğrafı (anahtar istemciye gitmez) */
+  photos: { url: string; attribution: string | null }[];
+  reviews: GoogleReviewDTO[];
+}
+
+export interface GoogleReviewDTO {
+  authorName: string;
+  authorUrl: string | null;
+  authorPhotoUrl: string | null;
+  rating: number;
+  text: string;
+  /** "2 hafta önce" (Google yerelleştirir) */
+  relativeTime: string | null;
+  publishedAt: string | null;
 }
 
 /** Sahiplenme başvurusu (yönetim merkezi) */
