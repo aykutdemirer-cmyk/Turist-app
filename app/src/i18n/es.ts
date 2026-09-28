@@ -615,6 +615,13 @@ export const es: Dictionary = {
     invalid: "Escribe el nombre del plato (mín. 2 letras).",
     failed: "No se pudo enviar, inténtalo de nuevo.",
   },
+  google: {
+    title: "Reseñas de Google Maps",
+    attribution: "Proporcionado a través de Google Maps",
+    ratingCount: (n: number) => (n === 1 ? '1 valoración' : `${n} valoraciones`),
+    openInMaps: "Abrir en Google Maps",
+    noReviews: "Aún no hay reseñas escritas",
+  },
   spotted: {
     todayCount: (n: number) => (n === 1 ? '1 persona lo vio hoy' : `${n} personas lo vieron hoy`),
     ago: (label: string) => `Confirmado ${label}`,

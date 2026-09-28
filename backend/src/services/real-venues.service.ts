@@ -63,7 +63,11 @@ export async function venueIdForExternal(externalId: string): Promise<string | n
   const place = await findLivePlace(externalId);
   if (!place) return null;
 
-  const enrichment = findContact(place).catch(() => baseContact(place));
+  // Google şartları: Google içeriği (adres/telefon/saat) saklanmaz, detayda canlı gelir
+  const isGoogle = place.source === 'GOOGLE';
+  const enrichment = isGoogle
+    ? Promise.resolve({ address: null, addressIsApproximate: false, phone: null, openingHours: null, openingHoursSource: null } as Contact)
+    : findContact(place).catch(() => baseContact(place));
   const early = await Promise.race([enrichment, new Promise<null>((r) => setTimeout(() => r(null), ENRICH_WAIT_MS))]);
   const contact = early ?? baseContact(place);
 
@@ -82,11 +86,11 @@ export async function venueIdForExternal(externalId: string): Promise<string | n
         latitude: place.latitude,
         longitude: place.longitude,
         district: place.district,
-        website: place.website,
+        website: isGoogle ? null : place.website,
         status: 'ACTIVE',
-        coverImageUrl: place.photo?.url ?? null,
-        coverImageCredit: place.photo?.attribution ?? null,
-        coverIsRepresentative: place.photo?.representative ?? false,
+        coverImageUrl: isGoogle ? null : (place.photo?.url ?? null),
+        coverImageCredit: isGoogle ? null : (place.photo?.attribution ?? null),
+        coverIsRepresentative: isGoogle ? false : (place.photo?.representative ?? false),
         ...contact,
       },
     }));

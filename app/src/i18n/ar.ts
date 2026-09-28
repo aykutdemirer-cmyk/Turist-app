@@ -622,6 +622,13 @@ export const ar: Dictionary = {
     invalid: "اكتب اسم الطبق (حرفان على الأقل).",
     failed: "تعذّر الإرسال، حاول مرة أخرى.",
   },
+  google: {
+    title: "تقييمات خرائط Google",
+    attribution: "مقدَّم عبر خرائط Google",
+    ratingCount: (n: number) => `${n} تقييم`,
+    openInMaps: "افتح في خرائط Google",
+    noReviews: "لا توجد مراجعات مكتوبة بعد",
+  },
   spotted: {
     todayCount: (n: number) => `شوهد اليوم ${count(n, 'مرة واحدة', 'مرتين', 'مرات', 'مرة')}`,
     ago: (label: string) => `تم التأكيد ${label}`,

@@ -615,6 +615,13 @@ export const en = {
     invalid: "Enter the dish name (at least 2 letters).",
     failed: "Could not send, please try again.",
   },
+  google: {
+    title: "Google Maps reviews",
+    attribution: "Provided via Google Maps",
+    ratingCount: (n: number) => (n === 1 ? '1 rating' : `${n} ratings`),
+    openInMaps: "Open in Google Maps",
+    noReviews: "No written reviews yet",
+  },
   spotted: {
     todayCount: (n: number) => (n === 1 ? '1 person spotted it today' : `${n} people spotted it today`),
     ago: (label: string) => `Confirmed ${label}`,

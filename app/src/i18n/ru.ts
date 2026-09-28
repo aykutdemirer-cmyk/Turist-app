@@ -624,6 +624,13 @@ export const ru: Dictionary = {
     invalid: "Введите название блюда (не менее 2 букв).",
     failed: "Не удалось отправить, попробуйте ещё раз.",
   },
+  google: {
+    title: "Отзывы в Google Картах",
+    attribution: "Предоставлено Google Картами",
+    ratingCount: (n: number) => `${n} ${plural(n, 'оценка', 'оценки', 'оценок')}`,
+    openInMaps: "Открыть в Google Картах",
+    noReviews: "Письменных отзывов пока нет",
+  },
   spotted: {
     todayCount: (n: number) => `Сегодня видели ${n} ${plural(n, 'раз', 'раза', 'раз')}`,
     ago: (label: string) => `Подтверждено ${label}`,

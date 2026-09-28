@@ -16,6 +16,7 @@ import { env } from '../env';
 import { parseOpeningHours, type ParsedHours } from '../lib/openingHours';
 import { keywordPhoto } from '../lib/keywordPhotos';
 import { commonsFileFromTags, findOpenPhotos, type OpenPhoto } from '../lib/openPhotos';
+import { googleDetails, googleEnabled, googleNearby, type GoogleNearbyPlace } from './google-places.service';
 import { requestTilesNear } from './osm-import.service';
 
 /**
@@ -76,7 +77,7 @@ export interface LivePlace {
   photo: OpenPhoto | null;
 }
 
-export const isLivePlaceId = (id: string) => /^osm:[nwr]\d+$/.test(id);
+export const isLivePlaceId = (id: string) => /^(osm:[nwr]\d+|google:[A-Za-z0-9_-]+)$/.test(id);
 
 // ─────────────────────────────────────────────
 // Önbellek (bellek içi, 1 saat)
@@ -329,8 +330,14 @@ interface Logger {
 export async function findLivePlaces(
   center: LatLng,
   log: Logger,
+  locale: Locale = 'tr',
 ): Promise<{ places: LivePlace[]; pending: boolean }> {
   if (!env.LIVE_PLACES_ENABLED) return { places: [], pending: false };
+  // Google anahtarı varsa önce Google (ücretsiz kota içinde); kota/hata → OpenStreetMap
+  if (googleEnabled()) {
+    const google = await googlePlacesNear(center, locale, log).catch(() => null);
+    if (google?.length) return { places: google, pending: false };
+  }
   // Önce içe aktarılmış OSM kopyası (hızlı, dış sunucuya bağlı değil); bölge henüz aktarılmadıysa öne alınır
   void requestTilesNear(center, MAX_LIVE_RADIUS_M).catch(() => undefined);
   const stored = await placesFromDb(center, MAX_LIVE_RADIUS_M).catch(() => []);
@@ -523,11 +530,79 @@ async function placesFromDb(center: LatLng, radius: number): Promise<LivePlace[]
 }
 
 /** Kimliğiyle gerçek yer: önce içe aktarılmış kopya, sonra listede görülenler, yoksa OSM'den tek kayıt */
-export async function findLivePlace(id: string): Promise<LivePlace | null> {
+export async function findLivePlace(id: string, locale: Locale = 'tr'): Promise<LivePlace | null> {
+  if (id.startsWith('google:')) return findGooglePlace(id, locale);
   const row = await prisma.osmPlace.findUnique({ where: { id } }).catch(() => null);
   const stored = row && placeFromRow(row);
   if (stored) return stored;
   const indexed = placeIndex.get(id);
   if (indexed && indexed.expiresAt > Date.now()) return indexed.place;
   return id.startsWith('osm:') ? lookupOsm(id).catch(() => null) : null;
+}
+
+// ─────────────────────────────────────────────
+// Google (liste): hücre başına 1 saat bellekte; içerik veritabanına yazılmaz
+// ─────────────────────────────────────────────
+
+/** Google yerini uygulamanın yer modeline çevirir (bar/pub/meyhane kara listesi burada da geçerli) */
+function fromGoogle(g: GoogleNearbyPlace): LivePlace | null {
+  if (isExcludedPlace(g.name, g.types)) return null;
+  const kind: PlaceKind = g.types.includes('bakery')
+    ? 'bakery'
+    : g.types.some((t) => t === 'fast_food_restaurant' || t === 'meal_takeaway')
+      ? 'fast_food'
+      : 'restaurant';
+  const keywords = `${g.name} ${g.types.join(' ')}`;
+  return {
+    id: `google:${g.id}`,
+    source: 'GOOGLE',
+    name: g.name,
+    latitude: g.latitude,
+    longitude: g.longitude,
+    ...classify([...g.types, g.name], kind),
+    priceLevel: null,
+    // Saat, telefon, puan detayda (pahalı alanlar listede istenmez)
+    openingHours: null,
+    address: g.address,
+    phone: null,
+    district: null,
+    website: null,
+    sourceUrl: g.mapsUrl ?? `https://www.google.com/maps/place/?q=place_id:${g.id}`,
+    cuisine: g.types.join(' '),
+    // Listede Google fotoğrafı kullanılmaz (fotoğraf kotası ayda 1.000): addan temsili görsel ya da ikon
+    photo: keywordPhoto(keywords),
+  };
+}
+
+async function googlePlacesNear(center: LatLng, locale: Locale, log: Logger): Promise<LivePlace[] | null> {
+  const cell = cellOf(center);
+  const key = `g:${cell.key}:${locale}`;
+  const hit = cache.get(key);
+  if (hit && hit.expiresAt > Date.now()) return hit.places;
+  const found = await googleNearby(cell.center, MAX_LIVE_RADIUS_M + CELL_PAD_M, locale);
+  if (!found) {
+    log.warn({}, 'google nearby unavailable (quota or error), falling back to osm');
+    return null;
+  }
+  const places = found.map(fromGoogle).filter((p): p is LivePlace => p !== null);
+  remember(key, places, CACHE_TTL_MS);
+  return places;
+}
+
+/** Google yeri kimliğiyle: listede görüldüyse bellekten, yoksa Google detayından (detay kotasından düşer) */
+async function findGooglePlace(id: string, locale: Locale): Promise<LivePlace | null> {
+  const indexed = placeIndex.get(id);
+  if (indexed && indexed.expiresAt > Date.now()) return indexed.place;
+  const details = await googleDetails(id.slice('google:'.length), locale);
+  if (!details?.location) return null;
+  return fromGoogle({
+    id: details.dto.placeId,
+    name: details.name,
+    latitude: details.location.latitude,
+    longitude: details.location.longitude,
+    types: [],
+    address: details.address,
+    mapsUrl: details.dto.mapsUrl,
+    photoName: null,
+  });
 }

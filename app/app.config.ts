@@ -9,7 +9,11 @@ const config: ExpoConfig = {
   slug: 'localbite',
   owner: 'aykutdemirer',
   // EAS Build projesi (expo.dev/accounts/aykutdemirer/projects/localbite)
-  extra: { eas: { projectId: '00aefeac-6441-483e-b147-403de0841f41' } },
+  extra: {
+    eas: { projectId: '00aefeac-6441-483e-b147-403de0841f41' },
+    // Anahtar derlemeye verildiyse Keşfet haritası Google Maps (Google Places verisi Google haritasında gösterilir)
+    googleMapsEnabled: Boolean(process.env.GOOGLE_MAPS_ANDROID_API_KEY),
+  },
   scheme: 'localbite',
   version: '0.1.0',
   orientation: 'portrait',
@@ -53,6 +57,8 @@ const config: ExpoConfig = {
     favicon: './assets/favicon.png',
   },
   plugins: [
+    // Android Google Maps anahtarı (Maps SDK for Android, sınırsız ücretsiz). EAS/yerel derlemede ortam değişkeninden
+    ['react-native-maps', { androidGoogleMapsApiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY ?? '' }],
     'expo-router',
     'expo-status-bar',
     'expo-secure-store',

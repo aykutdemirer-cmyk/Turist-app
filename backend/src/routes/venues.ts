@@ -17,6 +17,7 @@ import { resolveLocale } from '../lib/locale';
 import { recentConfirmations, submitReport } from '../services/report.service';
 import { upsertReview } from '../services/review.service';
 import { suggestVenue } from '../services/suggest.service';
+import { fetchGooglePhoto, PHOTO_NAME_PATTERN } from '../services/google-places.service';
 import { claimVenue, saveCommunityHours, suggestDish } from '../services/real-venues.service';
 import { findNearbyVenues, getVenueDetail } from '../services/venue.service';
 
@@ -65,6 +66,21 @@ export const venueRoutes: FastifyPluginAsyncZod = async (app) => {
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
     },
     async (req) => saveCommunityHours(req.params.id, await requireUserId(req), req.body),
+  );
+
+  // Google Places fotoğraf vekili: API anahtarı istemciye hiç gitmez (günlük ücretsiz kota sınırıyla)
+  app.get(
+    '/places/photo',
+    {
+      schema: { querystring: z.object({ name: z.string().max(600).regex(PHOTO_NAME_PATTERN) }) },
+      config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+    },
+    async (req, reply) => {
+      const photo = await fetchGooglePhoto(req.query.name).catch(() => null);
+      if (!photo) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Photo not found' });
+      // Uygulama bir hafta önbellekte tutsun: aynı fotoğraf kotadan tekrar düşmesin
+      return reply.header('Content-Type', photo.contentType).header('Cache-Control', 'public, max-age=604800').send(photo.body);
+    },
   );
 
   app.get(

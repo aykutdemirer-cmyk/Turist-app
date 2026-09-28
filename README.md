@@ -206,6 +206,8 @@ npm run vendor:grant -w @localbite/backend -- kisi@ornek.com mekan-slug  # VENDO
 | `OAUTH_WEB_ORIGINS` | Web paneli için izinli dönüş origin'leri |
 | `LEGAL_CONTACT_EMAIL` | Yasal sayfalar ve silme talepleri iletişim adresi |
 | `GETYOURGUIDE_PARTNER_ID`, `VIATOR_PID`, `AIRALO_REF` | İş ortaklığı kimlikleri |
+| `GOOGLE_PLACES_API_KEY` | Google Places API (New) sunucu anahtarı: varsa liste/detay Google'dan (yalnızca ücretsiz kota içinde), yoksa ya da kota dolunca OSM |
+| `GOOGLE_NEARBY_DAILY_LIMIT`, `GOOGLE_DETAIL_DAILY_LIMIT`, `GOOGLE_PHOTO_DAILY_LIMIT` | Günlük Google istek sınırları (150 / 30 / 30 → aylık ücretsiz kotanın altında) |
 | `LIVE_PLACES_ENABLED` | `false` ise haritadaki gerçek mekanlar (OSM) kapalı (varsayılan `true`) |
 | `OSM_IMPORT_ENABLED` | `false` ise OSM mekanları arka planda veritabanına aktarılmaz (varsayılan `true`) |
 | `ALLOW_MOCK_PURCHASES` | Test satın alması; üretimde her zaman kapalı |
@@ -219,6 +221,7 @@ OAuth callback adresleri: `{PUBLIC_API_URL}/api/v1/auth/oauth/{google|github}/ca
 |---|---|
 | `EXPO_PUBLIC_API_URL` | API adresi, ör. `http://10.0.2.2:3001`. Verilmezse Expo dev sunucusunun IP'si + `:3000` denenir, bu yüzden 3001 ile çalışırken verilmelidir |
 | `EXPO_PUBLIC_TILE_URL` | Harita karo adresi (varsayılan: API'nin önbellekli OSM proxy'si) |
+| `GOOGLE_MAPS_ANDROID_API_KEY` | Derleme sırasında: Keşfet haritası Google Maps olur (Maps SDK for Android, ücretsiz). Yoksa Leaflet + OSM |
 | `EXPO_PUBLIC_SHARE_BASE_URL` | Paylaşılan mekan bağlantılarının alanı (varsayılan `https://uygulama-linki.com`) |
 
 ### `admin/.env`

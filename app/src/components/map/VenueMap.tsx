@@ -1,7 +1,12 @@
 import { liveLocationFreshness, type LatLng, type VenueSummaryDTO } from '@localbite/shared';
 import { useImperativeHandle, useMemo, useRef, type Ref } from 'react';
 import { StyleSheet } from 'react-native';
+import Constants from 'expo-constants';
+import { GoogleVenueMap } from './GoogleVenueMap';
 import { LeafletView, type LeafletHandle, type MapPin, type MapUser } from './leaflet/LeafletView';
+
+/** Derlemede Google Maps anahtarı varsa Google haritası, yoksa Leaflet + OpenStreetMap */
+const GOOGLE_MAPS = Boolean((Constants.expoConfig?.extra as { googleMapsEnabled?: boolean } | undefined)?.googleMapsEnabled);
 
 export interface VenueMapHandle {
   focus: (target: LatLng, zoomedIn?: boolean, fly?: boolean) => void;
@@ -66,6 +71,24 @@ export function VenueMap({
       })),
     [venues],
   );
+
+  if (GOOGLE_MAPS) {
+    return (
+      <GoogleVenueMap
+        ref={mapRef}
+        initialCenter={initialCenter}
+        initialZoom={DEFAULT_ZOOM}
+        pins={pins}
+        selectedId={selectedId}
+        user={user}
+        padding={{ top: topInset, bottom: bottomInset }}
+        radius={radius}
+        onPinPress={onSelectVenue}
+        onMapPress={onMapPress}
+        onMoveEnd={(center, isGesture) => onRegionChangeComplete?.(center, isGesture)}
+      />
+    );
+  }
 
   return (
     <LeafletView

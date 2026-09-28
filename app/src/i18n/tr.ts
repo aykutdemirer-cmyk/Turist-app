@@ -615,6 +615,13 @@ export const tr: Dictionary = {
     invalid: "Lezzetin adını yaz (en az 2 harf).",
     failed: "Gönderilemedi, tekrar dene.",
   },
+  google: {
+    title: "Google Haritalar Değerlendirmeleri",
+    attribution: "Google Haritalar üzerinden sağlanmaktadır",
+    ratingCount: (n: number) => `${n} değerlendirme`,
+    openInMaps: "Google Haritalar'da aç",
+    noReviews: "Henüz yazılı yorum yok",
+  },
   spotted: {
     todayCount: (n: number) => `Bugün ${n} kişi gördü`,
     ago: (label: string) => `${label} teyit edildi`,

@@ -24,6 +24,7 @@ import { keywordPhoto } from '../lib/keywordPhotos';
 import { parseOpeningHours } from '../lib/openingHours';
 import { findLivePlaces, isLivePlaceId, livePlaceSummary, matchesQuery, withoutDuplicates } from './live-places.service';
 import { blockedIdsFor } from './moderation.service';
+import { googleDetails, type GoogleDetails } from './google-places.service';
 import { venueIdForExternal } from './real-venues.service';
 import { localesFor, pickTranslation } from '../lib/locale';
 
@@ -278,7 +279,7 @@ type Logger = Parameters<typeof findLivePlaces>[1];
 export async function findNearbyVenues(query: NearbyQuery, locale: Locale, log: Logger, now = new Date()) {
   const origin: LatLng = { latitude: query.lat, longitude: query.lng };
   // Dış kaynak sorgusu veritabanıyla paralel başlar
-  const livePromise = findLivePlaces(origin, log);
+  const livePromise = findLivePlaces(origin, log, locale);
   const box = boundingBox(origin, query.radius + MOBILE_VENDOR_MARGIN_M);
 
   const venues = await prisma.venue.findMany({
@@ -388,7 +389,12 @@ export async function getVenueDetail(
     ),
   ]);
 
-  return {
+  // Google kaynaklı gerçek mekan: saat, telefon, puan, yorum ve fotoğraf canlı gelir (saklanmaz)
+  const google = venue.externalId?.startsWith('google:')
+    ? await googleDetails(venue.externalId.slice('google:'.length), locale)
+    : null;
+
+  const detail: VenueDetailDTO = {
     id: venue.id,
     slug: venue.slug,
     name: venue.name,
@@ -426,6 +432,7 @@ export async function getVenueDetail(
       content: a.content,
       publishedAt: (a.reviewedAt ?? a.createdAt).toISOString(),
     })),
+    google: null,
     pricePerPerson:
       venue.avgPriceMinTry !== null && venue.avgPriceMaxTry !== null
         ? { min: venue.avgPriceMinTry, max: venue.avgPriceMaxTry }
@@ -471,5 +478,48 @@ export async function getVenueDetail(
       longitude: s.longitude,
       locationNote: s.locationNote,
     })),
+  };
+  return google ? withGoogle(detail, venue, google, now) : detail;
+}
+
+/**
+ * Google detayını mekan detayına işler. Esnafın/topluluğun kendi girdiği bilgi (program, saat, adres, telefon,
+ * kendi fotoğrafı) her zaman önceliklidir; Google yalnızca boşlukları doldurur.
+ */
+function withGoogle(
+  detail: VenueDetailDTO,
+  venue: Pick<Venue, 'openingHours' | 'openOverride' | 'openOverrideAt'> & { schedules: VendorSchedule[] },
+  google: GoogleDetails,
+  now: Date,
+): VenueDetailDTO {
+  const ownHours =
+    venue.schedules.length > 0 || venue.openingHours !== null || activeOpenOverride(venue.openOverride, venue.openOverrideAt, now) !== null;
+  const g = google.dto;
+  const cover = g.photos[0];
+  const ownCover = detail.coverImageUrl !== null && !detail.coverIsRepresentative;
+  return {
+    ...detail,
+    google: g,
+    sourceUrl: g.mapsUrl ?? detail.sourceUrl,
+    address: detail.address ?? google.address,
+    addressIsApproximate: detail.address ? detail.addressIsApproximate : false,
+    phone: detail.phone ?? google.phone,
+    website: detail.website ?? google.website,
+    ...(!ownHours &&
+      g.openNow !== null && {
+        openStatusKnown: true,
+        isScheduledOpen: g.openNow,
+        isActiveNow: g.openNow,
+        closesAt: g.closesAt,
+        opensAt: g.opensAt,
+        hoursSource: 'GOOGLE' as const,
+        weeklyHours: g.weekdayHours,
+      }),
+    ...(!ownCover &&
+      cover && {
+        coverImageUrl: cover.url,
+        coverImageCredit: `${cover.attribution ?? 'Google'} · Google`,
+        coverIsRepresentative: false,
+      }),
   };
 }

@@ -37,6 +37,7 @@ import { ExperienceSection } from '../../components/monetization/ExperienceSecti
 import { AnnouncementsSection } from '../../components/venue/AnnouncementsSection';
 import { DishRow } from '../../components/venue/DishRow';
 import { FormSheet } from '../../components/venue/FormSheet';
+import { GoogleReviewsSection } from '../../components/venue/GoogleReviewsSection';
 import { HoursEditor } from '../../components/venue/HoursEditor';
 import { LinkDistanceCard } from '../../components/venue/LinkDistanceCard';
 import { LiveLocationBadge } from '../../components/venue/LiveLocationBadge';
@@ -256,6 +257,9 @@ function VenueDetail({ venue, bottomInset }: { venue: VenueDetailDTO; bottomInse
         )}
 
         <ReviewsSection venueId={venue.id} rating={venue.rating} reviews={venue.reviews} />
+
+        {/* Google kaynaklı gerçek mekan: Google puanı ve yorumları (atıfla) */}
+        {venue.google && <GoogleReviewsSection google={venue.google} />}
 
         <ExperienceSection venueId={venue.id} />
 

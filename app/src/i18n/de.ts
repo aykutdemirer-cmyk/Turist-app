@@ -615,6 +615,13 @@ export const de: Dictionary = {
     invalid: "Gib den Namen des Gerichts ein (mind. 2 Buchstaben).",
     failed: "Senden fehlgeschlagen, bitte erneut versuchen.",
   },
+  google: {
+    title: "Google Maps-Bewertungen",
+    attribution: "Bereitgestellt über Google Maps",
+    ratingCount: (n: number) => (n === 1 ? '1 Bewertung' : `${n} Bewertungen`),
+    openInMaps: "In Google Maps öffnen",
+    noReviews: "Noch keine schriftlichen Bewertungen",
+  },
   spotted: {
     todayCount: (n: number) => (n === 1 ? 'Heute 1-mal gesichtet' : `Heute ${n}-mal gesichtet`),
     ago: (label: string) => `Bestätigt ${label}`,
