@@ -5,7 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { ApiError, authApi, session } from '../api';
 import { Button } from '../components/ui';
 
-/** Admin paneli girişi: e-posta/şifre ya da Google/GitHub (sosyal hesaplarda şifre yoktur) */
+/** Admin paneli girişi: e-posta/şifre ya da Google (sosyal hesaplarda şifre yoktur) */
 export function LoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -66,7 +66,7 @@ export function LoginPage() {
 
         <div className="space-y-4 rounded-2xl border border-line bg-surface p-6 shadow-sm">
           <div className="grid gap-2">
-            {(['google', 'github'] as const).map((p) => (
+            {(['google'] as const).map((p) => (
               <a
                 key={p}
                 href={providers.data?.[p] ? authApi.oauthStartUrl(p) : undefined}
@@ -75,7 +75,7 @@ export function LoginPage() {
                   providers.data?.[p] ? '' : 'pointer-events-none opacity-50'
                 }`}
               >
-                {p === 'google' ? 'Google ile giriş yap' : 'GitHub ile giriş yap'}
+                Google ile giriş yap
               </a>
             ))}
           </div>

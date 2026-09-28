@@ -37,5 +37,9 @@ export const resolveMediaUrl = (url: string | null | undefined): string | null =
  * Paylaşılan mekan bağlantıları: https://<alan>/place/{id}. Aynı alan app.config.ts'de Android App Links /
  * iOS Universal Links olarak tanımlıdır; uygulama yüklüyse bağlantı doğrudan mekan detayını açar.
  */
-export const SHARE_BASE_URL = (process.env.EXPO_PUBLIC_SHARE_BASE_URL || 'https://uygulama-linki.com').replace(/\/+$/, '');
-export const placeUrl = (id: string) => `${SHARE_BASE_URL}/place/${encodeURIComponent(id)}`;
+/** Paylaşılan mekan bağlantılarının alanı; tanımlı değilse (henüz alan adı yok) paylaşımda harita konumu gider */
+export const SHARE_BASE_URL = process.env.EXPO_PUBLIC_SHARE_BASE_URL?.replace(/\/+$/, '') || null;
+export const placeUrl = (id: string) => (SHARE_BASE_URL ? `${SHARE_BASE_URL}/place/${encodeURIComponent(id)}` : null);
+/** Alıcının her telefonda açabileceği harita konumu (uygulama gerekmez) */
+export const mapUrl = (latitude: number, longitude: number) =>
+  `https://www.google.com/maps/search/?api=1&query=${latitude.toFixed(6)},${longitude.toFixed(6)}`;

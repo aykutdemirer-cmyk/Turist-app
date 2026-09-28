@@ -117,7 +117,6 @@ export const en = {
     switchToRegister: "Don't have an account? Sign up",
     switchToLogin: 'Already have an account? Sign in',
     google: 'Continue with Google',
-    github: 'Continue with GitHub',
     notConfigured: 'Not set up',
     signingIn: 'Signing you in…',
     acceptTermsPrefix: "I agree to the ",
@@ -474,6 +473,7 @@ export const en = {
   share: {
     button: "Share",
     message: (name: string, tagline: string | null, url: string) => `${name}${tagline ? ` — ${tagline}` : ''}\n\nSee it on LocalBite: ${url}`,
+    messageMap: (name: string, detail: string | null, url: string) => `${name}${detail ? ` — ${detail}` : ''}\n\nLocation: ${url}`,
   },
   linkDistance: {
     far: (name: string, area: string | null, km: string) => area ? `📍 ${name} is in ${area}, about ${km} km from you. Want to go?` : `📍 ${name} is about ${km} km from you. Want to go?`,

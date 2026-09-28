@@ -56,7 +56,7 @@ Ortak tipler ve doğrulama şemaları `packages/shared` içindedir.
 
 ### Üyelik ve roller
 - Misafir olarak serbestçe gezinme; yorum/gönderi için giriş.
-- E-posta + şifre (scrypt), Google ve GitHub ile giriş (sunucu tarafı OAuth, JWT oturum).
+- E-posta + şifre (scrypt), Google ve Apple ile giriş (sunucu tarafı OAuth, JWT oturum).
 - Roller: `USER`, `LOCAL_GUIDE`, `VENDOR`, `SUPER_ADMIN` (rol her istekte veritabanından okunur).
 
 | Rol | Uygulamada | Yetki |
@@ -201,7 +201,6 @@ npm run vendor:grant -w @localbite/backend -- kisi@ornek.com mekan-slug  # VENDO
 | `JWT_SECRET` | En az 32 karakter; `JWT_TTL_DAYS` oturum süresi (varsayılan 30) |
 | `PUBLIC_API_URL` | OAuth callback'lerinin kök adresi |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google ile giriş (boşsa kapalı) |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub ile giriş (boşsa kapalı) |
 | `OAUTH_APP_SCHEMES` | OAuth dönüşüne izin verilen uygulama şemaları (`exp,exps,localbite`) |
 | `OAUTH_WEB_ORIGINS` | Web paneli için izinli dönüş origin'leri |
 | `LEGAL_CONTACT_EMAIL` | Yasal sayfalar ve silme talepleri iletişim adresi |
@@ -210,10 +209,12 @@ npm run vendor:grant -w @localbite/backend -- kisi@ornek.com mekan-slug  # VENDO
 | `GOOGLE_NEARBY_DAILY_LIMIT`, `GOOGLE_DETAIL_DAILY_LIMIT`, `GOOGLE_PHOTO_DAILY_LIMIT` | Günlük Google istek sınırları (150 / 30 / 30 → aylık ücretsiz kotanın altında) |
 | `LIVE_PLACES_ENABLED` | `false` ise haritadaki gerçek mekanlar (OSM) kapalı (varsayılan `true`) |
 | `OSM_IMPORT_ENABLED` | `false` ise OSM mekanları arka planda veritabanına aktarılmaz (varsayılan `true`) |
+| `PAYMENTS_ENABLED` | Uygulama içi satın alma (Explorer Pass). Varsayılan `false`: tüm rotalar ücretsiz; mağaza ödeme sistemi bağlanmadan açılmamalı |
+| `APPLE_BUNDLE_IDS` | Apple ile Giriş token'ının hedef kitlesi (varsayılan `app.localbite,host.exp.Exponent`) |
 | `ALLOW_MOCK_PURCHASES` | Test satın alması; üretimde her zaman kapalı |
 | `SEED_ADMIN_PASSWORD`, `SEED_VENDOR_PASSWORD` | Yalnızca seed: test hesabı parolalarını ezer (üretimde zorunlu) |
 
-OAuth callback adresleri: `{PUBLIC_API_URL}/api/v1/auth/oauth/{google|github}/callback`.
+OAuth callback adresleri: `{PUBLIC_API_URL}/api/v1/auth/oauth/google/callback`.
 
 ### `app/.env`
 

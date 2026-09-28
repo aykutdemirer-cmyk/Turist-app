@@ -20,6 +20,7 @@ import {
 } from '@localbite/shared';
 import { prisma } from '../db';
 import { notFound } from '../lib/errors';
+import { publicImageUrl } from '../lib/imageProxy';
 import { keywordPhoto } from '../lib/keywordPhotos';
 import { parseOpeningHours } from '../lib/openingHours';
 import { findLivePlaces, isLivePlaceId, livePlaceSummary, matchesQuery, withoutDuplicates } from './live-places.service';
@@ -178,7 +179,13 @@ export function liveStatus(venue: LiveStatusInput, now: Date) {
  * Kapak önceliği: mekanın kendi (gerçek) fotoğrafı → menüdeki ilk yemeğin fotoğrafı → türüne göre temsili fotoğraf.
  * Yemekler sortOrder'a göre gelir, böylece ana lezzet (ör. pilav) yan üründen (ayran) önce seçilir.
  */
-function coverImage(venue: {
+/** Kapak (Wikimedia görselleri API vekili üzerinden: uygulamanın doğrudan isteği 403 alıyor) */
+function coverImage(venue: Parameters<typeof rawCoverImage>[0]) {
+  const cover = rawCoverImage(venue);
+  return { ...cover, coverImageUrl: publicImageUrl(cover.coverImageUrl) };
+}
+
+function rawCoverImage(venue: {
   name: string;
   externalId: string | null;
   coverImageUrl: string | null;
@@ -463,7 +470,7 @@ export async function getVenueDetail(
         isVegetarian: d.isVegetarian,
         priceTry: d.priceTry ? Number(d.priceTry) : null,
         portion: d.portion,
-        imageUrl: d.imageUrl,
+        imageUrl: publicImageUrl(d.imageUrl),
         imageCredit: d.imageCredit,
         imageSourceUrl: d.imageSourceUrl,
       };

@@ -1,5 +1,7 @@
 import type { Locale, TrailDetailDTO, TrailSummaryDTO } from '@localbite/shared';
 import { prisma } from '../db';
+import { env } from '../env';
+import { publicImageUrl } from '../lib/imageProxy';
 import { HttpError, notFound } from '../lib/errors';
 import { pickTranslation } from '../lib/locale';
 
@@ -98,9 +100,12 @@ const summary = (t: TrailDef, locale: Locale, premium: boolean): TrailSummaryDTO
   area: t.text[locale].area,
   stopCount: t.stops.length,
   durationMinutes: t.durationMinutes,
-  isPremium: t.isPremium,
-  locked: t.isPremium && !premium,
+  isPremium: isPaid(t),
+  locked: isPaid(t) && !premium,
 });
+
+/** Ödemeler kapalıyken (mağaza ödeme sistemi bağlanana kadar) premium rota yoktur: hepsi ücretsiz */
+const isPaid = (t: { isPremium: boolean }) => env.PAYMENTS_ENABLED && t.isPremium;
 
 export async function isPremiumUser(userId: string | null): Promise<boolean> {
   if (!userId) return false;
@@ -117,7 +122,7 @@ export async function getTrail(slug: string, locale: Locale, viewerId: string | 
   const def = TRAILS.find((t) => t.slug === slug);
   if (!def) throw notFound('Trail');
   const premium = await isPremiumUser(viewerId);
-  if (def.isPremium && !premium) {
+  if (isPaid(def) && !premium) {
     throw new HttpError(402, 'PREMIUM_REQUIRED', 'This trail is part of the Explorer Pass', summary(def, locale, premium));
   }
 
@@ -145,7 +150,7 @@ export async function getTrail(slug: string, locale: Locale, viewerId: string | 
             type: v.type,
             isMobile: v.locationType === 'DYNAMIC_STREET',
             neighborhood: v.neighborhood,
-            coverImageUrl: v.coverImageUrl,
+            coverImageUrl: publicImageUrl(v.coverImageUrl),
             latitude: v.latitude,
             longitude: v.longitude,
             // Durağın önerilen yemeği başta, ardından menüdeki ilk yemek

@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { authApi, session } from '../api';
 import { safeNext } from './LoginPage';
 
-/** Google/GitHub dönüşü: tek kullanımlık kodu oturuma çevirir, rolü kontrol eder */
+/** Google dönüşü: tek kullanımlık kodu oturuma çevirir, rolü kontrol eder */
 export function AuthCallback() {
   const [params] = useSearchParams();
   const navigate = useNavigate();

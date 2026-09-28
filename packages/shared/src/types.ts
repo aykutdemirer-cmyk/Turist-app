@@ -219,7 +219,8 @@ export interface AuthUserDTO {
 /** Sunucuda yapılandırılmış sosyal giriş sağlayıcıları */
 export interface OAuthProvidersDTO {
   google: boolean;
-  github: boolean;
+  /** Apple ile Giriş (yalnızca iOS'ta gösterilir) */
+  apple: boolean;
 }
 
 export interface AuthResponseDTO {

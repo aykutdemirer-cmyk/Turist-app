@@ -1238,7 +1238,8 @@ async function main() {
           })),
         },
         reviews: {
-          create: (reviewsBySlug[v.slug] ?? []).map((r) => ({
+          // Örnek (SAMPLE) yorumlar yalnızca geliştirmede: mağaza sürümünde uydurma yorum olmasın
+          create: (process.env.NODE_ENV === 'production' ? [] : (reviewsBySlug[v.slug] ?? [])).map((r) => ({
             authorName: r.author,
             rating: r.rating,
             source: 'SAMPLE' as const,
@@ -1272,7 +1273,8 @@ async function main() {
   const mobile = venues.filter((v) => v.isMobile).length;
   console.log(`Seeded ${venues.length} venues (${mobile} mobile vendors).`);
 
-  await seedCommunity(now);
+  // Örnek topluluk üyeleri ve gönderileri yalnızca geliştirmede (mağaza sürümünde uydurma içerik olmasın)
+  if (process.env.NODE_ENV !== 'production') await seedCommunity(now);
   await seedPendingApplication();
   await seedStaff(now);
 }

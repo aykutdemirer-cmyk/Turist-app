@@ -1,8 +1,11 @@
 import type { ExpoConfig } from 'expo/config';
 import { withAndroidManifest, type ConfigPlugin } from 'expo/config-plugins';
 
-/** Paylaşılan mekan bağlantılarının alanı (src/api/config.ts SHARE_BASE_URL ile aynı) */
-const SHARE_HOST = new URL(process.env.EXPO_PUBLIC_SHARE_BASE_URL || 'https://uygulama-linki.com').host;
+/**
+ * Paylaşılan mekan bağlantılarının alanı (src/api/config.ts SHARE_BASE_URL ile aynı). Gerçek bir alan adı
+ * verilmedikçe App Links / Universal Links tanımlanmaz (doğrulanamayan sahte alan mağaza incelemesinde sorun olur).
+ */
+const SHARE_HOST = process.env.EXPO_PUBLIC_SHARE_BASE_URL ? new URL(process.env.EXPO_PUBLIC_SHARE_BASE_URL).host : null;
 
 const config: ExpoConfig = {
   name: 'LocalBite',
@@ -23,7 +26,9 @@ const config: ExpoConfig = {
     supportsTablet: true,
     bundleIdentifier: 'app.localbite',
     // Universal Links: alanda /.well-known/apple-app-site-association yayınlanmalı
-    associatedDomains: [`applinks:${SHARE_HOST}`],
+    ...(SHARE_HOST && { associatedDomains: [`applinks:${SHARE_HOST}`] }),
+    // Apple ile Giriş (App Store: başka sosyal giriş sunan uygulamada zorunlu)
+    usesAppleSignIn: true,
   },
   android: {
     package: 'app.localbite',
@@ -36,14 +41,16 @@ const config: ExpoConfig = {
     predictiveBackGestureEnabled: false,
     // App Links: https://<alan>/place/{id} uygulamada açılır. Doğrulama için alanda
     // /.well-known/assetlinks.json (imza SHA-256 parmak izi ile) yayınlanmalı.
-    intentFilters: [
-      {
-        action: 'VIEW',
-        autoVerify: true,
-        data: [{ scheme: 'https', host: SHARE_HOST, pathPrefix: '/place' }],
-        category: ['BROWSABLE', 'DEFAULT'],
-      },
-    ],
+    ...(SHARE_HOST && {
+      intentFilters: [
+        {
+          action: 'VIEW',
+          autoVerify: true,
+          data: [{ scheme: 'https', host: SHARE_HOST, pathPrefix: '/place' }],
+          category: ['BROWSABLE', 'DEFAULT'],
+        },
+      ],
+    }),
     // Gerçek GPS (ön plan): kullanıcı konumuna göre yakındaki mekanlar
     permissions: ['android.permission.ACCESS_FINE_LOCATION', 'android.permission.ACCESS_COARSE_LOCATION'],
     // Yalnızca ön plan konumu. Arka plan konumu mağaza politikası gereği
@@ -60,6 +67,7 @@ const config: ExpoConfig = {
     // Android Google Maps anahtarı (Maps SDK for Android, sınırsız ücretsiz). EAS/yerel derlemede ortam değişkeninden
     ['react-native-maps', { androidGoogleMapsApiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY ?? '' }],
     'expo-router',
+    'expo-apple-authentication',
     'expo-status-bar',
     'expo-secure-store',
     'expo-localization',

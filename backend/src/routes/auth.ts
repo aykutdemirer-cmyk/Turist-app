@@ -1,5 +1,6 @@
 import {
   deviceIdSchema,
+  appleLoginSchema,
   googleLoginSchema,
   loginSchema,
   OAUTH_PROVIDERS,
@@ -11,7 +12,8 @@ import {
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { requireUserId } from '../lib/auth';
-import { deleteAccount, login, loginWithGoogle, me, register } from '../services/auth.service';
+import { deleteAccount, login, loginWithApple,
+  loginWithGoogle, me, register } from '../services/auth.service';
 import { authorizeUrl, enabledProviders, exchangeAppCode, handleCallback } from '../services/oauth.service';
 
 // Kayıtta cihaz kimliği opsiyonel: varsa misafir geçmişi yeni hesaba taşınır
@@ -33,6 +35,13 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.post('/auth/google', { schema: { body: googleLoginSchema }, config: authRateLimit }, async (req) =>
     loginWithGoogle(req.body),
+  );
+
+  // Apple ile Giriş (iOS): kimlik token'ı Apple'ın anahtarlarıyla doğrulanır
+  app.post(
+    '/auth/apple',
+    { schema: { headers: optionalDeviceHeaders, body: appleLoginSchema }, config: authRateLimit },
+    async (req) => loginWithApple(req.body, req.headers['x-device-id']),
   );
 
   app.get('/auth/me', async (req) => ({ user: await me(await requireUserId(req)) }));

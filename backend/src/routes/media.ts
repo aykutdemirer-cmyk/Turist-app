@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { notFound } from '../lib/errors';
+import { fetchWikimediaImage, WIKIMEDIA_PROXY_PATH } from '../lib/imageProxy';
 
 /**
  * Yerelde tutulan lisanslı yemek fotoğrafları (backend/media). Uygulama göreli /media/... yolunu API adresine
@@ -18,6 +19,23 @@ const params = z.object({
 });
 
 export const mediaRoutes: FastifyPluginAsyncZod = async (app) => {
+  // Wikimedia Commons görsel vekili (yalnızca Wikimedia adresleri; bkz. lib/imageProxy)
+  app.get(
+    WIKIMEDIA_PROXY_PATH,
+    {
+      schema: { querystring: z.object({ url: z.string().url().max(1000) }) },
+      config: { rateLimit: { max: 300, timeWindow: '1 minute' } },
+    },
+    async (req, reply) => {
+      const image = await fetchWikimediaImage(req.query.url);
+      if (!image) throw notFound('Image');
+      return reply
+        .header('Content-Type', image.contentType)
+        .header('Cache-Control', 'public, max-age=604800')
+        .send(image.body);
+    },
+  );
+
   app.get('/media/:folder/:file', { schema: { params } }, async (req, reply) => {
     let body: Buffer;
     try {

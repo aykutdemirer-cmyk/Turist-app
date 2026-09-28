@@ -147,7 +147,7 @@ model User {
   email           String?   @unique
   /// scrypt; Google ile gelen üyelerde null
   passwordHash    String?
-  authProvider    String? // "google" | "email"
+  authProvider    String? // "google" | "apple" | "email"
   authProviderId  String? // Google "sub"
   lastLoginAt     DateTime?
   /// Kullanım Şartları ve Topluluk Kuralları'nın kabul edildiği an (mağaza UGC politikası)

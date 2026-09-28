@@ -126,7 +126,6 @@ export const ru: Dictionary = {
     switchToRegister: 'Нет аккаунта? Зарегистрируйтесь',
     switchToLogin: 'Уже есть аккаунт? Войдите',
     google: 'Продолжить с Google',
-    github: 'Продолжить с GitHub',
     notConfigured: 'Не настроено',
     signingIn: 'Выполняем вход…',
     acceptTermsPrefix: "Я принимаю ",
@@ -483,6 +482,7 @@ export const ru: Dictionary = {
   share: {
     button: "Поделиться",
     message: (name: string, tagline: string | null, url: string) => `${name}${tagline ? ` — ${tagline}` : ''}\n\nСмотреть в LocalBite: ${url}`,
+    messageMap: (name: string, detail: string | null, url: string) => `${name}${detail ? ` — ${detail}` : ''}\n\nМестоположение: ${url}`,
   },
   linkDistance: {
     far: (name: string, area: string | null, km: string) => area ? `📍 ${name} находится в районе ${area}, примерно в ${km} км от вас. Хотите пойти?` : `📍 ${name} примерно в ${km} км от вас. Хотите пойти?`,

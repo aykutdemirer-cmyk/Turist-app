@@ -1,5 +1,5 @@
 import { Prisma, type User } from '@prisma/client';
-import type { AuthResponseDTO, AuthUserDTO, GoogleLoginInput, LoginInput, RegisterInput } from '@localbite/shared';
+import type { AppleLoginInput, AuthResponseDTO, AuthUserDTO, GoogleLoginInput, LoginInput, RegisterInput } from '@localbite/shared';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { prisma } from '../db';
 import { env } from '../env';
@@ -77,16 +77,16 @@ export async function me(userId: string): Promise<AuthUserDTO> {
 }
 
 // ─────────────────────────────────────────────
-// Sosyal giriş (Google, GitHub) — ortak hesap eşleştirme
+// Sosyal giriş (Google, Apple) — ortak hesap eşleştirme
 // ─────────────────────────────────────────────
 
-export type OAuthProvider = 'google' | 'github';
+export type OAuthProvider = 'google' | 'apple';
 
 export interface OAuthProfile {
   provider: OAuthProvider;
   providerId: string;
-  /** Sağlayıcının doğruladığı e-posta (küçük harf) */
-  email: string;
+  /** Sağlayıcının doğruladığı e-posta (küçük harf). Apple yalnızca ilk girişte verebilir → yoksa undefined */
+  email?: string;
   fullName?: string;
   avatarUrl?: string;
 }
@@ -103,7 +103,12 @@ export async function upsertOAuthUser(
 ): Promise<User> {
   const now = new Date();
   const existing = await prisma.user.findFirst({
-    where: { OR: [{ authProvider: profile.provider, authProviderId: profile.providerId }, { email: profile.email }] },
+    where: {
+      OR: [
+        { authProvider: profile.provider, authProviderId: profile.providerId },
+        ...(profile.email ? [{ email: profile.email }] : []),
+      ],
+    },
   });
   if (existing) {
     return prisma.user.update({
@@ -123,7 +128,7 @@ export async function upsertOAuthUser(
   }
   const data = {
     termsAcceptedAt: now,
-    email: profile.email,
+    email: profile.email ?? null,
     fullName: profile.fullName,
     avatarUrl: profile.avatarUrl,
     authProvider: profile.provider,
@@ -138,7 +143,9 @@ export async function upsertOAuthUser(
   } catch (err) {
     // Aynı anda iki giriş denemesi: ikinci istek diğerinin açtığı hesabı kullanır
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      const user = await prisma.user.findUnique({ where: { email: profile.email } });
+      const user = profile.email
+        ? await prisma.user.findUnique({ where: { email: profile.email } })
+        : await prisma.user.findFirst({ where: { authProvider: profile.provider, authProviderId: profile.providerId } });
       if (user) return user;
     }
     throw err;
@@ -179,6 +186,35 @@ export async function verifyGoogleIdToken(idToken: string): Promise<OAuthProfile
     fullName: typeof payload.name === 'string' ? payload.name : undefined,
     avatarUrl: typeof payload.picture === 'string' ? payload.picture : undefined,
   };
+}
+
+const appleJwks = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
+
+/**
+ * Apple ile Giriş (iOS, expo-apple-authentication): kimlik token'ı Apple'ın açık anahtarlarıyla, yayıncı ve
+ * uygulama paket kimliğine göre doğrulanır. Apple adı yalnızca ilk girişte istemciye verir; istemci iletir.
+ */
+export async function loginWithApple(input: AppleLoginInput, deviceId?: string): Promise<AuthResponseDTO> {
+  let payload;
+  try {
+    ({ payload } = await jwtVerify(input.identityToken, appleJwks, {
+      issuer: 'https://appleid.apple.com',
+      audience: env.APPLE_BUNDLE_IDS.split(',').map((s) => s.trim()).filter(Boolean),
+    }));
+  } catch {
+    throw unauthorized('Invalid Apple token');
+  }
+  if (!payload.sub) throw unauthorized('Invalid Apple token');
+  const email =
+    typeof payload.email === 'string' && (payload.email_verified === true || payload.email_verified === 'true')
+      ? payload.email.toLowerCase()
+      : undefined;
+  const user = await upsertOAuthUser(
+    { provider: 'apple', providerId: payload.sub, email, fullName: input.fullName?.trim() || undefined },
+    deviceId,
+    input.acceptTerms,
+  );
+  return session(user);
 }
 
 /** Yerel Google girişi (development build'de istemcinin aldığı ID token ile) */

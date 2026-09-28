@@ -29,7 +29,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { placeUrl } from '../../api/config';
+import { mapUrl, placeUrl } from '../../api/config';
 import { ApiError } from '../../api/client';
 import { useClaimVenue, useSubmitHours, useSuggestDish, useVenue } from '../../api/venues';
 import { FoodImage } from '../../components/ui/FoodImage';
@@ -121,7 +121,13 @@ async function shareVenue(venue: VenueDetailDTO, t: ReturnType<typeof useT>) {
   try {
     // WhatsApp yalnızca "message" alanını okur; bağlantı metnin içinde olmalı
     await Share.share({
-      message: t.share.message(venue.name, venue.tagline, placeUrl(venue.id)),
+      // Alan adı tanımlıysa uygulamada açılan bağlantı, değilse harita konumu
+      message: (() => {
+        const link = placeUrl(venue.id);
+        return link
+          ? t.share.message(venue.name, venue.tagline, link)
+          : t.share.messageMap(venue.name, venue.address ?? venue.tagline, mapUrl(venue.latitude, venue.longitude));
+      })(),
     });
   } catch {
     // Paylaşım menüsü açılamadı (nadir); sessizce geç

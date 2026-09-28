@@ -124,7 +124,6 @@ export const ar: Dictionary = {
     switchToRegister: 'ليس لديك حساب؟ سجّل الآن',
     switchToLogin: 'لديك حساب؟ سجّل الدخول',
     google: 'المتابعة باستخدام Google',
-    github: 'المتابعة باستخدام GitHub',
     notConfigured: 'غير مُعدّ',
     signingIn: 'جارٍ تسجيل الدخول…',
     acceptTermsPrefix: "أوافق على ",
@@ -481,6 +480,7 @@ export const ar: Dictionary = {
   share: {
     button: "مشاركة",
     message: (name: string, tagline: string | null, url: string) => `${name}${tagline ? ` — ${tagline}` : ''}\n\nشاهده على LocalBite: ${url}`,
+    messageMap: (name: string, detail: string | null, url: string) => `${name}${detail ? ` — ${detail}` : ''}\n\nالموقع: ${url}`,
   },
   linkDistance: {
     far: (name: string, area: string | null, km: string) => area ? `📍 ${name} في ${area}، على بعد نحو ${km} كم منك. هل تريد الذهاب؟` : `📍 ${name} على بعد نحو ${km} كم منك. هل تريد الذهاب؟`,

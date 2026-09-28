@@ -117,7 +117,6 @@ export const de: Dictionary = {
     switchToRegister: 'Noch kein Konto? Registrieren',
     switchToLogin: 'Schon ein Konto? Anmelden',
     google: 'Weiter mit Google',
-    github: 'Weiter mit GitHub',
     notConfigured: 'Nicht eingerichtet',
     signingIn: 'Anmeldung läuft…',
     acceptTermsPrefix: "Ich akzeptiere die ",
@@ -474,6 +473,7 @@ export const de: Dictionary = {
   share: {
     button: "Teilen",
     message: (name: string, tagline: string | null, url: string) => `${name}${tagline ? ` — ${tagline}` : ''}\n\nAuf LocalBite ansehen: ${url}`,
+    messageMap: (name: string, detail: string | null, url: string) => `${name}${detail ? ` — ${detail}` : ''}\n\nStandort: ${url}`,
   },
   linkDistance: {
     far: (name: string, area: string | null, km: string) => area ? `📍 ${name} liegt in ${area}, etwa ${km} km von dir entfernt. Möchtest du hin?` : `📍 ${name} ist etwa ${km} km von dir entfernt. Möchtest du hin?`,

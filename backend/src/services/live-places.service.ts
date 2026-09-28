@@ -14,6 +14,7 @@ import {
 import { prisma } from '../db';
 import { env } from '../env';
 import { parseOpeningHours, type ParsedHours } from '../lib/openingHours';
+import { publicImageUrl } from '../lib/imageProxy';
 import { keywordPhoto } from '../lib/keywordPhotos';
 import { commonsFileFromTags, findOpenPhotos, type OpenPhoto } from '../lib/openPhotos';
 import { googleDetails, googleEnabled, googleNearby, type GoogleNearbyPlace } from './google-places.service';
@@ -467,7 +468,7 @@ function summaryWithHours(p: LivePlace, origin: LatLng, { hours, source }: Hours
     spottedTodayCount: 0,
     upvoteCount: 0,
     rating: { average: null, count: 0 },
-    coverImageUrl: p.photo?.url ?? null,
+    coverImageUrl: publicImageUrl(p.photo?.url),
     coverImageCredit: p.photo?.attribution ?? null,
     coverIsRepresentative: p.photo?.representative ?? false,
     isPromoted: false,

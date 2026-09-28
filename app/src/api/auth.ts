@@ -1,5 +1,6 @@
 import type { AuthResponseDTO, AuthUserDTO, LoginInput, OAuthProvidersDTO, RegisterInput } from '@localbite/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect } from 'react';
@@ -67,7 +68,8 @@ export function useSessionRefresh() {
 // Sosyal giriş (Google, GitHub): tarayıcıda sunucu yönetimli OAuth
 // ─────────────────────────────────────────────
 
-export type OAuthProvider = keyof OAuthProvidersDTO;
+/** Tarayıcı tabanlı sosyal giriş (Apple ile Giriş yerel iOS akışıdır, bkz. useAppleSignIn) */
+export type OAuthProvider = Exclude<keyof OAuthProvidersDTO, 'apple'>;
 
 /** Sağlayıcının dönüşte açacağı uygulama bağlantısı (Expo Go'da exp://…/--/oauth-callback) */
 export const OAUTH_CALLBACK_PATH = 'oauth-callback';
@@ -146,6 +148,47 @@ export function useStartOAuth() {
       if (result.type === 'success') await complete(parseOAuthReturn(result.url));
     },
     [complete],
+  );
+}
+
+/**
+ * Apple ile Giriş (yalnızca iOS): Apple'ın kimlik token'ı sunucuda Apple anahtarlarıyla doğrulanır.
+ * Apple adı yalnızca ilk girişte verir; o an sunucuya iletilir. Vazgeçilirse sessizce döner.
+ */
+export function useAppleSignIn() {
+  const onSignedIn = useOnSignedIn();
+  return useCallback(
+    async (termsAccepted: boolean) => {
+      const { setOAuthError } = useAuthStore.getState();
+      setOAuthError(null);
+      let credential: AppleAuthentication.AppleAuthenticationCredential;
+      try {
+        credential = await AppleAuthentication.signInAsync({
+          requestedScopes: [
+            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+            AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          ],
+        });
+      } catch (err) {
+        if ((err as { code?: string }).code !== 'ERR_REQUEST_CANCELED') setOAuthError('OAUTH_FAILED');
+        return;
+      }
+      if (!credential.identityToken) {
+        setOAuthError('OAUTH_FAILED');
+        return;
+      }
+      const fullName = [credential.fullName?.givenName, credential.fullName?.familyName].filter(Boolean).join(' ');
+      try {
+        const res = await api<AuthResponseDTO>('/auth/apple', {
+          method: 'POST',
+          body: { identityToken: credential.identityToken, fullName: fullName || undefined, acceptTerms: termsAccepted },
+        });
+        onSignedIn(res);
+      } catch (err) {
+        setOAuthError((err as { code?: string }).code ?? 'OAUTH_FAILED');
+      }
+    },
+    [onSignedIn],
   );
 }
 

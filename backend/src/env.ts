@@ -19,12 +19,22 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().default(''),
   /** Tarayıcı tabanlı OAuth akışı için (web uygulaması istemcisi); boşsa Google girişi kapalı */
   GOOGLE_CLIENT_SECRET: z.string().default(''),
-  /** GitHub OAuth App; ikisi de boşsa GitHub girişi kapalı */
-  GITHUB_CLIENT_ID: z.string().default(''),
-  GITHUB_CLIENT_SECRET: z.string().default(''),
   /** Sağlayıcıların geri döneceği adres; sağlayıcı panelinde callback olarak kayıtlı olmalı */
   PUBLIC_API_URL: z.string().url().optional(),
   /** Girişten sonra dönülebilecek uygulama şemaları (açık yönlendirmeyi önler) */
+  /**
+   * Apple ile Giriş: kimlik token'ının hedef kitlesi (uygulama paket kimliği; Expo Go için host.exp.Exponent).
+   * İmza Apple'ın açık anahtarlarıyla doğrulanır, sunucuda gizli anahtar gerekmez.
+   */
+  APPLE_BUNDLE_IDS: z.string().default('app.localbite,host.exp.Exponent'),
+  /**
+   * Uygulama içi satın alma (Explorer Pass). Google Play Billing / Apple IAP bağlanana kadar kapalı:
+   * kapalıyken tüm rotalar ücretsizdir ve hiçbir yerde ödeme istenmez.
+   */
+  PAYMENTS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   OAUTH_APP_SCHEMES: z.string().default('exp,exps,localbite'),
   /**
    * Web'den (yönetici paneli) sosyal girişe izin verilen tam origin'ler, virgülle.

@@ -31,7 +31,8 @@ const callbackUrl = (provider: OAuthProvider) => `${apiBase()}/api/v1/auth/oauth
 export function enabledProviders(): OAuthProvidersDTO {
   return {
     google: googleClientIds().length > 0 && env.GOOGLE_CLIENT_SECRET !== '',
-    github: env.GITHUB_CLIENT_ID !== '' && env.GITHUB_CLIENT_SECRET !== '',
+    // Apple ile Giriş yerel (iOS) akıştır; sunucuda yapılandırma gerekmez
+    apple: true,
   };
 }
 
@@ -117,15 +118,7 @@ export async function authorizeUrl(
     return url.toString();
   }
 
-  const url = new URL('https://github.com/login/oauth/authorize');
-  url.search = new URLSearchParams({
-    client_id: env.GITHUB_CLIENT_ID,
-    redirect_uri: callbackUrl('github'),
-    scope: 'read:user user:email',
-    state,
-    allow_signup: 'true',
-  }).toString();
-  return url.toString();
+  throw new HttpError(400, 'OAUTH_UNSUPPORTED', `${provider} sign-in is not supported`);
 }
 
 async function postForm<T>(url: string, body: Record<string, string>): Promise<T> {
@@ -149,45 +142,6 @@ async function googleProfile(code: string): Promise<OAuthProfile> {
   });
   if (!token.id_token) throw new HttpError(502, 'OAUTH_EXCHANGE_FAILED', 'Google did not return an ID token');
   return verifyGoogleIdToken(token.id_token);
-}
-
-async function githubApi<T>(path: string, accessToken: string): Promise<T> {
-  const res = await fetch(`https://api.github.com${path}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'LocalBite',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  });
-  if (!res.ok) throw new HttpError(502, 'OAUTH_PROFILE_FAILED', `GitHub API ${path} failed: ${res.status}`);
-  return (await res.json()) as T;
-}
-
-async function githubProfile(code: string): Promise<OAuthProfile> {
-  const token = await postForm<{ access_token?: string }>('https://github.com/login/oauth/access_token', {
-    code,
-    client_id: env.GITHUB_CLIENT_ID,
-    client_secret: env.GITHUB_CLIENT_SECRET,
-    redirect_uri: callbackUrl('github'),
-  });
-  if (!token.access_token) throw new HttpError(502, 'OAUTH_EXCHANGE_FAILED', 'GitHub did not return an access token');
-
-  const [user, emails] = await Promise.all([
-    githubApi<{ id: number; login: string; name: string | null; avatar_url: string | null }>('/user', token.access_token),
-    githubApi<{ email: string; primary: boolean; verified: boolean }[]>('/user/emails', token.access_token),
-  ]);
-  // Profil e-postası gizli olabilir; yalnızca GitHub'ın doğruladığı adresle eşleştir
-  const email = (emails.find((e) => e.primary && e.verified) ?? emails.find((e) => e.verified))?.email;
-  if (!email) throw new HttpError(403, 'OAUTH_NO_VERIFIED_EMAIL', 'Your GitHub account has no verified email address');
-
-  return {
-    provider: 'github',
-    providerId: String(user.id),
-    email: email.toLowerCase(),
-    fullName: user.name ?? user.login,
-    avatarUrl: user.avatar_url ?? undefined,
-  };
 }
 
 // ─────────────────────────────────────────────
@@ -218,7 +172,7 @@ export async function handleCallback(
       back.searchParams.set('error', query.error === 'access_denied' ? 'cancelled' : 'OAUTH_FAILED');
       return back.toString();
     }
-    const profile = provider === 'google' ? await googleProfile(query.code) : await githubProfile(query.code);
+    const profile = await googleProfile(query.code);
     const user = await upsertOAuthUser(profile, state.deviceId, state.terms);
     back.searchParams.set('code', issueAppCode(user.id));
   } catch (err) {

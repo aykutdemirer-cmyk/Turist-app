@@ -134,12 +134,21 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+/** Apple ile Giriş (iOS): Apple'ın verdiği kimlik token'ı; ad yalnızca ilk girişte gelir */
+export const appleLoginSchema = z.object({
+  identityToken: z.string().min(20).max(8192),
+  fullName: z.string().trim().max(60).optional(),
+  /** Yeni hesap açılacaksa Kullanım Şartları onayı */
+  acceptTerms: z.boolean().default(false),
+});
+export type AppleLoginInput = z.infer<typeof appleLoginSchema>;
+
 /** Google ile giriş: istemcinin Google'dan aldığı ID token */
 export const googleLoginSchema = z.object({ idToken: z.string().min(20).max(4096) });
 export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;
 
 /** Tarayıcı tabanlı sosyal giriş */
-export const OAUTH_PROVIDERS = ['google', 'github'] as const;
+export const OAUTH_PROVIDERS = ['google'] as const;
 export const oauthStartQuerySchema = z.object({
   /** Girişten sonra dönülecek uygulama bağlantısı (ör. exp://…/--/oauth-callback) */
   redirect: z.string().min(1).max(500),

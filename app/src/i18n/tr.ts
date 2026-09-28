@@ -117,7 +117,6 @@ export const tr: Dictionary = {
     switchToRegister: 'Hesabın yok mu? Kayıt ol',
     switchToLogin: 'Zaten hesabın var mı? Giriş yap',
     google: 'Google ile devam et',
-    github: 'GitHub ile devam et',
     notConfigured: 'Yapılandırılmadı',
     signingIn: 'Giriş yapılıyor…',
     acceptTermsPrefix: "",
@@ -474,6 +473,7 @@ export const tr: Dictionary = {
   share: {
     button: "Paylaş",
     message: (name: string, tagline: string | null, url: string) => `${name}${tagline ? ` — ${tagline}` : ''}\n\nLocalBite'ta gör: ${url}`,
+    messageMap: (name: string, detail: string | null, url: string) => `${name}${detail ? ` — ${detail}` : ''}\n\nKonum: ${url}`,
   },
   linkDistance: {
     far: (name: string, area: string | null, km: string) => area ? `📍 ${name} ${area} bölgesinde, senin konumuna yaklaşık ${km} km uzakta. Gitmek ister misin?` : `📍 ${name} senin konumuna yaklaşık ${km} km uzakta. Gitmek ister misin?`,
