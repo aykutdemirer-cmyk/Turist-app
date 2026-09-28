@@ -64,6 +64,7 @@ describe('keywordPhoto (adına göre temsili görsel)', () => {
     assert.equal(keywordPhoto('Mercan Kokoreç')?.url, '/media/dishes/kokorec.jpg');
     assert.equal(keywordPhoto('HD İskender kebab')?.url, '/media/dishes/adana-durum.jpg');
     assert.equal(keywordPhoto('Baydöner')?.url, '/media/dishes/doner.jpg');
+    assert.equal(keywordPhoto('Dürümce')?.url, '/media/dishes/doner.jpg');
     assert.equal(keywordPhoto('Köfteci Yusuf')?.url, '/media/dishes/kofte-ekmek.jpg');
     assert.equal(keywordPhoto('Tarihi Eminönü Balık Ekmek')?.representative, true);
   });

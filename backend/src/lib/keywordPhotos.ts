@@ -21,7 +21,7 @@ const KEYWORDS: [RegExp, string][] = [
   [/pide|turkish_pizza/, 'Kıymalı Pide'],
   [/pizza/, 'Pizza'],
   [/tantuni/, 'Tantuni'],
-  [/d[öo]ner|shawarma|gyros/, 'Et Döner Dürüm'],
+  [/d[öo]ner|d[üu]r[üu]m|shawarma|gyros|wrap/, 'Et Döner Dürüm'],
   [/adana|ocakba[şs][ıi]|kebap|kebab|[şs]i[şs]\b/, 'Adana Dürüm'],
   [/k[öo]fte|meatball/, 'Köfte Ekmek'],
   [/[çc]orba|soup|i[şs]kembe|kelle/, 'Mercimek Çorbası'],
