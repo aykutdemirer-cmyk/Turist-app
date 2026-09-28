@@ -616,3 +616,33 @@ model DishSuggestion {
   @@index([status, createdAt])
   @@index([venueId])
 }
+
+/// OpenStreetMap'ten içe aktarılan yemek mekanları (ücretsiz, ODbL). Liste anlık Overpass yerine buradan okunur;
+/// arka plandaki aktarıcı İstanbul'u karelere bölüp haftalık yeniler.
+model OsmPlace {
+  /// "osm:n123" / "osm:w456"
+  id          String   @id
+  latitude    Float
+  longitude   Float
+  /// OSM etiketleri olduğu gibi (ad, mutfak, saat, telefon, adres, web sitesi...)
+  tags        Json
+  /// Commons/Wikidata'dan bulunan dükkan fotoğrafı (yoksa türüne göre temsili gösterilir)
+  photoUrl    String?
+  photoCredit String?
+  /// Bu kaydı son içe aktaran kare (silinen OSM kayıtlarını temizlemek için)
+  tileKey     String
+  updatedAt   DateTime @updatedAt
+
+  @@index([latitude, longitude])
+  @@index([tileKey])
+}
+
+/// İçe aktarım karesi (~5 km): en son ne zaman ve kaç mekanla aktarıldı
+model OsmImportTile {
+  key         String    @id
+  importedAt  DateTime?
+  placeCount  Int       @default(0)
+  failures    Int       @default(0)
+  /// Kullanıcının baktığı bölge öne alınır
+  requestedAt DateTime?
+}

@@ -18,7 +18,9 @@ Ortak tipler ve doğrulama şemaları `packages/shared` içindedir.
   - Mesafe filtresi: 500 m · 1 km · 3 km · 5 km · Tümü (Haversine; harita üzerinde kesikli daire)
   - Şu an açık, bütçe dostu `$`, canlı konumlu seyyarlar ve yemek kategorisi filtreleri
 - **Gerçek mekanlar (ücretsiz, açık veri):** `GET /venues/nearby` kendi mekanlarımıza ek olarak yakındaki gerçek
-  dükkanları OpenStreetMap'ten (Overpass) getirir (en fazla 3 km, bellekte 1 saat önbellek).
+  dükkanları gösterir (en fazla 3 km). OSM yemek mekanları arka planda kendi veritabanımıza aktarılır
+  (`OsmPlace`; ~5 km'lik kareler, İstanbul baştan kuyrukta, bakılan bölge öne alınır, haftalık yenilenir).
+  Liste buradan okunur; henüz aktarılmamış bölgede anlık Overpass sorgusuna düşülür.
   - Bar, pub, gece kulübü ve meyhaneler elenir; etiket gerçek OSM etiketinden gelir
     (Kebap & Dürüm, Pide & Börek, Sokak Lezzeti, Fırın & Tatlı, Yerel Restoran).
   - Yer ilk açıldığında kalıcı mekan kaydına dönüşür (`Venue.externalId = "osm:n123"`): yorum/puan, menü,
@@ -205,6 +207,7 @@ npm run vendor:grant -w @localbite/backend -- kisi@ornek.com mekan-slug  # VENDO
 | `LEGAL_CONTACT_EMAIL` | Yasal sayfalar ve silme talepleri iletişim adresi |
 | `GETYOURGUIDE_PARTNER_ID`, `VIATOR_PID`, `AIRALO_REF` | İş ortaklığı kimlikleri |
 | `LIVE_PLACES_ENABLED` | `false` ise haritadaki gerçek mekanlar (OSM) kapalı (varsayılan `true`) |
+| `OSM_IMPORT_ENABLED` | `false` ise OSM mekanları arka planda veritabanına aktarılmaz (varsayılan `true`) |
 | `ALLOW_MOCK_PURCHASES` | Test satın alması; üretimde her zaman kapalı |
 | `SEED_ADMIN_PASSWORD`, `SEED_VENDOR_PASSWORD` | Yalnızca seed: test hesabı parolalarını ezer (üretimde zorunlu) |
 

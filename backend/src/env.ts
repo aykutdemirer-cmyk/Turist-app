@@ -41,7 +41,12 @@ const envSchema = z.object({
    * Mağaza ödemesi bağlanana kadar test satın alması. Üretimde AÇILMAZ (bkz. aşağıdaki kontrol):
    * aksi hâlde herkes Premium'u bedava alabilirdi.
    */
-  /** Yakındaki canlı gerçek mekanları (Google/OSM) listeye ekle */
+  /** OSM yemek mekanlarını arka planda veritabanına aktar (liste anlık Overpass'a bağlı kalmasın) */
+  OSM_IMPORT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  /** Yakındaki gerçek mekanları (OpenStreetMap) listeye ekle */
   LIVE_PLACES_ENABLED: z
     .enum(['true', 'false'])
     .default('true')

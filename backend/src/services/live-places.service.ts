@@ -11,9 +11,11 @@ import {
   type VenueSummaryDTO,
   type VenueType,
 } from '@localbite/shared';
+import { prisma } from '../db';
 import { env } from '../env';
 import { parseOpeningHours, type ParsedHours } from '../lib/openingHours';
 import { commonsFileFromTags, findOpenPhotos, representativePhoto, type OpenPhoto } from '../lib/openPhotos';
+import { requestTilesNear } from './osm-import.service';
 
 /**
  * Canlı gerçek mekanlar: veritabanımızda olmayan yakın yerleri OpenStreetMap'ten (Overpass, ücretsiz) getirir.
@@ -41,8 +43,9 @@ const DUPLICATE_RADIUS_M = 40;
 const SIMILAR_NAME_RADIUS_M = 150;
 
 const USER_AGENT = 'LocalBite/0.1 (street-food discovery app)';
-// Overpass IP başına 2 eşzamanlı sorgu ve sorgu sonrası bekleme uygular; yansılar (kumi vb.) sık sık yanıtsız kalıyor
-const OVERPASS_URLS = ['https://overpass-api.de/api/interpreter'];
+// Overpass IP başına 2 eşzamanlı sorgu ve sorgu sonrası bekleme uygular; yoğunlukta 504 verir. mail.ru yansısı
+// o sırada çoğunlukla yanıt veriyor (kumi, private.coffee sık sık yanıtsız)
+export const OVERPASS_URLS = ['https://overpass-api.de/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
 /** Önbellek hücresi (derece, ~1 km); hücre başına saatte tek dış sorgu */
 const CELL_DEG = 0.01;
 /** Hücre merkezinden köşesine en fazla ~800 m: sorgu yarıçapı hücredeki her nokta için 3 km'yi kapsar */
@@ -207,7 +210,7 @@ async function fetchJson(url: string, init: RequestInit, timeoutMs: number): Pro
   return res.json();
 }
 
-interface OsmElement {
+export interface OsmElement {
   type: 'node' | 'way' | 'relation';
   id: number;
   lat?: number;
@@ -216,7 +219,7 @@ interface OsmElement {
   tags?: Record<string, string>;
 }
 
-function fromOsm(el: OsmElement): LivePlace | null {
+export function fromOsm(el: OsmElement): LivePlace | null {
   const tags = el.tags ?? {};
   const lat = el.lat ?? el.center?.lat;
   const lon = el.lon ?? el.center?.lon;
@@ -253,7 +256,10 @@ function fromOsm(el: OsmElement): LivePlace | null {
   };
 }
 
-async function overpass(query: string, urls = OVERPASS_URLS, timeoutMs = OVERPASS_TIMEOUT_MS): Promise<OsmElement[]> {
+/** Yemek mekanı filtresi (kutu filtresiyle birlikte kullanılır) */
+export const OSM_FOOD_FILTER = '(nwr["amenity"="fast_food"]["name"];nwr["amenity"="restaurant"]["name"];nwr["shop"="bakery"]["name"];);';
+
+export async function overpass(query: string, urls = OVERPASS_URLS, timeoutMs = OVERPASS_TIMEOUT_MS): Promise<OsmElement[]> {
   let lastError: unknown;
   // Ana sunucu yoğunsa aynı sorguyu yansıya (mirror) dene
   for (const url of urls) {
@@ -281,7 +287,7 @@ async function searchOsm(center: LatLng, radius: number): Promise<LivePlace[]> {
   const bbox = [b.minLat, b.minLng, b.maxLat, b.maxLng].map((n) => n.toFixed(5)).join(',');
   const query =
     `[out:json][timeout:25][bbox:${bbox}];` +
-    `(nwr["amenity"="fast_food"]["name"];nwr["amenity"="restaurant"]["name"];nwr["shop"="bakery"]["name"];);` +
+    OSM_FOOD_FILTER +
     `out center tags ${OVERPASS_FETCH_LIMIT};`;
   const elements = await overpass(query);
   const nearest = elements
@@ -321,6 +327,10 @@ export async function findLivePlaces(
   log: Logger,
 ): Promise<{ places: LivePlace[]; pending: boolean }> {
   if (!env.LIVE_PLACES_ENABLED) return { places: [], pending: false };
+  // Önce içe aktarılmış OSM kopyası (hızlı, dış sunucuya bağlı değil); bölge henüz aktarılmadıysa öne alınır
+  void requestTilesNear(center, MAX_LIVE_RADIUS_M).catch(() => undefined);
+  const stored = await placesFromDb(center, MAX_LIVE_RADIUS_M).catch(() => []);
+  if (stored.length) return { places: stored, pending: false };
   const cell = cellOf(center);
   const key = cell.key;
   const hit = cache.get(key);
@@ -469,8 +479,50 @@ async function lookupOsm(id: string): Promise<LivePlace | null> {
   return found ? ((await withOpenPhotos([found]))[0] ?? null) : null;
 }
 
-/** Kimliğiyle canlı yer: önce listede görülenler (önbellek), yoksa OSM'den tek kayıt */
+interface OsmPlaceRow {
+  id: string;
+  latitude: number;
+  longitude: number;
+  tags: unknown;
+  photoUrl: string | null;
+  photoCredit: string | null;
+}
+
+/** Veritabanındaki OSM kaydını, anlık sorgudakiyle aynı dönüşümle (kara liste, etiket, adres) yere çevirir */
+function placeFromRow(row: OsmPlaceRow): LivePlace | null {
+  const match = /^osm:([nwr])(\d+)$/.exec(row.id);
+  if (!match) return null;
+  const type = ({ n: 'node', w: 'way', r: 'relation' } as const)[match[1] as 'n' | 'w' | 'r'];
+  const place = fromOsm({ type, id: Number(match[2]), lat: row.latitude, lon: row.longitude, tags: row.tags as Record<string, string> });
+  if (!place) return null;
+  return {
+    ...place,
+    photo: row.photoUrl
+      ? { url: row.photoUrl, attribution: row.photoCredit, representative: false }
+      : representativePhoto(place.id, place.liveCategory),
+  };
+}
+
+async function placesFromDb(center: LatLng, radius: number): Promise<LivePlace[]> {
+  const b = boundingBox(center, radius);
+  const rows = await prisma.osmPlace.findMany({
+    where: { latitude: { gte: b.minLat, lte: b.maxLat }, longitude: { gte: b.minLng, lte: b.maxLng } },
+  });
+  return rows
+    .map(placeFromRow)
+    .filter((p): p is LivePlace => p !== null)
+    .map((p) => ({ p, d: haversineMeters(center, p) }))
+    .filter(({ d }) => d <= radius)
+    .sort((a, b2) => a.d - b2.d)
+    .slice(0, MAX_LIVE_RESULTS)
+    .map(({ p }) => p);
+}
+
+/** Kimliğiyle gerçek yer: önce içe aktarılmış kopya, sonra listede görülenler, yoksa OSM'den tek kayıt */
 export async function findLivePlace(id: string): Promise<LivePlace | null> {
+  const row = await prisma.osmPlace.findUnique({ where: { id } }).catch(() => null);
+  const stored = row && placeFromRow(row);
+  if (stored) return stored;
   const indexed = placeIndex.get(id);
   if (indexed && indexed.expiresAt > Date.now()) return indexed.place;
   return id.startsWith('osm:') ? lookupOsm(id).catch(() => null) : null;
