@@ -17,6 +17,8 @@ import { fromOsm, OSM_FOOD_FILTER, overpass, OVERPASS_URLS, type OsmElement } fr
 const TILE_DEG = 0.05;
 /** İstanbul'un yoğun yerleşim alanı: ilk açılışta kuyruğa girer */
 const SEED_AREA = { minLat: 40.8, maxLat: 41.3, minLng: 28.45, maxLng: 29.45 };
+/** Tarihi yarımada–Beyoğlu–Kadıköy arası: aktarım buradan dışarı doğru ilerler */
+const CITY_CENTER = { latitude: 41.02, longitude: 28.99 };
 const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 /** Başarılı kareler arası bekleme; hata sonrası artan bekleme (en çok 15 dk) */
 const PAUSE_MS = 10_000;
@@ -130,8 +132,17 @@ async function nextTile(): Promise<string | null> {
     orderBy: { requestedAt: 'desc' },
   });
   if (requested) return requested.key;
-  const fresh = await prisma.osmImportTile.findFirst({ where: { importedAt: null }, orderBy: { failures: 'asc' } });
-  if (fresh) return fresh.key;
+  // Hiç aktarılmamışlar: şehir merkezinden dışarı doğru (yoğun bölgeler önce), sık başarısız olan geriye
+  const fresh = await prisma.osmImportTile.findMany({ where: { importedAt: null }, select: { key: true, failures: true } });
+  if (fresh.length) {
+    const score = (key: string) => {
+      const b = tileBox(key);
+      const d = Math.hypot((b.minLat + b.maxLat) / 2 - CITY_CENTER.latitude, (b.minLng + b.maxLng) / 2 - CITY_CENTER.longitude);
+      return d;
+    };
+    fresh.sort((x, y) => x.failures - y.failures || score(x.key) - score(y.key));
+    return fresh[0]!.key;
+  }
   const stale = await prisma.osmImportTile.findFirst({
     where: { importedAt: { lt: new Date(Date.now() - REFRESH_AFTER_MS) } },
     orderBy: { importedAt: 'asc' },
