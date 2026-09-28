@@ -14,7 +14,8 @@ import {
 import { prisma } from '../db';
 import { env } from '../env';
 import { parseOpeningHours, type ParsedHours } from '../lib/openingHours';
-import { commonsFileFromTags, findOpenPhotos, representativePhoto, type OpenPhoto } from '../lib/openPhotos';
+import { keywordPhoto } from '../lib/keywordPhotos';
+import { commonsFileFromTags, findOpenPhotos, type OpenPhoto } from '../lib/openPhotos';
 import { requestTilesNear } from './osm-import.service';
 
 /**
@@ -69,7 +70,9 @@ export interface LivePlace {
   /** Dükkanın kendi web sitesi (OSM website/contact:website) */
   website: string | null;
   sourceUrl: string;
-  /** Kapak: dükkanın Commons/Wikidata fotoğrafı ya da türüne göre temsili yemek fotoğrafı */
+  /** OSM mutfak etiketi ("kebab;turkish"); temsili görsel seçiminde addan sonra ikinci ipucu */
+  cuisine: string | null;
+  /** Kapak: dükkanın Commons/Wikidata fotoğrafı, yoksa adındaki yemeğin temsili görseli, yoksa null (ikon) */
   photo: OpenPhoto | null;
 }
 
@@ -252,6 +255,7 @@ export function fromOsm(el: OsmElement): LivePlace | null {
     district: tags['addr:suburb'] ?? tags['addr:district'] ?? null,
     website: tags.website ?? tags['contact:website'] ?? null,
     sourceUrl: `https://www.openstreetmap.org/${el.type}/${el.id}`,
+    cuisine: cuisine || null,
     photo: null,
   };
 }
@@ -311,7 +315,7 @@ async function withOpenPhotos(items: { el: OsmElement; p: LivePlace }[]): Promis
       wikidata: el.tags?.wikidata ?? el.tags?.['brand:wikidata'] ?? null,
     })),
   ).catch(() => new Map<string, OpenPhoto>());
-  return items.map(({ p }) => ({ ...p, photo: real.get(p.id) ?? representativePhoto(p.id, p.liveCategory) }));
+  return items.map(({ p }) => ({ ...p, photo: real.get(p.id) ?? keywordPhoto(`${p.name} ${p.cuisine ?? ''}`) }));
 }
 
 interface Logger {
@@ -499,7 +503,7 @@ function placeFromRow(row: OsmPlaceRow): LivePlace | null {
     ...place,
     photo: row.photoUrl
       ? { url: row.photoUrl, attribution: row.photoCredit, representative: false }
-      : representativePhoto(place.id, place.liveCategory),
+      : keywordPhoto(`${place.name} ${place.cuisine ?? ''}`),
   };
 }
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { libraryDishPhoto } from './dishPhotos';
+import { keywordPhoto } from './keywordPhotos';
 import { formatAddress } from './nominatim';
 import { extractWebsiteInfo } from './websiteInfo';
 
@@ -53,5 +54,22 @@ describe('libraryDishPhoto', () => {
     assert.equal(libraryDishPhoto('Lahmacun')?.imageUrl, '/media/dishes/lahmacun.jpg');
     assert.equal(libraryDishPhoto('döner dürüm')?.imageUrl, '/media/dishes/doner.jpg');
     assert.equal(libraryDishPhoto('Çay'), null);
+  });
+});
+
+describe('keywordPhoto (adına göre temsili görsel)', () => {
+  it('addaki yemeğin görseli; özel olan genelden önce', () => {
+    assert.equal(keywordPhoto('Tarihi Unkapanı Pilavcısı')?.url, '/media/dishes/nohutlu-pilav.jpg');
+    assert.equal(keywordPhoto('Eminönü Balıkçısı')?.url, '/media/dishes/balik-ekmek.jpg');
+    assert.equal(keywordPhoto('Mercan Kokoreç')?.url, '/media/dishes/kokorec.jpg');
+    assert.equal(keywordPhoto('HD İskender kebab')?.url, '/media/dishes/adana-durum.jpg');
+    assert.equal(keywordPhoto('Baydöner')?.url, '/media/dishes/doner.jpg');
+    assert.equal(keywordPhoto('Köfteci Yusuf')?.url, '/media/dishes/kofte-ekmek.jpg');
+    assert.equal(keywordPhoto('Tarihi Eminönü Balık Ekmek')?.representative, true);
+  });
+
+  it('ipucu yoksa görsel yok (uygulama ikon gösterir)', () => {
+    assert.equal(keywordPhoto('Bambi'), null);
+    assert.equal(keywordPhoto('Cadde İstiklal'), null);
   });
 });

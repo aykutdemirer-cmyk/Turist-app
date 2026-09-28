@@ -20,6 +20,7 @@ import {
 } from '@localbite/shared';
 import { prisma } from '../db';
 import { notFound } from '../lib/errors';
+import { keywordPhoto } from '../lib/keywordPhotos';
 import { parseOpeningHours } from '../lib/openingHours';
 import { findLivePlaces, isLivePlaceId, livePlaceSummary, matchesQuery, withoutDuplicates } from './live-places.service';
 import { blockedIdsFor } from './moderation.service';
@@ -177,6 +178,8 @@ export function liveStatus(venue: LiveStatusInput, now: Date) {
  * Yemekler sortOrder'a göre gelir, böylece ana lezzet (ör. pilav) yan üründen (ayran) önce seçilir.
  */
 function coverImage(venue: {
+  name: string;
+  externalId: string | null;
   coverImageUrl: string | null;
   coverImageCredit: string | null;
   coverIsRepresentative: boolean;
@@ -187,11 +190,12 @@ function coverImage(venue: {
   }
   const dish = venue.dishes.find((d) => d.imageUrl);
   if (dish) return { coverImageUrl: dish.imageUrl, coverImageCredit: dish.imageCredit, coverIsRepresentative: true };
-  return {
-    coverImageUrl: venue.coverImageUrl,
-    coverImageCredit: venue.coverImageCredit,
-    coverIsRepresentative: venue.coverIsRepresentative,
-  };
+  // Gerçek mekanda saklı temsili görsel yerine adına göre yeniden seçilir; ipucu yoksa ikon (null)
+  const byName = venue.externalId ? keywordPhoto(venue.name) : null;
+  if (byName) return { coverImageUrl: byName.url, coverImageCredit: byName.attribution, coverIsRepresentative: true };
+  return venue.externalId
+    ? { coverImageUrl: null, coverImageCredit: null, coverIsRepresentative: false }
+    : { coverImageUrl: venue.coverImageUrl, coverImageCredit: venue.coverImageCredit, coverIsRepresentative: venue.coverIsRepresentative };
 }
 
 type OpenInfoInput = Pick<

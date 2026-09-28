@@ -1,10 +1,7 @@
-import { readFileSync } from 'node:fs';
-import type { LiveCategory } from '@localbite/shared';
-
 /**
  * Ücretsiz, açık lisanslı fotoğraflar:
- * 1. OSM'de `wikimedia_commons` / `image` (Commons) / `wikidata` (P18) etiketi olan dükkanın kendi fotoğrafı
- * 2. Yoksa türüne göre lisanslı temsili yemek fotoğrafı (media/dishes, "Temsili fotoğraf" diye etiketlenir)
+ * OSM'de `wikimedia_commons` / `image` (Commons) / `wikidata` (P18) etiketi olan dükkanın kendi fotoğrafı.
+ * Yoksa adındaki yemeğe göre temsili görsel (keywordPhotos) ya da hiç (uygulama tür ikonu gösterir).
  * Wikimedia API'leri ücretsizdir; tanımlayıcı User-Agent ister.
  */
 
@@ -21,41 +18,6 @@ const TIMEOUT_MS = 6_000;
 /** Wikimedia API'leri istek başına en fazla 50 başlık/kimlik kabul eder */
 const BATCH = 50;
 const THUMB_WIDTH = 800;
-
-// ─────────────────────────────────────────────
-// Temsili fotoğraf (her zaman var, ağ gerektirmez)
-// ─────────────────────────────────────────────
-
-const dishCredits = new Map<string, string>(
-  Object.values(
-    JSON.parse(readFileSync(new URL('../../media/dishes/credits.json', import.meta.url), 'utf-8')) as Record<
-      string,
-      { file: string; credit: string }
-    >,
-  ).map((c) => [c.file, c.credit]),
-);
-
-/** Genel "Yerel restoran" için birkaç esnaf yemeği arasında yer kimliğine göre sabit seçim (hep aynı foto) */
-const REPRESENTATIVE: Record<LiveCategory, string[]> = {
-  KEBAB_WRAP: ['doner.jpg'],
-  PIDE_BOREK: ['lahmacun.jpg', 'kiymali-pide.jpg'],
-  STREET_FOOD: ['kofte-ekmek.jpg', 'islak-burger.jpg'],
-  BAKERY_DESSERT: ['firin-sutlac.jpg', 'lokma.jpg'],
-  LOCAL_RESTAURANT: ['kuru-fasulye.jpg', 'mercimek-corbasi.jpg'],
-};
-
-function hash(s: string) {
-  let h = 0;
-  for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0;
-  return Math.abs(h);
-}
-
-export function representativePhoto(placeId: string, category: LiveCategory): OpenPhoto | null {
-  const files = REPRESENTATIVE[category].filter((f) => dishCredits.has(f));
-  const file = files[hash(placeId) % Math.max(files.length, 1)];
-  if (!file) return null;
-  return { url: `/media/dishes/${file}`, attribution: dishCredits.get(file) ?? null, representative: true };
-}
 
 // ─────────────────────────────────────────────
 // Commons / Wikidata
