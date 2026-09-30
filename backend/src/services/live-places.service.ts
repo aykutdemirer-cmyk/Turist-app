@@ -78,6 +78,8 @@ export interface LivePlace {
   cuisine: string | null;
   /** Kapak: dükkanın Commons/Wikidata fotoğrafı, yoksa adındaki yemeğin temsili görseli, yoksa null (ikon) */
   photo: OpenPhoto | null;
+  /** Google Haritalar puanı (yalnızca Google'dan gelen yerlerde) */
+  googleRating?: { average: number; count: number } | null;
 }
 
 export const isLivePlaceId = (id: string) => /^(osm:[nwr]\d+|google:[A-Za-z0-9_-]+)$/.test(id);
@@ -474,6 +476,7 @@ function summaryWithHours(p: LivePlace, origin: LatLng, { hours, source }: Hours
     spottedTodayCount: 0,
     upvoteCount: 0,
     rating: { average: null, count: 0 },
+    googleRating: p.googleRating ?? null,
     coverImageUrl: publicImageUrl(p.photo?.url),
     coverImageCredit: p.photo?.attribution ?? null,
     coverIsRepresentative: p.photo?.representative ?? false,
@@ -562,7 +565,7 @@ function fromGoogle(g: GoogleNearbyPlace): LivePlace | null {
       ? 'fast_food'
       : 'restaurant';
   const keywords = `${g.name} ${types.join(' ')}`;
-  const google = g.photoName
+  const googlePhoto = g.photoName
     ? { url: photoProxyUrl(g.photoName), attribution: g.photoAuthor ? `${g.photoAuthor} · Google` : 'Google', representative: false }
     : null;
   return {
@@ -581,8 +584,9 @@ function fromGoogle(g: GoogleNearbyPlace): LivePlace | null {
     website: null,
     sourceUrl: g.mapsUrl ?? `https://www.google.com/maps/place/?q=place_id:${g.id}`,
     cuisine: g.types.join(' '),
-    // İşletmenin kendi Google fotoğrafı; yoksa addan temsili yemek görseli; o da yoksa Google'daki ilk fotoğraf
-    photo: (g.photoByOwner ? google : null) ?? keywordPhoto(keywords) ?? google,
+    // Google fotoğrafı (işletmeninki öncelikli, yoksa Google'ın ilk fotoğrafı); yoksa addan temsili görsel ya da ikon
+    photo: googlePhoto ?? keywordPhoto(keywords),
+    googleRating: g.rating !== null ? { average: g.rating, count: g.ratingCount } : null,
   };
 }
 
@@ -619,5 +623,7 @@ async function findGooglePlace(id: string, locale: Locale): Promise<LivePlace | 
     photoName: null,
     photoAuthor: null,
     photoByOwner: false,
+    rating: details.dto.rating,
+    ratingCount: details.dto.userRatingCount,
   });
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { env } from '../env';
-import { googleDetails, googleNearby, periodsToOsm, pickPhotos, resetGoogleQuota } from './google-places.service';
+import { bearing, googleDetails, googleNearby, periodsToOsm, pickPhotos, resetGoogleQuota } from './google-places.service';
 
 const realFetch = globalThis.fetch;
 const realKey = env.GOOGLE_PLACES_API_KEY;
@@ -21,7 +21,7 @@ afterEach(() => {
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 
 describe('googleNearby', () => {
-  it('saatleri ister ama puan/telefon/yorum istemez, kalıcı kapananları eler', async () => {
+  it('saat ve puanı ister ama telefon/yorum/fiyat istemez, kalıcı kapananları eler', async () => {
     const masks: string[] = [];
     globalThis.fetch = (async (_url: string, init: RequestInit) => {
       masks.push(String((init.headers as Record<string, string>)['X-Goog-FieldMask']));
@@ -36,7 +36,7 @@ describe('googleNearby', () => {
     assert.deepEqual(places?.map((p) => p.id), ['a']);
     assert.ok(masks.length > 0);
     for (const mask of masks) {
-      for (const expensive of ['rating', 'currentOpeningHours', 'PhoneNumber', 'reviews', 'priceLevel']) {
+      for (const expensive of ['currentOpeningHours', 'PhoneNumber', 'reviews', 'priceLevel']) {
         assert.ok(!mask.includes(expensive), `listede pahalı alan istenmemeli: ${expensive}`);
       }
     }
@@ -77,6 +77,13 @@ describe('pickPhotos', () => {
 
   it('işletme fotoğrafı yoksa owner null', () => {
     assert.equal(pickPhotos([ph('a', 'Ali Veli')], 'Kosovalı Döner').owner, null);
+  });
+});
+
+describe('bearing', () => {
+  it('panoramadan mekana pusula yönü (kuzey 0, doğu 90)', () => {
+    assert.ok(Math.abs(bearing({ latitude: 41, longitude: 29 }, { latitude: 41.001, longitude: 29 })) < 1);
+    assert.ok(Math.abs(bearing({ latitude: 41, longitude: 29 }, { latitude: 41, longitude: 29.001 }) - 90) < 1);
   });
 });
 

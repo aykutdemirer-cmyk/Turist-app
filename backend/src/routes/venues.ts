@@ -1,6 +1,8 @@
 import {
   deviceIdSchema,
+  latitudeSchema,
   localeSchema,
+  longitudeSchema,
   nearbyQuerySchema,
   placeHoursInputSchema,
   dishInputSchema,
@@ -17,7 +19,7 @@ import { resolveLocale } from '../lib/locale';
 import { recentConfirmations, submitReport } from '../services/report.service';
 import { upsertReview } from '../services/review.service';
 import { suggestVenue } from '../services/suggest.service';
-import { fetchGooglePhoto, PHOTO_NAME_PATTERN } from '../services/google-places.service';
+import { fetchGooglePhoto, fetchStreetView, PHOTO_NAME_PATTERN } from '../services/google-places.service';
 import { claimVenue, saveCommunityHours, suggestDish } from '../services/real-venues.service';
 import { findNearbyVenues, getVenueDetail } from '../services/venue.service';
 
@@ -79,6 +81,20 @@ export const venueRoutes: FastifyPluginAsyncZod = async (app) => {
       const photo = await fetchGooglePhoto(req.query.name).catch(() => null);
       if (!photo) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Photo not found' });
       // Uygulama bir hafta önbellekte tutsun: aynı fotoğraf kotadan tekrar düşmesin
+      return reply.header('Content-Type', photo.contentType).header('Cache-Control', 'public, max-age=604800').send(photo.body);
+    },
+  );
+
+  // Dükkân cephesi (Street View) vekili: işletmenin kendi fotoğrafı olmayan Google mekanlarının kapağı
+  app.get(
+    '/places/streetview',
+    {
+      schema: { querystring: z.object({ lat: latitudeSchema, lng: longitudeSchema }) },
+      config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
+    },
+    async (req, reply) => {
+      const photo = await fetchStreetView({ latitude: req.query.lat, longitude: req.query.lng }).catch(() => null);
+      if (!photo) return reply.code(404).send({ error: 'NOT_FOUND', message: 'Street view not found' });
       return reply.header('Content-Type', photo.contentType).header('Cache-Control', 'public, max-age=604800').send(photo.body);
     },
   );

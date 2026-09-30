@@ -121,6 +121,8 @@ export interface VenueSummaryDTO {
   spottedTodayCount: number;
   upvoteCount: number;
   rating: RatingSummary;
+  /** Google Haritalar puanı (yalnızca Google'dan gelen gerçek mekanlarda); kendi yorumlarımızdan ayrıdır */
+  googleRating: RatingSummary | null;
   /** Mekanın kendi kapağı; yoksa öne çıkan yemeğin fotoğrafı (temsili) */
   coverImageUrl: string | null;
   /** Kapak lisanslı yemek fotoğrafıysa görünür atıf ("Yazar · CC BY-SA 4.0"); mekanın kendi kapağında null */

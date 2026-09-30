@@ -269,6 +269,7 @@ function toSummary(
     spottedTodayCount: spottedToday.get(venue.id) ?? 0,
     upvoteCount: venue.upvoteCount,
     rating: ratings.get(venue.id) ?? NO_RATING,
+    googleRating: null,
     ...coverImage(venue),
     isPromoted: venue.isPromoted,
     liveLocation: status.liveLocation,
@@ -305,7 +306,7 @@ function withLiveGoogle(summary: VenueSummaryDTO, place: LivePlace | undefined, 
     (!summary.coverImageUrl || summary.coverIsRepresentative) && live.coverImageUrl && !live.coverIsRepresentative
       ? { coverImageUrl: live.coverImageUrl, coverImageCredit: live.coverImageCredit, coverIsRepresentative: false }
       : {};
-  return { ...summary, ...hours, ...photo };
+  return { ...summary, ...hours, ...photo, googleRating: live.googleRating };
 }
 
 export async function findNearbyVenues(query: NearbyQuery, locale: Locale, log: Logger, now = new Date()) {
@@ -463,6 +464,7 @@ export async function getVenueDetail(
     spottedTodayCount: spottedToday.get(venue.id) ?? 0,
     upvoteCount: venue.upvoteCount,
     rating: ratings.get(venue.id) ?? NO_RATING,
+    googleRating: google?.dto.rating != null ? { average: google.dto.rating, count: google.dto.userRatingCount } : null,
     ...coverImage(venue),
     isPromoted: venue.isPromoted,
     liveLocation: status.liveLocation,
@@ -536,9 +538,10 @@ function withGoogle(
   const ownHours =
     venue.schedules.length > 0 || venue.openingHours !== null || activeOpenOverride(venue.openOverride, venue.openOverrideAt, now) !== null;
   const g = google.dto;
-  const cover = g.photos[0];
-  // Kullanıcının yüklediği Google fotoğrafı yanlış yeri gösterebilir: addan seçilmiş temsili görsel varsa o kalır
-  const ownCover = detail.coverImageUrl !== null && (!detail.coverIsRepresentative || !cover?.byOwner);
+  // Kapak: Google fotoğrafı (işletmeninki öncelikli, yoksa Google'ın ilk fotoğrafı); esnafın kapağı her zaman önce
+  const photo = g.photos[0];
+  const cover = photo ? { url: photo.url, attribution: `${photo.attribution ?? 'Google'} · Google` } : null;
+  const ownCover = detail.coverImageUrl !== null && !detail.coverIsRepresentative;
   return {
     ...detail,
     google: g,
@@ -559,9 +562,9 @@ function withGoogle(
       }),
     ...(!ownCover &&
       cover && {
-        coverImageUrl: cover.url,
-        coverImageCredit: `${cover.attribution ?? 'Google'} · Google`,
-        coverIsRepresentative: false,
-      }),
+      coverImageUrl: cover.url,
+      coverImageCredit: cover.attribution,
+      coverIsRepresentative: false,
+    }),
   };
 }

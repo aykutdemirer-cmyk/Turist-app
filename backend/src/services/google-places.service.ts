@@ -5,7 +5,8 @@ import { env } from '../env';
  * Google Places API (New), günlük sınırlarla (sınırlar Railway değişkenleriyle yükseltilebilir):
  * - Liste: Nearby Search, açılış saatleriyle ("Enterprise", ayda 1.000 ücretsiz). Günlük GOOGLE_NEARBY_DAILY_LIMIT.
  * - Detay: Place Details, saat/telefon/puan/yorum ("Enterprise + Atmosphere", ayda 1.000). Günlük GOOGLE_DETAIL_DAILY_LIMIT.
- * - Fotoğraf: Place Photos (ayda 1.000), liste ve detay kapağında. Günlük GOOGLE_PHOTO_DAILY_LIMIT.
+ * - Fotoğraf: Place Photos (ayda 1.000), yalnızca işletmenin kendi yüklediği fotoğraf. Günlük GOOGLE_PHOTO_DAILY_LIMIT.
+ * - Dükkân cephesi: Street View Static (ayda 10.000), işletme fotoğrafı yoksa. Günlük GOOGLE_STREETVIEW_DAILY_LIMIT.
  * Sınır dolunca ya da hata olursa null/boş döner; çağıran OpenStreetMap verisine düşer.
  *
  * Google şartları: içerik veritabanına yazılmaz (yalnızca yer kimliği ve konum); yalnızca bellekte kısa süre
@@ -32,6 +33,9 @@ const NEARBY_FIELDS = [
   'googleMapsUri',
   'businessStatus',
   'regularOpeningHours',
+  // Saatlerle aynı ("Enterprise") sınıfta: ek ücret yok
+  'rating',
+  'userRatingCount',
 ];
 const DETAIL_FIELDS = [
   'id',
@@ -86,13 +90,18 @@ export function pickPhotos(photos: RawPhoto[] | undefined, placeName: string) {
 // kota/bütçe ayarlarıdır; buradaki sınırlar ücretsiz aylık kotanın altında kalacak şekilde seçildi.
 // ─────────────────────────────────────────────
 
-type QuotaKind = 'nearby' | 'details' | 'photos';
-const usage: Record<QuotaKind, number> & { day: string } = { day: '', nearby: 0, details: 0, photos: 0 };
+type QuotaKind = 'nearby' | 'details' | 'photos' | 'streetview';
+const usage: Record<QuotaKind, number> & { day: string } = { day: '', nearby: 0, details: 0, photos: 0, streetview: 0 };
 
 function takeQuota(kind: QuotaKind): boolean {
   const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date());
-  if (usage.day !== day) Object.assign(usage, { day, nearby: 0, details: 0, photos: 0 });
-  const limit = { nearby: env.GOOGLE_NEARBY_DAILY_LIMIT, details: env.GOOGLE_DETAIL_DAILY_LIMIT, photos: env.GOOGLE_PHOTO_DAILY_LIMIT }[kind];
+  if (usage.day !== day) Object.assign(usage, { day, nearby: 0, details: 0, photos: 0, streetview: 0 });
+  const limit = {
+    nearby: env.GOOGLE_NEARBY_DAILY_LIMIT,
+    details: env.GOOGLE_DETAIL_DAILY_LIMIT,
+    photos: env.GOOGLE_PHOTO_DAILY_LIMIT,
+    streetview: env.GOOGLE_STREETVIEW_DAILY_LIMIT,
+  }[kind];
   if (usage[kind] >= limit) return false;
   usage[kind] += 1;
   return true;
@@ -100,7 +109,7 @@ function takeQuota(kind: QuotaKind): boolean {
 
 /** Testler için */
 export function resetGoogleQuota() {
-  Object.assign(usage, { day: '', nearby: 0, details: 0, photos: 0 });
+  Object.assign(usage, { day: '', nearby: 0, details: 0, photos: 0, streetview: 0 });
 }
 
 async function googleFetch(url: string, init: RequestInit, fields: string): Promise<unknown> {
@@ -136,6 +145,8 @@ export interface GoogleNearbyPlace {
   photoAuthor: string | null;
   /** Fotoğrafı işletmenin kendisi yüklemiş (kullanıcı fotoğrafları yanlış yeri gösterebilir) */
   photoByOwner: boolean;
+  rating: number | null;
+  ratingCount: number;
 }
 
 interface RawPoint {
@@ -180,6 +191,8 @@ interface RawPlace {
   googleMapsUri?: string;
   businessStatus?: string;
   regularOpeningHours?: { periods?: RawPeriod[] };
+  rating?: number;
+  userRatingCount?: number;
 }
 
 /**
@@ -223,6 +236,8 @@ export async function googleNearby(center: LatLng, radiusM: number, locale: Loca
         photoName: photo?.name ?? null,
         photoAuthor: photo?.authorAttributions?.[0]?.displayName ?? null,
         photoByOwner: owner !== null,
+        rating: p.rating ?? null,
+        ratingCount: p.userRatingCount ?? 0,
       });
     }
   }
@@ -265,8 +280,6 @@ interface RawHours {
 interface RawDetails extends Omit<RawPlace, 'regularOpeningHours'> {
   nationalPhoneNumber?: string;
   websiteUri?: string;
-  rating?: number;
-  userRatingCount?: number;
   currentOpeningHours?: RawHours;
   regularOpeningHours?: RawHours;
   reviews?: {
@@ -405,6 +418,78 @@ export async function fetchGooglePhoto(name: string): Promise<Photo | null> {
       .catch(() => null)
       .finally(() => photoInFlight.delete(name));
     photoInFlight.set(name, pending);
+  }
+  return pending;
+}
+
+// ─────────────────────────────────────────────
+// Dükkân cephesi (Street View Static): işletmenin kendi fotoğrafı yoksa kapak. Kamera en yakın panoramadan
+// mekana çevrilir; panorama mekandan uzaksa (başka sokak) kullanılmaz.
+// ─────────────────────────────────────────────
+
+export const STREETVIEW_PROXY_PATH = '/api/v1/places/streetview';
+const STREETVIEW_URL = 'https://maps.googleapis.com/maps/api/streetview';
+const STREETVIEW_MAX_DISTANCE_M = 60;
+
+export const streetViewUrl = (latitude: number, longitude: number) =>
+  `${STREETVIEW_PROXY_PATH}?lat=${latitude.toFixed(6)}&lng=${longitude.toFixed(6)}`;
+
+const toRad = (d: number) => (d * Math.PI) / 180;
+
+/** Panoramadan mekana pusula yönü (derece) */
+export function bearing(from: LatLng, to: LatLng): number {
+  const y = Math.sin(toRad(to.longitude - from.longitude)) * Math.cos(toRad(to.latitude));
+  const x =
+    Math.cos(toRad(from.latitude)) * Math.sin(toRad(to.latitude)) -
+    Math.sin(toRad(from.latitude)) * Math.cos(toRad(to.latitude)) * Math.cos(toRad(to.longitude - from.longitude));
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+function meters(a: LatLng, b: LatLng): number {
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
+}
+
+/** Panorama yoksa tekrar sorulmasın (üst veri ücretsiz ama gereksiz istek olmasın) */
+const noPanorama = new Map<string, number>();
+
+/** Mekanın önündeki sokak görüntüsü; panorama yoksa, uzaksa ya da günlük sınır dolduysa null */
+export async function fetchStreetView(place: LatLng): Promise<Photo | null> {
+  if (!googleEnabled()) return null;
+  const key = `sv:${place.latitude.toFixed(6)},${place.longitude.toFixed(6)}`;
+  const hit = photoCache.get(key);
+  if (hit && hit.expiresAt > Date.now()) return hit.photo;
+  forgetPhoto(key);
+  if ((noPanorama.get(key) ?? 0) > Date.now()) return null;
+  let pending = photoInFlight.get(key);
+  if (!pending) {
+    pending = (async () => {
+      const location = `${place.latitude},${place.longitude}`;
+      const meta = (await fetch(
+        `${STREETVIEW_URL}/metadata?location=${location}&radius=${STREETVIEW_MAX_DISTANCE_M}&source=outdoor&key=${env.GOOGLE_PLACES_API_KEY}`,
+        { signal: AbortSignal.timeout(TIMEOUT_MS) },
+      ).then((r) => (r.ok ? r.json() : null))) as { status?: string; pano_id?: string; location?: { lat: number; lng: number } } | null;
+      const pano = meta?.status === 'OK' && meta.pano_id && meta.location ? { id: meta.pano_id, at: { latitude: meta.location.lat, longitude: meta.location.lng } } : null;
+      if (!pano || meters(pano.at, place) > STREETVIEW_MAX_DISTANCE_M) {
+        noPanorama.set(key, Date.now() + PHOTO_CACHE_MS);
+        return null;
+      }
+      if (!takeQuota('streetview')) return null;
+      const heading = Math.round(bearing(pano.at, place));
+      const res = await fetch(
+        `${STREETVIEW_URL}?size=640x400&pano=${encodeURIComponent(pano.id)}&heading=${heading}&pitch=5&fov=70&return_error_code=true&key=${env.GOOGLE_PLACES_API_KEY}`,
+        { signal: AbortSignal.timeout(TIMEOUT_MS) },
+      );
+      if (!res.ok) return null;
+      const photo = { body: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get('content-type') ?? 'image/jpeg' };
+      rememberPhoto(key, photo);
+      return photo;
+    })()
+      .catch(() => null)
+      .finally(() => photoInFlight.delete(key));
+    photoInFlight.set(key, pending);
   }
   return pending;
 }

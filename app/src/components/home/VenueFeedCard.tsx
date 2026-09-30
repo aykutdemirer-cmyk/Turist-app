@@ -36,6 +36,8 @@ export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Pro
             : t.status.closed;
   const statusColor = !venue.openStatusKnown ? colors.closed : open ? colors.open : colors.danger;
   const category = venue.liveCategory ? t.liveCategory[venue.liveCategory] : t.venueType[venue.type];
+  // Kendi yorumlarımız varsa onların ortalaması, yoksa Google Haritalar puanı
+  const rating = venue.rating.average !== null ? venue.rating : venue.googleRating;
 
   return (
     <Pressable
@@ -68,10 +70,11 @@ export const VenueFeedCard = memo(function VenueFeedCard({ venue, onPress }: Pro
                 </Text>
               </View>
             )}
-            {venue.rating.average !== null && (
+            {rating && rating.average !== null && (
               <View style={styles.pill}>
                 <Star size={12} color={colors.gold} fill={colors.gold} />
-                <Text style={styles.pillText}>{venue.rating.average.toFixed(1)}</Text>
+                <Text style={styles.pillText}>{rating.average.toFixed(1)}</Text>
+                {rating.count > 0 && <Text style={styles.pillCount}>({rating.count})</Text>}
               </View>
             )}
           </View>
@@ -161,20 +164,19 @@ const useStyles = makeStyles(({ colors }) => ({
     backgroundColor: 'rgba(17,17,17,0.6)',
   },
   pillText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
+  pillCount: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '600' },
   promoPill: { backgroundColor: '#FACC15' },
   promoText: { color: '#422006', fontSize: 11, fontWeight: '800' },
+  // Lisans/Google şartı gereği görünür ama göze batmayan atıf
   credit: {
     position: 'absolute',
-    left: spacing.sm,
-    bottom: spacing.sm,
-    maxWidth: '85%',
-    fontSize: 10,
-    color: '#FFFFFF',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(17,17,17,0.45)',
-    overflow: 'hidden',
+    right: 8,
+    bottom: 5,
+    maxWidth: '70%',
+    fontSize: 8,
+    color: 'rgba(255,255,255,0.7)',
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowRadius: 2,
   },
   body: {
     flexDirection: 'row',

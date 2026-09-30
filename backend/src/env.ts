@@ -63,6 +63,8 @@ const envSchema = z.object({
   GOOGLE_NEARBY_DAILY_LIMIT: z.coerce.number().int().min(0).default(60),
   GOOGLE_DETAIL_DAILY_LIMIT: z.coerce.number().int().min(0).default(30),
   GOOGLE_PHOTO_DAILY_LIMIT: z.coerce.number().int().min(0).default(150),
+  /** Dükkân cephesi (Street View Static, ayda 10.000 ücretsiz; üst veri istekleri ücretsiz) */
+  GOOGLE_STREETVIEW_DAILY_LIMIT: z.coerce.number().int().min(0).default(300),
   /** OSM yemek mekanlarını arka planda veritabanına aktar (liste anlık Overpass'a bağlı kalmasın) */
   OSM_IMPORT_ENABLED: z
     .enum(['true', 'false'])
