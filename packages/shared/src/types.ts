@@ -421,7 +421,7 @@ export interface GooglePlaceDTO {
   /** Google'ın yerelleştirdiği haftalık saatler ("Pazartesi: 09:00–22:00") */
   weekdayHours: string[];
   /** API üzerinden vekillenen kapak fotoğrafı (anahtar istemciye gitmez) */
-  photos: { url: string; attribution: string | null }[];
+  photos: { url: string; attribution: string | null; byOwner: boolean }[];
   reviews: GoogleReviewDTO[];
 }
 

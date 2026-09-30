@@ -2,10 +2,10 @@ import type { GooglePlaceDTO, GoogleReviewDTO, LatLng, Locale } from '@localbite
 import { env } from '../env';
 
 /**
- * Google Places API (New) — yalnızca aylık ÜCRETSİZ kota içinde:
- * - Liste: Nearby Search, yalnızca "Pro" alanları (ayda 5.000 ücretsiz). Günlük sınır GOOGLE_NEARBY_DAILY_LIMIT.
+ * Google Places API (New), günlük sınırlarla (sınırlar Railway değişkenleriyle yükseltilebilir):
+ * - Liste: Nearby Search, açılış saatleriyle ("Enterprise", ayda 1.000 ücretsiz). Günlük GOOGLE_NEARBY_DAILY_LIMIT.
  * - Detay: Place Details, saat/telefon/puan/yorum ("Enterprise + Atmosphere", ayda 1.000). Günlük GOOGLE_DETAIL_DAILY_LIMIT.
- * - Fotoğraf: Place Photos (ayda 1.000), yalnızca detay kapağında. Günlük GOOGLE_PHOTO_DAILY_LIMIT.
+ * - Fotoğraf: Place Photos (ayda 1.000), liste ve detay kapağında. Günlük GOOGLE_PHOTO_DAILY_LIMIT.
  * Sınır dolunca ya da hata olursa null/boş döner; çağıran OpenStreetMap verisine düşer.
  *
  * Google şartları: içerik veritabanına yazılmaz (yalnızca yer kimliği ve konum); yalnızca bellekte kısa süre
@@ -20,8 +20,19 @@ const ERROR_CACHE_MS = 5 * 60 * 1000;
 const MAX_CACHE = 2_000;
 const MAX_REVIEWS = 5;
 
-/** Liste için yalnızca Pro alanları: saat/telefon/puan istenirse istek pahalı (Enterprise) sayılır */
-const NEARBY_FIELDS = ['id', 'displayName', 'location', 'types', 'primaryType', 'shortFormattedAddress', 'photos', 'googleMapsUri', 'businessStatus'];
+/** Listede açık/kapalı gösterebilmek için saatler de istenir (istek "Enterprise" sayılır) */
+const NEARBY_FIELDS = [
+  'id',
+  'displayName',
+  'location',
+  'types',
+  'primaryType',
+  'shortFormattedAddress',
+  'photos',
+  'googleMapsUri',
+  'businessStatus',
+  'regularOpeningHours',
+];
 const DETAIL_FIELDS = [
   'id',
   'displayName',
@@ -47,6 +58,28 @@ export const PHOTO_PROXY_PATH = '/api/v1/places/photo';
 export const PHOTO_NAME_PATTERN = /^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/;
 
 export const googleEnabled = () => env.GOOGLE_PLACES_API_KEY !== '';
+
+interface RawPhoto {
+  name: string;
+  authorAttributions?: { displayName?: string }[];
+}
+
+const normalizeName = (s: string) => s.toLocaleLowerCase('tr').replace(/[^\p{L}\p{N}]+/gu, '');
+
+/**
+ * Google'daki fotoğrafların çoğunu kullanıcılar yükler; ilk fotoğraf başka bir dükkânı ya da alakasız bir anı
+ * gösterebilir. İşletmenin kendi yüklediği fotoğrafın yazarı işletme adıdır: önce o seçilir.
+ */
+export function pickPhotos(photos: RawPhoto[] | undefined, placeName: string) {
+  const valid = (photos ?? []).filter((ph) => PHOTO_NAME_PATTERN.test(ph.name));
+  const place = normalizeName(placeName);
+  const isOwner = (ph: RawPhoto) => {
+    const author = normalizeName(ph.authorAttributions?.[0]?.displayName ?? '');
+    return author.length >= 3 && place.length >= 3 && (author.includes(place) || place.includes(author));
+  };
+  const owner = valid.find(isOwner) ?? null;
+  return { owner, first: valid[0] ?? null };
+}
 
 // ─────────────────────────────────────────────
 // Günlük kota (İstanbul günü). Sunucu yeniden başlarsa sayaç sıfırlanır: asıl güvence Cloud Console'daki
@@ -97,8 +130,42 @@ export interface GoogleNearbyPlace {
   types: string[];
   address: string | null;
   mapsUrl: string | null;
-  /** Detay kapağı için (listede kullanılmaz: fotoğraf kotası ayda 1.000) */
+  /** OpenStreetMap opening_hours sözdizimine çevrilmiş haftalık saatler (bkz. periodsToOsm) */
+  openingHours: string | null;
   photoName: string | null;
+  photoAuthor: string | null;
+  /** Fotoğrafı işletmenin kendisi yüklemiş (kullanıcı fotoğrafları yanlış yeri gösterebilir) */
+  photoByOwner: boolean;
+}
+
+interface RawPoint {
+  day?: number;
+  hour?: number;
+  minute?: number;
+}
+interface RawPeriod {
+  open?: RawPoint;
+  close?: RawPoint;
+}
+
+const OSM_DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const hhmm = (p: RawPoint) => `${String(p.hour ?? 0).padStart(2, '0')}:${String(p.minute ?? 0).padStart(2, '0')}`;
+
+/**
+ * Google'ın haftalık dönemlerini OSM opening_hours sözdizimine çevirir; böylece açık/kapalı hesabı OSM
+ * saatleriyle aynı yoldan yapılır. Gece yarısını geçen dönem "Mo 18:00-02:00" olur (ertesi güne taşar).
+ * Kapanışı olmayan tek dönem Google'da "7/24 açık" demektir.
+ */
+export function periodsToOsm(periods: RawPeriod[] | undefined): string | null {
+  if (!periods?.length) return null;
+  if (periods.length === 1 && periods[0]!.open && !periods[0]!.close) return '24/7';
+  const rules = periods
+    .filter((p): p is Required<RawPeriod> => Boolean(p.open && p.close && p.open.day !== undefined))
+    .map((p) => {
+      const close = hhmm(p.close);
+      return `${OSM_DAYS[p.open.day!]} ${hhmm(p.open)}-${close === '00:00' ? '24:00' : close}`;
+    });
+  return rules.length ? rules.join(', ') : null;
 }
 
 interface RawPlace {
@@ -109,9 +176,10 @@ interface RawPlace {
   primaryType?: string;
   shortFormattedAddress?: string;
   formattedAddress?: string;
-  photos?: { name: string; authorAttributions?: { displayName?: string }[] }[];
+  photos?: RawPhoto[];
   googleMapsUri?: string;
   businessStatus?: string;
+  regularOpeningHours?: { periods?: RawPeriod[] };
 }
 
 /**
@@ -141,6 +209,8 @@ export async function googleNearby(center: LatLng, radiusM: number, locale: Loca
     if (!data) return results.length ? results : null;
     for (const p of data.places ?? []) {
       if (!p.location || !p.displayName?.text || p.businessStatus === 'CLOSED_PERMANENTLY') continue;
+      const { owner, first } = pickPhotos(p.photos, p.displayName.text);
+      const photo = owner ?? first;
       results.push({
         id: p.id,
         name: p.displayName.text,
@@ -149,7 +219,10 @@ export async function googleNearby(center: LatLng, radiusM: number, locale: Loca
         types: [p.primaryType ?? '', ...(p.types ?? [])].filter(Boolean),
         address: p.shortFormattedAddress ?? null,
         mapsUrl: p.googleMapsUri ?? null,
-        photoName: p.photos?.find((ph) => PHOTO_NAME_PATTERN.test(ph.name))?.name ?? null,
+        openingHours: periodsToOsm(p.regularOpeningHours?.periods),
+        photoName: photo?.name ?? null,
+        photoAuthor: photo?.authorAttributions?.[0]?.displayName ?? null,
+        photoByOwner: owner !== null,
       });
     }
   }
@@ -189,7 +262,7 @@ interface RawHours {
   nextCloseTime?: string;
   weekdayDescriptions?: string[];
 }
-interface RawDetails extends RawPlace {
+interface RawDetails extends Omit<RawPlace, 'regularOpeningHours'> {
   nationalPhoneNumber?: string;
   websiteUri?: string;
   rating?: number;
@@ -219,7 +292,8 @@ export const photoProxyUrl = (name: string) => `${PHOTO_PROXY_PATH}?name=${encod
 function toDetails(p: RawDetails): GoogleDetails {
   const hours = p.currentOpeningHours ?? p.regularOpeningHours;
   const openNow = p.currentOpeningHours?.openNow ?? p.regularOpeningHours?.openNow ?? null;
-  const photo = p.photos?.find((ph) => PHOTO_NAME_PATTERN.test(ph.name));
+  const { owner, first } = pickPhotos(p.photos, p.displayName?.text ?? '');
+  const photo = owner ?? first;
   return {
     name: p.displayName?.text ?? '',
     location: p.location ?? null,
@@ -236,7 +310,7 @@ function toDetails(p: RawDetails): GoogleDetails {
       opensAt: openNow === false ? istanbulTime(hours?.nextOpenTime) : null,
       weekdayHours: p.regularOpeningHours?.weekdayDescriptions ?? p.currentOpeningHours?.weekdayDescriptions ?? [],
       photos: photo
-        ? [{ url: photoProxyUrl(photo.name), attribution: photo.authorAttributions?.[0]?.displayName ?? null }]
+        ? [{ url: photoProxyUrl(photo.name), attribution: photo.authorAttributions?.[0]?.displayName ?? null, byOwner: owner !== null }]
         : [],
       reviews: (p.reviews ?? [])
         .filter((r) => (r.text?.text ?? r.originalText?.text) && r.rating)
@@ -285,13 +359,52 @@ export async function googleDetails(placeId: string, locale: Locale): Promise<Go
   return pending;
 }
 
+interface Photo {
+  body: Buffer;
+  contentType: string;
+}
+/** Aynı fotoğraf (liste + detay, farklı kullanıcılar) kotadan tekrar düşmesin: kısa süreli bellek önbelleği */
+const PHOTO_CACHE_MS = 24 * 60 * 60 * 1000;
+const MAX_PHOTO_CACHE_BYTES = 60_000_000;
+const photoCache = new Map<string, { photo: Photo; expiresAt: number }>();
+const photoInFlight = new Map<string, Promise<Photo | null>>();
+let photoCacheBytes = 0;
+
+function forgetPhoto(name: string) {
+  const old = photoCache.get(name);
+  if (!old) return;
+  photoCache.delete(name);
+  photoCacheBytes -= old.photo.body.length;
+}
+
+function rememberPhoto(name: string, photo: Photo) {
+  photoCache.set(name, { photo, expiresAt: Date.now() + PHOTO_CACHE_MS });
+  photoCacheBytes += photo.body.length;
+  while (photoCacheBytes > MAX_PHOTO_CACHE_BYTES && photoCache.size) forgetPhoto(photoCache.keys().next().value!);
+}
+
 /** Fotoğraf vekili: anahtar istemciye gitmez; günlük sınır dolunca null (uygulama ikon gösterir) */
-export async function fetchGooglePhoto(name: string): Promise<{ body: Buffer; contentType: string } | null> {
-  if (!googleEnabled() || !PHOTO_NAME_PATTERN.test(name) || !takeQuota('photos')) return null;
-  const res = await fetch(`https://places.googleapis.com/v1/${name}/media?maxWidthPx=1000`, {
-    headers: { 'X-Goog-Api-Key': env.GOOGLE_PLACES_API_KEY },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!res.ok) return null;
-  return { body: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get('content-type') ?? 'image/jpeg' };
+export async function fetchGooglePhoto(name: string): Promise<Photo | null> {
+  if (!googleEnabled() || !PHOTO_NAME_PATTERN.test(name)) return null;
+  const hit = photoCache.get(name);
+  if (hit && hit.expiresAt > Date.now()) return hit.photo;
+  forgetPhoto(name);
+  let pending = photoInFlight.get(name);
+  if (!pending) {
+    if (!takeQuota('photos')) return null;
+    pending = fetch(`https://places.googleapis.com/v1/${name}/media?maxWidthPx=800`, {
+      headers: { 'X-Goog-Api-Key': env.GOOGLE_PLACES_API_KEY },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const photo = { body: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get('content-type') ?? 'image/jpeg' };
+        rememberPhoto(name, photo);
+        return photo;
+      })
+      .catch(() => null)
+      .finally(() => photoInFlight.delete(name));
+    photoInFlight.set(name, pending);
+  }
+  return pending;
 }

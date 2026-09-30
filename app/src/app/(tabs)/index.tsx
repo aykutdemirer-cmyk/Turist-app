@@ -124,9 +124,6 @@ export default function HomeScreen() {
         {/* Kategoriler: yatay kaydırılır, seçim listeyi anında süzer */}
         <CategoryRail value={category} onChange={setCategory} />
 
-        {/* Küratörlü rotalar: ücretsiz örnek + Explorer Pass */}
-        <TrailsSection />
-
         {/* En yakın gizli lezzetler */}
         <View style={styles.sectionHeader}>
           <Text style={font.title}>{t.home.nearestTitle}</Text>
@@ -162,6 +159,9 @@ export default function HomeScreen() {
         ) : (
           venues.map((v) => <VenueFeedCard key={v.id} venue={v} onPress={openVenue} />)
         )}
+
+        {/* Rotalar konuma göre değil (şehir geneli): yakındaki mekanlardan sonra */}
+        <TrailsSection />
 
         <ExperienceSection />
       </ScrollView>

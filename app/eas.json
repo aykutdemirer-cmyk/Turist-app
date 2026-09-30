@@ -11,7 +11,8 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://localbite-api-production.up.railway.app"
-      }
+      },
+      "environment": "preview"
     },
     "production": {
       "autoIncrement": true,
@@ -20,7 +21,8 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://localbite-api-production.up.railway.app"
-      }
+      },
+      "environment": "production"
     }
   },
   "submit": {

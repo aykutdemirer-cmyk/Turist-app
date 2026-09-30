@@ -17,7 +17,7 @@ import { parseOpeningHours, type ParsedHours } from '../lib/openingHours';
 import { publicImageUrl } from '../lib/imageProxy';
 import { keywordPhoto } from '../lib/keywordPhotos';
 import { commonsFileFromTags, findOpenPhotos, type OpenPhoto } from '../lib/openPhotos';
-import { googleDetails, googleEnabled, googleNearby, type GoogleNearbyPlace } from './google-places.service';
+import { googleDetails, googleEnabled, googleNearby, photoProxyUrl, type GoogleNearbyPlace } from './google-places.service';
 import { requestTilesNear } from './osm-import.service';
 
 /**
@@ -26,6 +26,8 @@ import { requestTilesNear } from './osm-import.service';
  */
 
 const CACHE_TTL_MS = 60 * 60 * 1000;
+/** Google listesi hücre başına daha uzun tutulur: liste isteği ücretli kotadan düşer */
+const GOOGLE_CELL_TTL_MS = 12 * 60 * 60 * 1000;
 /** Başarısız sorgudan sonra aynı bölge için bekleme (dış servisi dövmeyelim) */
 const FAILURE_BACKOFF_MS = 60 * 1000;
 /** Liste isteği canlı veriyi en fazla bu kadar bekler; geç kalan sorgu arka planda önbelleği doldurur */
@@ -132,7 +134,9 @@ const CATEGORY_KEYWORDS: [FoodCategory, RegExp][] = [
   ['STEW', /esnaf|lokanta|ev_yemek|ev yemek|sulu yemek/],
 ];
 
-const KEBAB_PATTERN = /kebab|kebap|doner|döner|shawarma|durum|dürüm|turkish|kokorec|kokoreç|cig_kofte/;
+/** Sokak lezzetleri kebaptan önce bakılır ("Çiğköfteci" kebapçı değildir) */
+const STREET_PATTERN = /[çc]i[ğg][ _-]?k[öo]fte|kokore[çc]|midye|tantuni|simit|bal[ıi]k[ _-]?ekmek|kumpir/;
+const KEBAB_PATTERN = /kebab|kebap|doner|döner|shawarma|durum|dürüm|turkish/;
 const PIDE_PATTERN = /pizza|pide|lahmacun|turkish_pizza|borek|börek/;
 const DESSERT_PATTERN = /bakery|cafe|coffee|tea|dessert|ice_cream|baklava|pastry|patisserie|confectionery|firin|fırın|pastane/;
 
@@ -145,15 +149,17 @@ export type PlaceKind = 'fast_food' | 'restaurant' | 'bakery';
 export function classify(keywords: string[], kind: PlaceKind): Pick<LivePlace, 'type' | 'categories' | 'liveCategory'> {
   const text = keywords.join(' ').toLocaleLowerCase('tr');
   const categories = CATEGORY_KEYWORDS.filter(([, re]) => re.test(text)).map(([c]) => c);
-  const liveCategory: LiveCategory = KEBAB_PATTERN.test(text)
-    ? 'KEBAB_WRAP'
-    : PIDE_PATTERN.test(text)
-      ? 'PIDE_BOREK'
-      : kind === 'bakery' || (DESSERT_PATTERN.test(text) && !categories.length)
-        ? 'BAKERY_DESSERT'
-        : kind === 'fast_food'
-          ? 'STREET_FOOD'
-          : 'LOCAL_RESTAURANT';
+  const liveCategory: LiveCategory = STREET_PATTERN.test(text)
+    ? 'STREET_FOOD'
+    : KEBAB_PATTERN.test(text)
+      ? 'KEBAB_WRAP'
+      : PIDE_PATTERN.test(text)
+        ? 'PIDE_BOREK'
+        : kind === 'bakery' || (DESSERT_PATTERN.test(text) && !categories.length)
+          ? 'BAKERY_DESSERT'
+          : kind === 'fast_food'
+            ? 'STREET_FOOD'
+            : 'LOCAL_RESTAURANT';
   const type: VenueType =
     liveCategory === 'BAKERY_DESSERT'
       ? 'DESSERT_TEA'
@@ -428,7 +434,7 @@ interface HoursResult {
 /** Anlık açık/kapalı: OSM saatlerinin şimdiki (İstanbul) yorumu; saat yoksa bilinmiyor */
 function currentHours(p: LivePlace, locale: Locale): HoursResult {
   const osm = p.openingHours ? parseOpeningHours(p.openingHours, locale) : null;
-  return osm ? { hours: osm, source: 'OSM' } : { hours: null, source: null };
+  return osm ? { hours: osm, source: p.source === 'GOOGLE' ? 'GOOGLE' : 'OSM' } : { hours: null, source: null };
 }
 
 export function livePlaceSummary(p: LivePlace, origin: LatLng, locale: Locale): VenueSummaryDTO {
@@ -548,30 +554,35 @@ export async function findLivePlace(id: string, locale: Locale = 'tr'): Promise<
 /** Google yerini uygulamanın yer modeline çevirir (bar/pub/meyhane kara listesi burada da geçerli) */
 function fromGoogle(g: GoogleNearbyPlace): LivePlace | null {
   if (isExcludedPlace(g.name, g.types)) return null;
+  // Google'ın "turkish_restaurant" türü genel bir etikettir (OSM'deki cuisine=turkish gibi kebapçı demek değildir)
+  const types = g.types.filter((t) => !t.startsWith('turkish'));
   const kind: PlaceKind = g.types.includes('bakery')
     ? 'bakery'
     : g.types.some((t) => t === 'fast_food_restaurant' || t === 'meal_takeaway')
       ? 'fast_food'
       : 'restaurant';
-  const keywords = `${g.name} ${g.types.join(' ')}`;
+  const keywords = `${g.name} ${types.join(' ')}`;
+  const google = g.photoName
+    ? { url: photoProxyUrl(g.photoName), attribution: g.photoAuthor ? `${g.photoAuthor} · Google` : 'Google', representative: false }
+    : null;
   return {
     id: `google:${g.id}`,
     source: 'GOOGLE',
     name: g.name,
     latitude: g.latitude,
     longitude: g.longitude,
-    ...classify([...g.types, g.name], kind),
+    ...classify([...types, g.name], kind),
     priceLevel: null,
-    // Saat, telefon, puan detayda (pahalı alanlar listede istenmez)
-    openingHours: null,
+    // Telefon ve puan detayda; haftalık saatler listede (OSM sözdizimine çevrilmiş)
+    openingHours: g.openingHours,
     address: g.address,
     phone: null,
     district: null,
     website: null,
     sourceUrl: g.mapsUrl ?? `https://www.google.com/maps/place/?q=place_id:${g.id}`,
     cuisine: g.types.join(' '),
-    // Listede Google fotoğrafı kullanılmaz (fotoğraf kotası ayda 1.000): addan temsili görsel ya da ikon
-    photo: keywordPhoto(keywords),
+    // İşletmenin kendi Google fotoğrafı; yoksa addan temsili yemek görseli; o da yoksa Google'daki ilk fotoğraf
+    photo: (g.photoByOwner ? google : null) ?? keywordPhoto(keywords) ?? google,
   };
 }
 
@@ -586,7 +597,7 @@ async function googlePlacesNear(center: LatLng, locale: Locale, log: Logger): Pr
     return null;
   }
   const places = found.map(fromGoogle).filter((p): p is LivePlace => p !== null);
-  remember(key, places, CACHE_TTL_MS);
+  remember(key, places, GOOGLE_CELL_TTL_MS);
   return places;
 }
 
@@ -604,6 +615,9 @@ async function findGooglePlace(id: string, locale: Locale): Promise<LivePlace | 
     types: [],
     address: details.address,
     mapsUrl: details.dto.mapsUrl,
+    openingHours: null,
     photoName: null,
+    photoAuthor: null,
+    photoByOwner: false,
   });
 }

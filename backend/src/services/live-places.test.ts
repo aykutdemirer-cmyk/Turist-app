@@ -25,6 +25,7 @@ describe('classify', () => {
     assert.equal(classify(['turkish', 'Hacıoğlu'], 'restaurant').liveCategory, 'KEBAB_WRAP');
     assert.equal(classify(['pizza', 'X'], 'restaurant').liveCategory, 'PIDE_BOREK');
     assert.equal(classify(['', 'Bambi'], 'fast_food').liveCategory, 'STREET_FOOD');
+    assert.equal(classify(['turkish', 'Adıyamanlı Çiğköfteci Aziz Usta'], 'restaurant').liveCategory, 'STREET_FOOD');
     assert.equal(classify(['', 'Fırın'], 'bakery').liveCategory, 'BAKERY_DESSERT');
   });
 

@@ -52,14 +52,17 @@ const envSchema = z.object({
    * aksi hâlde herkes Premium'u bedava alabilirdi.
    */
   /**
-   * Google Places API (New) sunucu anahtarı. Varsa liste/harita/detay Google'dan gelir (yalnızca aylık ücretsiz
-   * kota içinde); yoksa, kota dolunca ya da hata olunca OpenStreetMap verisine düşülür.
+   * Google Places API (New) sunucu anahtarı. Varsa liste/harita/detay Google'dan gelir (günlük sınırlar içinde);
+   * yoksa, sınır dolunca ya da hata olunca OpenStreetMap verisine düşülür.
    */
   GOOGLE_PLACES_API_KEY: z.string().default(''),
-  /** Günlük Google istek sınırları: ücretsiz aylık kotanın altında kalacak şekilde (Nearby Pro 5.000/ay, Details ve Photos 1.000/ay) */
-  GOOGLE_NEARBY_DAILY_LIMIT: z.coerce.number().int().min(0).default(150),
+  /**
+   * Günlük Google istek sınırları (aylık ücretsiz: Nearby Enterprise, Details ve Photos 1.000'er). Varsayılanlar ücretsiz
+   * kotayı biraz aşabilir: en kötü durumda ayda ~35 $ (liste) + ~25 $ (fotoğraf). Bütçeye göre Railway'de değiştirilir.
+   */
+  GOOGLE_NEARBY_DAILY_LIMIT: z.coerce.number().int().min(0).default(60),
   GOOGLE_DETAIL_DAILY_LIMIT: z.coerce.number().int().min(0).default(30),
-  GOOGLE_PHOTO_DAILY_LIMIT: z.coerce.number().int().min(0).default(30),
+  GOOGLE_PHOTO_DAILY_LIMIT: z.coerce.number().int().min(0).default(150),
   /** OSM yemek mekanlarını arka planda veritabanına aktar (liste anlık Overpass'a bağlı kalmasın) */
   OSM_IMPORT_ENABLED: z
     .enum(['true', 'false'])

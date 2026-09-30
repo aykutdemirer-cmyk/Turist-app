@@ -25,6 +25,8 @@ const KEYWORDS: [RegExp, string][] = [
   [/d[öo]ner|d[üu]r[üu]m|shawarma|gyros|wrap/, 'Et Döner Dürüm'],
   [/kebap|kebab|[şs]i[şs]\b/, 'Adana Dürüm'],
   [/k[öo]fte|meatball/, 'Köfte Ekmek'],
+  [/kahvalt[ıi]|breakfast/, 'Serpme kahvaltı'],
+  [/g[öo]zleme/, 'Gözleme'],
   [/[çc]orba|soup|i[şs]kembe|kelle/, 'Mercimek Çorbası'],
   [/mant[ıi]/, 'Mantı'],
   [/pilav/, 'Nohutlu Pilav'],
@@ -42,6 +44,7 @@ const KEYWORDS: [RegExp, string][] = [
   [/tost|toast|sandvi[çc]|sandwich/, 'Kaşarlı tost'],
   [/zeytinya[ğg]/, 'Zeytinyağlı Enginar'],
   [/lokanta|esnaf|ev yemek|ev_yemek|sulu yemek|home_cooking/, 'Kuru Fasulye'],
+  [/tand[ıi]r|ekme[ğk]/, 'Tandır ekmeği'],
 ];
 
 const commonsCache = new Map<string, OpenPhoto | null>();
@@ -61,12 +64,23 @@ export function keywordPhoto(text: string): OpenPhoto | null {
   return commonsCache.get(dish) ?? null;
 }
 
-/** Arşivde olmayan yemeklerin Commons görsellerini bir kez bulur (sunucu açılışında, arka planda) */
-export async function warmKeywordPhotos() {
+const WARM_RETRY_MS = 30 * 60 * 1000;
+const WARM_MAX_ATTEMPTS = 6;
+
+/**
+ * Arşivde olmayan yemeklerin Commons görsellerini bulur (sunucu açılışında, arka planda). Wikimedia o an yanıt
+ * vermezse bulunamayanlar yarım saat arayla birkaç kez yeniden denenir.
+ */
+export async function warmKeywordPhotos(attempt = 1): Promise<void> {
+  let missing = 0;
   for (const [, dish] of KEYWORDS) {
     if (libraryDishPhoto(dish) || commonsCache.has(dish)) continue;
     const photo = await findDishPhoto(dish).catch(() => null);
     // Bulunamayan tekrar denenebilsin diye önbelleğe yalnızca bulunan yazılır
     if (photo) commonsCache.set(dish, toOpenPhoto(photo));
+    else missing += 1;
+  }
+  if (missing && attempt < WARM_MAX_ATTEMPTS) {
+    setTimeout(() => void warmKeywordPhotos(attempt + 1).catch(() => undefined), WARM_RETRY_MS).unref();
   }
 }

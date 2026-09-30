@@ -1,5 +1,5 @@
 import { boundingBox, type LatLng } from '@localbite/shared';
-import { useImperativeHandle, useRef, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import MapView, { Circle, Marker, PROVIDER_GOOGLE, type MapStyleElement } from 'react-native-maps';
 import { useTheme, venueTypeMeta } from '../../theme';
@@ -35,6 +35,19 @@ const MAP_STYLE: MapStyleElement[] = [
   { featureType: 'poi', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
 ];
 
+/**
+ * Android'de özel işaretçi görünümü ilk çizimden önce anlık görüntüye alınırsa boş kalır; görünüm oturana
+ * kadar izlenir, sonra performans için izleme kapatılır.
+ */
+function useSettledTracking(key: string) {
+  const [settledKey, setSettledKey] = useState<string | null>(null);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettledKey(key), 1500);
+    return () => clearTimeout(timer);
+  }, [key]);
+  return settledKey !== key;
+}
+
 export function GoogleVenueMap({
   ref,
   initialCenter,
@@ -50,6 +63,9 @@ export function GoogleVenueMap({
 }: Props) {
   const { colors } = useTheme();
   const mapRef = useRef<MapView>(null);
+  // react-native-maps (Android, yeni mimari): harita hazır olmadan mapPadding verilirse GoogleMap null → çökme
+  const [ready, setReady] = useState(false);
+  const tracksViewChanges = useSettledTracking(`${pins.length}:${selectedId}:${colors.surface}`);
 
   useImperativeHandle(ref, () => ({
     focus: (target, zoom, fly = false) =>
@@ -79,7 +95,8 @@ export function GoogleVenueMap({
       provider={PROVIDER_GOOGLE}
       style={StyleSheet.absoluteFill}
       initialCamera={{ center: initialCenter, zoom: initialZoom, heading: 0, pitch: 0 }}
-      mapPadding={{ top: padding.top, bottom: padding.bottom, left: 0, right: 0 }}
+      onMapReady={() => setReady(true)}
+      {...(ready && { mapPadding: { top: padding.top, bottom: padding.bottom, left: 0, right: 0 } })}
       customMapStyle={MAP_STYLE}
       showsCompass={false}
       showsMyLocationButton={false}
@@ -110,7 +127,7 @@ export function GoogleVenueMap({
           identifier={pin.id}
           coordinate={pin}
           onPress={() => onPinPress(pin.id)}
-          tracksViewChanges={false}
+          tracksViewChanges={tracksViewChanges}
           anchor={{ x: 0.5, y: 0.5 }}
           zIndex={pin.id === selectedId ? 3 : pin.external ? 1 : 2}
         >
@@ -119,8 +136,8 @@ export function GoogleVenueMap({
       ))}
 
       {user && (
-        <Marker coordinate={user} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false} zIndex={5}>
-          <View style={styles.userWrap}>
+        <Marker coordinate={user} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={tracksViewChanges} zIndex={5}>
+          <View collapsable={false} style={styles.userWrap}>
             <View style={styles.userDot} />
           </View>
         </Marker>
@@ -137,8 +154,10 @@ function PinView({ pin, selected }: { pin: MapPin; selected: boolean }) {
   const active = pin.isActiveNow || pin.live === 'LIVE';
   const border = pin.isMobile ? colors.mobileAccent : pin.external && !selected ? '#9CA3AF' : colors.shop;
   return (
-    <View style={[styles.ring, active && { borderColor: colors.open, borderWidth: 3 }, { width: size + 8, height: size + 8, borderRadius: (size + 8) / 2 }]}>
+    // collapsable={false}: işaretçi görüntüsü alınırken iç görünümler düzleştirilip kaybolmasın
+    <View collapsable={false} style={[styles.ring, active && { borderColor: colors.open, borderWidth: 3 }, { width: size + 8, height: size + 8, borderRadius: (size + 8) / 2 }]}>
       <View
+        collapsable={false}
         style={[
           styles.pin,
           {

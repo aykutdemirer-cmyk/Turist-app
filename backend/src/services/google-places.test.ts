@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { env } from '../env';
-import { googleDetails, googleNearby, resetGoogleQuota } from './google-places.service';
+import { googleDetails, googleNearby, periodsToOsm, pickPhotos, resetGoogleQuota } from './google-places.service';
 
 const realFetch = globalThis.fetch;
 const realKey = env.GOOGLE_PLACES_API_KEY;
@@ -21,7 +21,7 @@ afterEach(() => {
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 
 describe('googleNearby', () => {
-  it('yalnızca ucuz (Pro) alanları ister, kalıcı kapananları eler', async () => {
+  it('saatleri ister ama puan/telefon/yorum istemez, kalıcı kapananları eler', async () => {
     const masks: string[] = [];
     globalThis.fetch = (async (_url: string, init: RequestInit) => {
       masks.push(String((init.headers as Record<string, string>)['X-Goog-FieldMask']));
@@ -36,7 +36,7 @@ describe('googleNearby', () => {
     assert.deepEqual(places?.map((p) => p.id), ['a']);
     assert.ok(masks.length > 0);
     for (const mask of masks) {
-      for (const expensive of ['rating', 'OpeningHours', 'PhoneNumber', 'reviews', 'priceLevel']) {
+      for (const expensive of ['rating', 'currentOpeningHours', 'PhoneNumber', 'reviews', 'priceLevel']) {
         assert.ok(!mask.includes(expensive), `listede pahalı alan istenmemeli: ${expensive}`);
       }
     }
@@ -46,6 +46,37 @@ describe('googleNearby', () => {
     env.GOOGLE_NEARBY_DAILY_LIMIT = 0;
     globalThis.fetch = () => assert.fail('fetch çağrılmamalı');
     assert.equal(await googleNearby({ latitude: 41, longitude: 29 }, 3000, 'tr'), null);
+  });
+});
+
+describe('periodsToOsm', () => {
+  it('haftalık dönemleri OSM sözdizimine çevirir (gece yarısını geçen dahil)', () => {
+    assert.equal(
+      periodsToOsm([
+        { open: { day: 1, hour: 10, minute: 0 }, close: { day: 2, hour: 2, minute: 0 } },
+        { open: { day: 2, hour: 9, minute: 30 }, close: { day: 2, hour: 0, minute: 0 } },
+      ]),
+      'Mo 10:00-02:00, Tu 09:30-24:00',
+    );
+  });
+
+  it('kapanışsız tek dönem 7/24, dönem yoksa null', () => {
+    assert.equal(periodsToOsm([{ open: { day: 0, hour: 0, minute: 0 } }]), '24/7');
+    assert.equal(periodsToOsm(undefined), null);
+  });
+});
+
+describe('pickPhotos', () => {
+  const ph = (id: string, author: string) => ({ name: `places/p/photos/${id}`, authorAttributions: [{ displayName: author }] });
+
+  it('işletmenin kendi yüklediği fotoğrafı kullanıcı fotoğrafına tercih eder', () => {
+    const { owner, first } = pickPhotos([ph('a', 'OSMAN KARİSAN'), ph('b', 'Adıyamanlı Çiğköfteci Aziz Usta')], 'Adıyamanlı Çiğköfteci Aziz Usta');
+    assert.equal(owner?.name, 'places/p/photos/b');
+    assert.equal(first?.name, 'places/p/photos/a');
+  });
+
+  it('işletme fotoğrafı yoksa owner null', () => {
+    assert.equal(pickPhotos([ph('a', 'Ali Veli')], 'Kosovalı Döner').owner, null);
   });
 });
 

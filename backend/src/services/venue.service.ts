@@ -282,6 +282,31 @@ function toSummary(
 }
 
 type Logger = Parameters<typeof findLivePlaces>[1];
+type LivePlace = Awaited<ReturnType<typeof findLivePlaces>>['places'][number];
+
+/**
+ * Kalıcı kayda dönüşmüş Google mekanı: Google içeriği veritabanına yazılmadığı için saat ve fotoğraf listede
+ * canlı Google sonucundan tamamlanır. Esnafın/topluluğun girdiği saat ve gerçek kapak her zaman önceliklidir.
+ */
+function withLiveGoogle(summary: VenueSummaryDTO, place: LivePlace | undefined, origin: LatLng, locale: Locale): VenueSummaryDTO {
+  if (!place || place.source !== 'GOOGLE') return summary;
+  const live = livePlaceSummary(place, origin, locale);
+  const hours = summary.openStatusKnown
+    ? {}
+    : {
+        openStatusKnown: live.openStatusKnown,
+        isScheduledOpen: live.isScheduledOpen,
+        isActiveNow: live.isActiveNow,
+        closesAt: live.closesAt,
+        opensAt: live.opensAt,
+        hoursSource: live.hoursSource,
+      };
+  const photo =
+    (!summary.coverImageUrl || summary.coverIsRepresentative) && live.coverImageUrl && !live.coverIsRepresentative
+      ? { coverImageUrl: live.coverImageUrl, coverImageCredit: live.coverImageCredit, coverIsRepresentative: false }
+      : {};
+  return { ...summary, ...hours, ...photo };
+}
 
 export async function findNearbyVenues(query: NearbyQuery, locale: Locale, log: Logger, now = new Date()) {
   const origin: LatLng = { latitude: query.lat, longitude: query.lng };
@@ -317,15 +342,24 @@ export async function findNearbyVenues(query: NearbyQuery, locale: Locale, log: 
     latestReviews(ids, locale),
   ]);
 
+  // Kendi mekanlarımız her zaman listede; kalan yer canlı gerçek mekanlarla dolar
+  const { places, pending } = await livePromise;
+  const liveById = new Map(places.map((p) => [p.id, p]));
+
   const own = venues
-    .map((v) => toSummary(v, locale, origin, now, { spottedToday, ratings, latest }))
+    .map((v) =>
+      withLiveGoogle(
+        toSummary(v, locale, origin, now, { spottedToday, ratings, latest }),
+        v.externalId ? liveById.get(v.externalId) : undefined,
+        origin,
+        locale,
+      ),
+    )
     .filter((v) => v.distanceMeters <= query.radius)
     .filter((v) => !query.openNowOnly || v.isActiveNow)
     .sort((a, b) => a.distanceMeters - b.distanceMeters)
     .slice(0, query.limit);
 
-  // Kendi mekanlarımız her zaman listede; kalan yer canlı gerçek mekanlarla dolar
-  const { places, pending } = await livePromise;
   // Kalıcı kayda dönüşmüş gerçek mekanlar veritabanından gelir; haritadaki kopyası elenir
   const ownExternalIds = new Set(venues.map((v) => v.externalId).filter((id): id is string => id !== null));
   const live = withoutDuplicates(places, own, ownExternalIds)
@@ -503,7 +537,8 @@ function withGoogle(
     venue.schedules.length > 0 || venue.openingHours !== null || activeOpenOverride(venue.openOverride, venue.openOverrideAt, now) !== null;
   const g = google.dto;
   const cover = g.photos[0];
-  const ownCover = detail.coverImageUrl !== null && !detail.coverIsRepresentative;
+  // Kullanıcının yüklediği Google fotoğrafı yanlış yeri gösterebilir: addan seçilmiş temsili görsel varsa o kalır
+  const ownCover = detail.coverImageUrl !== null && (!detail.coverIsRepresentative || !cover?.byOwner);
   return {
     ...detail,
     google: g,
